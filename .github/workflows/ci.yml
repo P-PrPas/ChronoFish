@@ -19,6 +19,8 @@ jobs:
       - name: Test backend
         working-directory: backend
         run: go test ./...
+      - name: Check source encoding
+        run: python scripts/check_source_encoding.py
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -68,8 +70,25 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/chronofish
     steps:
       - uses: actions/checkout@v4
-      - name: Apply PostgreSQL migrations
-        run: for file in backend/db/migrations/postgres/*.up.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$file"; done
+      - name: Set up Go for PostgreSQL
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+      - name: Boot API and apply PostgreSQL migrations
+        working-directory: backend
+        env:
+          DB_DRIVER: postgres
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/chronofish?sslmode=disable
+          MIGRATIONS_DIR: ${{ github.workspace }}/backend/db/migrations/postgres
+          APP_ENV: production
+        run: |
+          go run ./cmd/api >/tmp/chronofish-postgres.log 2>&1 &
+          api_pid=$!
+          trap 'kill $api_pid' EXIT
+          for i in {1..30}; do curl --fail --silent http://127.0.0.1:8080/api/v1/health && exit 0 || sleep 2; done
+          cat /tmp/chronofish-postgres.log
+          exit 1
       - name: Test PostgreSQL constraints
         run: psql "$DATABASE_URL" -f backend/db/tests/postgres/constraint_checks.sql
       - name: Verify PostgreSQL master seed is idempotent
@@ -94,8 +113,25 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
-      - name: Apply MySQL migrations
-        run: for file in backend/db/migrations/mysql/*.up.sql; do mysql -h 127.0.0.1 -uroot -proot chronofish < "$file"; done
+      - name: Set up Go for MySQL
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+      - name: Boot API and apply MySQL migrations
+        working-directory: backend
+        env:
+          DB_DRIVER: mysql
+          DATABASE_URL: 'root:root@tcp(127.0.0.1:3306)/chronofish?parseTime=true&multiStatements=true'
+          MIGRATIONS_DIR: ${{ github.workspace }}/backend/db/migrations/mysql
+          APP_ENV: production
+        run: |
+          go run ./cmd/api >/tmp/chronofish-mysql.log 2>&1 &
+          api_pid=$!
+          trap 'kill $api_pid' EXIT
+          for i in {1..45}; do curl --fail --silent http://127.0.0.1:8080/api/v1/health && exit 0 || sleep 2; done
+          cat /tmp/chronofish-mysql.log
+          exit 1
       - name: Test MySQL constraints
         run: mysql -h 127.0.0.1 -uroot -proot chronofish < backend/db/tests/mysql/constraint_checks.sql
       - name: Verify MySQL master seed is idempotent

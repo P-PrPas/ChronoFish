@@ -17,7 +17,7 @@ func (s *apiServer) protocolStages(w http.ResponseWriter, r *http.Request, id st
 	profile := s.entities["timing-profiles"]["01900000-0000-7000-8000-000000000002"]
 	s.mu.RUnlock()
 	if !ok {
-		writeAPIError(w, 404, "not_found", "à¹„à¸¡à¹ˆà¸žà¸š protocol")
+		writeAPIError(w, 404, "not_found", "ไม่พบ protocol")
 		return true
 	}
 	_ = p
@@ -34,7 +34,7 @@ func (s *apiServer) currentTiming(w http.ResponseWriter) bool {
 			return true
 		}
 	}
-	writeAPIError(w, 404, "not_found", "à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¸¡à¸µ timing profile")
+	writeAPIError(w, 404, "not_found", "ยังไม่มี timing profile")
 	return true
 }
 
@@ -42,7 +42,7 @@ func (s *apiServer) timingCSV(w http.ResponseWriter, r *http.Request) bool {
 	if r.Method == http.MethodGet {
 		protocolID := strings.TrimSpace(r.URL.Query().Get("protocolId"))
 		if !isUUID(protocolID) {
-			writeAPIError(w, http.StatusBadRequest, "invalid_query", "protocolId à¸•à¹‰à¸­à¸‡à¹€à¸›à¹‡à¸™ UUID")
+			writeAPIError(w, http.StatusBadRequest, "invalid_query", "protocolId ต้องเป็น UUID")
 			return true
 		}
 		s.mu.RLock()
@@ -52,7 +52,7 @@ func (s *apiServer) timingCSV(w http.ResponseWriter, r *http.Request) bool {
 		}
 		s.mu.RUnlock()
 		if profile == nil {
-			writeAPIError(w, http.StatusNotFound, "not_found", "à¹„à¸¡à¹ˆà¸žà¸š timing profile à¸‚à¸­à¸‡ protocol")
+			writeAPIError(w, http.StatusNotFound, "not_found", "ไม่พบ timing profile ของ protocol")
 			return true
 		}
 		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
@@ -81,7 +81,7 @@ func timingCSVInput(body io.Reader) (map[string]any, error) {
 	reader.FieldsPerRecord = -1
 	header, err := reader.Read()
 	if err != nil {
-		return nil, errors.New("CSV à¸•à¹‰à¸­à¸‡à¸¡à¸µ header à¹à¸¥à¸°à¸­à¸¢à¹ˆà¸²à¸‡à¸™à¹‰à¸­à¸¢à¸«à¸™à¸¶à¹ˆà¸‡à¹à¸–à¸§")
+		return nil, errors.New("CSV ต้องมี header และอย่างน้อยหนึ่งแถว")
 	}
 	for i := range header {
 		header[i] = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(header[i], "\ufeff")))
@@ -92,7 +92,7 @@ func timingCSVInput(body io.Reader) (map[string]any, error) {
 	}
 	for _, field := range []string{"stage_order", "stage_code", "label", "expected_hpa"} {
 		if _, ok := indexes[field]; !ok {
-			return nil, fmt.Errorf("CSV à¸‚à¸²à¸”à¸„à¸­à¸¥à¸±à¸¡à¸™à¹Œ %s", field)
+			return nil, fmt.Errorf("CSV ขาดคอลัมน์ %s", field)
 		}
 	}
 	entries := make([]any, 0, 36)
@@ -103,7 +103,7 @@ func timingCSVInput(body io.Reader) (map[string]any, error) {
 			break
 		}
 		if readErr != nil {
-			return nil, fmt.Errorf("CSV à¹à¸–à¸§ %d à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡: %w", rowNo, readErr)
+			return nil, fmt.Errorf("CSV แถว %d ไม่ถูกต้อง: %w", rowNo, readErr)
 		}
 		value := func(field string) string {
 			index := indexes[field]
@@ -115,7 +115,7 @@ func timingCSVInput(body io.Reader) (map[string]any, error) {
 		order, parseOrderErr := strconv.Atoi(value("stage_order"))
 		hpa, parseHPAErr := strconv.ParseFloat(value("expected_hpa"), 64)
 		if parseOrderErr != nil || order < 1 || order > 36 || parseHPAErr != nil || hpa < 0 || value("stage_code") == "" || value("label") == "" || seen[order] {
-			return nil, fmt.Errorf("CSV à¹à¸–à¸§ %d à¸¡à¸µ stage à¸«à¸£à¸·à¸­ expected_hpa à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡", rowNo)
+			return nil, fmt.Errorf("CSV แถว %d มี stage หรือ expected_hpa ไม่ถูกต้อง", rowNo)
 		}
 		seen[order] = true
 		entries = append(entries, map[string]any{
@@ -124,7 +124,7 @@ func timingCSVInput(body io.Reader) (map[string]any, error) {
 		})
 	}
 	if len(entries) == 0 {
-		return nil, errors.New("CSV à¸•à¹‰à¸­à¸‡à¸¡à¸µà¸‚à¹‰à¸­à¸¡à¸¹à¸¥ timing à¸­à¸¢à¹ˆà¸²à¸‡à¸™à¹‰à¸­à¸¢à¸«à¸™à¸¶à¹ˆà¸‡à¹à¸–à¸§")
+		return nil, errors.New("CSV ต้องมีข้อมูล timing อย่างน้อยหนึ่งแถว")
 	}
 	return map[string]any{
 		"protocolId": "01900000-0000-7000-8000-000000000001",
@@ -135,14 +135,14 @@ func timingCSVInput(body io.Reader) (map[string]any, error) {
 func (s *apiServer) createTiming(w http.ResponseWriter, r *http.Request, input map[string]any) bool {
 	entries, ok := input["entries"].([]any)
 	if !ok || len(entries) == 0 {
-		writeAPIError(w, 422, "validation_error", "à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ entries à¸‚à¸­à¸‡ timing profile")
+		writeAPIError(w, 422, "validation_error", "ต้องระบุ entries ของ timing profile")
 		return true
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	protocolID := stringValue(input["protocolId"])
 	if !isUUID(protocolID) || s.entities["protocols"][protocolID] == nil {
-		writeAPIError(w, 422, "validation_error", "protocolId à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡à¸«à¸£à¸·à¸­à¹„à¸¡à¹ˆà¸žà¸š protocol")
+		writeAPIError(w, 422, "validation_error", "protocolId ไม่ถูกต้องหรือไม่พบ protocol")
 		return true
 	}
 	id := uuidV7()
@@ -152,22 +152,22 @@ func (s *apiServer) createTiming(w http.ResponseWriter, r *http.Request, input m
 	for _, raw := range entries {
 		entry, ok := raw.(map[string]any)
 		if !ok || stringValue(entry["stageCode"]) == "" || stringValue(entry["stageLabel"]) == "" {
-			writeAPIError(w, 422, "validation_error", "timing entry à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+			writeAPIError(w, 422, "validation_error", "timing entry ไม่ถูกต้อง")
 			return true
 		}
 		order := intValue(entry["stageOrder"])
 		if order < 1 || order > 36 || stageNumber(stringValue(entry["stageCode"])) != order {
-			writeAPIError(w, 422, "validation_error", "stageOrder à¹à¸¥à¸° stageCode à¹„à¸¡à¹ˆà¸ªà¸­à¸”à¸„à¸¥à¹‰à¸­à¸‡à¸à¸±à¸™")
+			writeAPIError(w, 422, "validation_error", "stageOrder และ stageCode ไม่สอดคล้องกัน")
 			return true
 		}
 		if _, ok := entry["expectedHpa"].(float64); !ok {
 			if _, ok := entry["expectedHpa"].(int); !ok {
-				writeAPIError(w, 422, "validation_error", "expectedHpa à¸•à¹‰à¸­à¸‡à¹€à¸›à¹‡à¸™à¸•à¸±à¸§à¹€à¸¥à¸‚")
+				writeAPIError(w, 422, "validation_error", "expectedHpa ต้องเป็นตัวเลข")
 				return true
 			}
 		}
 		if numberValue(entry["expectedHpa"]) < 0 {
-			writeAPIError(w, 422, "validation_error", "expectedHpa à¸•à¹‰à¸­à¸‡à¹„à¸¡à¹ˆà¸™à¹‰à¸­à¸¢à¸à¸§à¹ˆà¸² 0")
+			writeAPIError(w, 422, "validation_error", "expectedHpa ต้องไม่น้อยกว่า 0")
 			return true
 		}
 		if stringValue(entry["id"]) == "" {

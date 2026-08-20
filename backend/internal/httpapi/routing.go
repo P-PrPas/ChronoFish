@@ -58,7 +58,7 @@ func (s *apiServer) route(w http.ResponseWriter, r *http.Request, p []string) bo
 	if p[0] == "timing-profiles" && len(p) == 1 && r.Method == http.MethodPost {
 		input, err := readMap(r)
 		if err != nil {
-			writeAPIError(w, http.StatusBadRequest, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+			writeAPIError(w, http.StatusBadRequest, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 			return true
 		}
 		return s.createTiming(w, r, input)
@@ -78,7 +78,7 @@ func (s *apiServer) route(w http.ResponseWriter, r *http.Request, p []string) bo
 
 func (s *apiServer) entity(w http.ResponseWriter, r *http.Request, resource string, p []string) bool {
 	if resource == "protocols" && r.Method != http.MethodGet {
-		writeAPIError(w, http.StatusMethodNotAllowed, "read_only", "protocol à¹à¸¥à¸° stage à¹€à¸›à¹‡à¸™à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸­à¹‰à¸²à¸‡à¸­à¸´à¸‡à¹à¸šà¸šà¸­à¹ˆà¸²à¸™à¸­à¸¢à¹ˆà¸²à¸‡à¹€à¸”à¸µà¸¢à¸§")
+		writeAPIError(w, http.StatusMethodNotAllowed, "read_only", "protocol และ stage เป็นข้อมูลอ้างอิงแบบอ่านอย่างเดียว")
 		return true
 	}
 	if resource == "protocols" && r.Method == http.MethodGet && len(p) == 0 {
@@ -130,7 +130,7 @@ func (s *apiServer) getEntity(w http.ResponseWriter, resource, id string) bool {
 	defer s.mu.RUnlock()
 	item, ok := s.entities[resource][id]
 	if !ok {
-		writeAPIError(w, http.StatusNotFound, "not_found", "à¹„à¸¡à¹ˆà¸žà¸šà¸£à¸²à¸¢à¸à¸²à¸£à¸—à¸µà¹ˆà¸£à¹‰à¸­à¸‡à¸‚à¸­")
+		writeAPIError(w, http.StatusNotFound, "not_found", "ไม่พบรายการที่ร้องขอ")
 		return true
 	}
 	result := cloneMap(item)
@@ -186,7 +186,7 @@ func (s *apiServer) getEntity(w http.ResponseWriter, resource, id string) bool {
 func (s *apiServer) createEntity(w http.ResponseWriter, r *http.Request, resource string) bool {
 	input, err := readMap(r)
 	if err != nil {
-		writeAPIError(w, http.StatusBadRequest, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		writeAPIError(w, http.StatusBadRequest, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 		return true
 	}
 	normalizeMap(input)
@@ -209,19 +209,19 @@ func (s *apiServer) createEntity(w http.ResponseWriter, r *http.Request, resourc
 		}
 		ref := s.entities[refResource][stringValue(input[field])]
 		if ref == nil || ref["active"] == false {
-			writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "à¹„à¸¡à¹ˆà¸žà¸š "+field+" à¸—à¸µà¹ˆ active")
+			writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "ไม่พบ "+field+" ที่ active")
 			return true
 		}
 	}
 	if resource == "fish" {
 		if _, err := time.ParseInLocation("2006-01-02", stringValue(input["dob"]), bangkokLocation()); err != nil {
-			writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "dob à¸•à¹‰à¸­à¸‡à¹€à¸›à¹‡à¸™à¸§à¸±à¸™à¸—à¸µà¹ˆ YYYY-MM-DD")
+			writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "dob ต้องเป็นวันที่ YYYY-MM-DD")
 			return true
 		}
 		if runningNo := intValue(input["runningNo"]); runningNo > 0 {
 			for _, existing := range s.entities["fish"] {
 				if intValue(existing["runningNo"]) == runningNo {
-					writeAPIError(w, http.StatusConflict, "conflict", "runningNo à¸‹à¹‰à¸³")
+					writeAPIError(w, http.StatusConflict, "conflict", "runningNo ซ้ำ")
 					return true
 				}
 			}
@@ -232,7 +232,7 @@ func (s *apiServer) createEntity(w http.ResponseWriter, r *http.Request, resourc
 			}
 			ref := s.entities[refResource][stringValue(input[field])]
 			if ref == nil || ref["active"] == false {
-				writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "à¹„à¸¡à¹ˆà¸žà¸š "+field+" à¸—à¸µà¹ˆ active")
+				writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "ไม่พบ "+field+" ที่ active")
 				return true
 			}
 		}
@@ -242,7 +242,7 @@ func (s *apiServer) createEntity(w http.ResponseWriter, r *http.Request, resourc
 		return true
 	}
 	if duplicateEntity(s.entities[resource], resource, input) {
-		writeAPIError(w, http.StatusConflict, "conflict", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸‹à¹‰à¸³à¸à¸±à¸šà¸£à¸²à¸¢à¸à¸²à¸£à¸—à¸µà¹ˆà¸¡à¸µà¸­à¸¢à¸¹à¹ˆà¹à¸¥à¹‰à¸§")
+		writeAPIError(w, http.StatusConflict, "conflict", "ข้อมูลซ้ำกับรายการที่มีอยู่แล้ว")
 		return true
 	}
 	id := stringValue(input["id"])
@@ -282,7 +282,7 @@ func (s *apiServer) createEntity(w http.ResponseWriter, r *http.Request, resourc
 
 func (s *apiServer) patchEntity(w http.ResponseWriter, r *http.Request, resource, id string) bool {
 	if resource == "timing-profiles" {
-		writeAPIError(w, http.StatusConflict, "immutable", "timing profile à¹€à¸”à¸´à¸¡à¹à¸à¹‰à¹„à¸‚à¹„à¸¡à¹ˆà¹„à¸”à¹‰ à¹ƒà¸«à¹‰à¸ªà¸£à¹‰à¸²à¸‡ version à¹ƒà¸«à¸¡à¹ˆ")
+		writeAPIError(w, http.StatusConflict, "immutable", "timing profile เดิมแก้ไขไม่ได้ ให้สร้าง version ใหม่")
 		return true
 	}
 	input := map[string]any{}
@@ -290,7 +290,7 @@ func (s *apiServer) patchEntity(w http.ResponseWriter, r *http.Request, resource
 		var err error
 		input, err = readMap(r)
 		if err != nil {
-			writeAPIError(w, http.StatusBadRequest, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+			writeAPIError(w, http.StatusBadRequest, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 			return true
 		}
 	}
@@ -299,7 +299,7 @@ func (s *apiServer) patchEntity(w http.ResponseWriter, r *http.Request, resource
 	defer s.mu.Unlock()
 	item, ok := s.entities[resource][id]
 	if !ok {
-		writeAPIError(w, http.StatusNotFound, "not_found", "à¹„à¸¡à¹ˆà¸žà¸šà¸£à¸²à¸¢à¸à¸²à¸£à¸—à¸µà¹ˆà¸£à¹‰à¸­à¸‡à¸‚à¸­")
+		writeAPIError(w, http.StatusNotFound, "not_found", "ไม่พบรายการที่ร้องขอ")
 		return true
 	}
 	old := cloneMap(item)
@@ -329,14 +329,14 @@ func validateEntity(resource string, input map[string]any) error {
 	}
 	for _, field := range required[resource] {
 		if stringValue(input[field]) == "" {
-			return fmt.Errorf("à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ %s", field)
+			return fmt.Errorf("ต้องระบุ %s", field)
 		}
 	}
 	if resource == "donor-cell-lines" && stringValue(input["preparation"]) != "DISSOCIATED" && stringValue(input["preparation"]) != "CHUNKS" {
-		return errors.New("preparation à¸•à¹‰à¸­à¸‡à¹€à¸›à¹‡à¸™ DISSOCIATED à¸«à¸£à¸·à¸­ CHUNKS")
+		return errors.New("preparation ต้องเป็น DISSOCIATED หรือ CHUNKS")
 	}
 	if resource == "treatment-groups" && stringValue(input["armType"]) != "SCNT" && stringValue(input["armType"]) != "NATURAL_BREEDING" && stringValue(input["armType"]) != "IVF" {
-		return errors.New("armType à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		return errors.New("armType ไม่ถูกต้อง")
 	}
 	return nil
 }

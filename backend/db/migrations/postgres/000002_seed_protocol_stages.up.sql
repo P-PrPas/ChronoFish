@@ -11,6 +11,9 @@
 -- re-run across environments.
 -- =============================================================================
 
+INSERT INTO operator (id, name, active, created_at, updated_at) VALUES
+    ('00000000-0000-7000-8000-000000000001', 'Demo operator', TRUE, TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00');
+
 INSERT INTO protocol (id, name, stage1_max_age_days, active, created_at, updated_at) VALUES
     ('01900000-0000-7000-8000-000000000001', 'SCNT standard', 5, TRUE, TIMESTAMP '2026-01-01 00:00:00', TIMESTAMP '2026-01-01 00:00:00');
 

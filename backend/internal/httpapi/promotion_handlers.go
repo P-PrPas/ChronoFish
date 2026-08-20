@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/P-PrPas/ChronoFish/backend/internal/service"
+	"github.com/P-PrPas/ChronoFish/backend/internal/domain"
 )
 
 func (s *apiServer) promotions(w http.ResponseWriter, r *http.Request, p []string) bool {
@@ -22,7 +22,7 @@ func (s *apiServer) promotions(w http.ResponseWriter, r *http.Request, p []strin
 			}
 			lot := s.entities["injection-lots"][stringValue(e["injectionLotId"])]
 			activated, err := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
-			if err == nil && service.PromotionDecision(e["exitReason"] != nil, true, calendarAge(activated, now), 5) {
+			if err == nil && domain.PromotionEligible(e["exitReason"] != nil, true, calendarAge(activated, now), 5) {
 				items = append(items, map[string]any{"embryoId": e["id"], "embryoCode": e["embryoCode"], "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "ageDays": calendarAge(activated, now), "suggestedFishCode": "No." + strconv.Itoa(s.fishNo), "suggestedRunningNo": s.fishNo})
 			}
 		}
@@ -47,12 +47,12 @@ func (s *apiServer) fishForEmbryoLocked(embryoID string) map[string]any {
 func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) bool {
 	input, err := readMap(r)
 	if err != nil {
-		writeAPIError(w, 400, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		writeAPIError(w, 400, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 		return true
 	}
 	raw, ok := input["promotions"].([]any)
 	if !ok || len(raw) == 0 {
-		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ promotions à¸­à¸¢à¹ˆà¸²à¸‡à¸™à¹‰à¸­à¸¢à¸«à¸™à¸¶à¹ˆà¸‡à¸£à¸²à¸¢à¸à¸²à¸£")
+		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "ต้องระบุ promotions อย่างน้อยหนึ่งรายการ")
 		return true
 	}
 	s.mu.Lock()
@@ -65,7 +65,7 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 		}
 		client := stringValue(item["clientUuid"])
 		if client == "" || !isUUID(client) {
-			results = append(results, map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "clientUuid à¸•à¹‰à¸­à¸‡à¹€à¸›à¹‡à¸™ UUID"}})
+			results = append(results, map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "clientUuid ต้องเป็น UUID"}})
 			continue
 		}
 		if body, ok := s.idempotency["promotion:"+client]; ok {
@@ -79,9 +79,9 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
 		batch := s.entities["batches"][stringValue(lot["batchId"])]
 		activated, activatedErr := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
-		eligible := ok && lot != nil && batch != nil && activatedErr == nil && service.PromotionDecision(embryo["exitReason"] != nil, latest != nil && stringValue(latest["outcome"]) == "ALIVE", calendarAge(activated, time.Now().UTC()), 5)
+		eligible := ok && lot != nil && batch != nil && activatedErr == nil && domain.PromotionEligible(embryo["exitReason"] != nil, latest != nil && stringValue(latest["outcome"]) == "ALIVE", calendarAge(activated, time.Now().UTC()), 5)
 		if !eligible {
-			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "embryo à¸¢à¸±à¸‡à¹„à¸¡à¹ˆà¹€à¸‚à¹‰à¸²à¹€à¸à¸“à¸‘à¹Œà¹€à¸¥à¸·à¹ˆà¸­à¸™à¸‚à¸±à¹‰à¸™"}}
+			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "embryo ยังไม่เข้าเกณฑ์เลื่อนขั้น"}}
 			body, _ := json.Marshal(result)
 			s.idempotency["promotion:"+client] = body
 			results = append(results, result)
@@ -100,7 +100,7 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 			fishCode = "No." + strconv.Itoa(s.fishNo)
 		}
 		if s.fishCodeExistsLocked(fishCode) {
-			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "fishCode à¸‹à¹‰à¸³à¸à¸±à¸šà¸£à¸²à¸¢à¸à¸²à¸£à¹€à¸”à¸´à¸¡"}}
+			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "fishCode ซ้ำกับรายการเดิม"}}
 			body, _ := json.Marshal(result)
 			s.idempotency["promotion:"+client] = body
 			results = append(results, result)
@@ -161,27 +161,27 @@ func (s *apiServer) specimens(w http.ResponseWriter, r *http.Request, fishID str
 	fishExists := s.entities["fish"][fishID] != nil
 	s.mu.RUnlock()
 	if !fishExists {
-		writeAPIError(w, http.StatusNotFound, "not_found", "à¹„à¸¡à¹ˆà¸žà¸šà¸›à¸¥à¸²")
+		writeAPIError(w, http.StatusNotFound, "not_found", "ไม่พบปลา")
 		return true
 	}
 	input, err := readMap(r)
 	if err != nil {
-		writeAPIError(w, 400, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		writeAPIError(w, 400, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 		return true
 	}
 	normalizeMap(input)
 	for _, field := range []string{"specimenCode", "specimenKind", "specimenType"} {
 		if stringValue(input[field]) == "" {
-			writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ "+field)
+			writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "ต้องระบุ "+field)
 			return true
 		}
 	}
 	if stringValue(input["specimenKind"]) != "CL" && stringValue(input["specimenKind"]) != "RT" && stringValue(input["specimenKind"]) != "DC" {
-		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "specimenKind à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "specimenKind ไม่ถูกต้อง")
 		return true
 	}
 	if stringValue(input["specimenType"]) != "WHOLE_EMBRYO" && stringValue(input["specimenType"]) != "CAUDAL_FIN_CLIP" {
-		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "specimenType à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "specimenType ไม่ถูกต้อง")
 		return true
 	}
 	s.mu.Lock()

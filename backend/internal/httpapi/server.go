@@ -15,6 +15,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
+
+	storepkg "github.com/P-PrPas/ChronoFish/backend/internal/store"
 )
 
 var version = "dev"
@@ -36,6 +39,7 @@ type errorBody struct {
 
 type apiServer struct {
 	buildVersion      string
+	startupErr        error
 	store             stateStore
 	mu                sync.RWMutex
 	entities          map[string]map[string]map[string]any
@@ -113,12 +117,16 @@ func expectedHPA(code string) float64 {
 }
 
 func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if s.startupErr != nil {
+		writeAPIError(w, http.StatusServiceUnavailable, "persistence_unavailable", "ฐานข้อมูลยังไม่พร้อมใช้งาน")
+		return
+	}
 	if r.URL.Path == "/api/v1/health" && r.Method == http.MethodGet {
 		writeJSON(w, http.StatusOK, healthResponse{Status: "ok", Version: s.buildVersion})
 		return
 	}
 	if !strings.HasPrefix(r.URL.Path, "/api/v1/") {
-		writeAPIError(w, http.StatusNotFound, "not_found", "à¹€à¸ªà¹‰à¸™à¸—à¸²à¸‡à¸™à¸µà¹‰à¹„à¸¡à¹ˆà¸¡à¸µà¸­à¸¢à¸¹à¹ˆà¹ƒà¸™ API")
+		writeAPIError(w, http.StatusNotFound, "not_found", "เส้นทางนี้ไม่มีอยู่ใน API")
 		return
 	}
 	if r.Method == http.MethodOptions {
@@ -138,7 +146,7 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if mutation && r.Body != nil {
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 2<<20))
 		if err != nil {
-			writeAPIError(w, http.StatusRequestEntityTooLarge, "body_too_large", "request body à¹ƒà¸«à¸à¹ˆà¹€à¸à¸´à¸™ 2 MiB")
+			writeAPIError(w, http.StatusRequestEntityTooLarge, "body_too_large", "request body ใหญ่เกิน 2 MiB")
 			return
 		}
 		r.Body = io.NopCloser(bytes.NewReader(body))
@@ -146,35 +154,72 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fingerprint = hex.EncodeToString(digest[:])
 	}
 	if mutation {
-		s.mu.RLock()
-		previous := s.idempotency[requestScope]
-		previousStatus := s.idempotencyStatus[requestScope]
-		previousBinary := s.idempotencyBinary[requestScope]
-		previousHash := s.idempotencyHash[requestScope]
-		s.mu.RUnlock()
-		if previous != nil || previousStatus > 0 {
-			if previousHash != "" && fingerprint != "" && previousHash != fingerprint {
-				writeAPIError(w, http.StatusConflict, "idempotency_conflict", "X-Idempotency-Key à¸–à¸¹à¸à¹ƒà¸Šà¹‰à¸à¸±à¸š request body à¸­à¸·à¹ˆà¸™à¹à¸¥à¹‰à¸§")
+		if atomicStore, ok := s.store.(atomicStateStore); ok {
+			reservation := storepkg.Mutation{Scope: requestScope, Key: idempotencyKey, RequestHash: fingerprint, OperatorID: r.Header.Get("X-Operator-Id"), DeviceID: r.Header.Get("X-Device-Id")}
+			reserved, created, err := atomicStore.Reserve(r.Context(), reservation)
+			if err != nil {
+				if errors.Is(err, storepkg.ErrIdempotencyConflict) {
+					writeAPIError(w, http.StatusConflict, "idempotency_conflict", "X-Idempotency-Key ถูกใช้กับ request อื่นแล้ว")
+				} else {
+					writeAPIError(w, http.StatusServiceUnavailable, "persistence_unavailable", "ฐานข้อมูลยังไม่พร้อมใช้งาน")
+				}
 				return
 			}
-			if previousStatus == 0 {
-				previousStatus = http.StatusOK
-			}
-			if previousStatus == http.StatusNoContent {
-				w.WriteHeader(previousStatus)
-				return
-			}
-			if previousBinary {
-				var encoded string
-				if json.Unmarshal(previous, &encoded) == nil {
-					if body, err := base64.StdEncoding.DecodeString(encoded); err == nil {
-						writeBytes(w, previousStatus, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", body)
+			if !created {
+				if reserved.Status == 102 {
+					waitContext, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+					reserved, err = atomicStore.WaitForCompletion(waitContext, reservation)
+					cancel()
+					if err != nil {
+						writeAPIError(w, http.StatusServiceUnavailable, "idempotency_in_progress", "request เดิมกำลังถูกประมวลผล")
 						return
 					}
 				}
+				replayMutation(w, reserved)
+				return
 			}
-			writeRaw(w, previousStatus, previous)
-			return
+		} else {
+			s.mu.RLock()
+			previous := s.idempotency[requestScope]
+			previousStatus := s.idempotencyStatus[requestScope]
+			previousBinary := s.idempotencyBinary[requestScope]
+			previousHash := s.idempotencyHash[requestScope]
+			s.mu.RUnlock()
+			if previous != nil || previousStatus > 0 {
+				if previousHash != "" && fingerprint != "" && previousHash != fingerprint {
+					writeAPIError(w, http.StatusConflict, "idempotency_conflict", "X-Idempotency-Key ถูกใช้กับ request อื่นแล้ว")
+					return
+				}
+				if previousStatus == 0 {
+					previousStatus = http.StatusOK
+				}
+				if previousStatus == http.StatusNoContent {
+					w.WriteHeader(previousStatus)
+					return
+				}
+				if previousBinary {
+					var encoded string
+					if json.Unmarshal(previous, &encoded) == nil {
+						if body, err := base64.StdEncoding.DecodeString(encoded); err == nil {
+							writeBytes(w, previousStatus, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", body)
+							return
+						}
+					}
+				}
+				writeRaw(w, previousStatus, previous)
+				return
+			}
+		}
+	}
+	originalWriter := w
+	var atomicStore atomicStateStore
+	var before storepkg.State
+	var reservation *storepkg.Mutation
+	if mutation {
+		atomicStore, _ = s.store.(atomicStateStore)
+		if atomicStore != nil {
+			before = cloneState(stateFromServer(s))
+			reservation = &storepkg.Mutation{Scope: requestScope, Key: idempotencyKey, RequestHash: fingerprint, OperatorID: r.Header.Get("X-Operator-Id"), DeviceID: r.Header.Get("X-Device-Id")}
 		}
 	}
 	recorded := &responseRecorder{ResponseWriter: w}
@@ -184,34 +229,78 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	if handled := s.route(w, r, parts); !handled {
-		writeAPIError(w, http.StatusNotFound, "not_found", "à¹„à¸¡à¹ˆà¸žà¸š endpoint à¸—à¸µà¹ˆà¸£à¹‰à¸­à¸‡à¸‚à¸­")
+		writeAPIError(w, http.StatusNotFound, "not_found", "ไม่พบ endpoint ที่ร้องขอ")
 	}
-	if mutation && recorded.status >= http.StatusOK && recorded.status < http.StatusBadRequest {
+	if mutation && atomicStore != nil {
+		if recorded.status == 0 {
+			recorded.status = http.StatusOK
+		}
+		contentType := recorded.Header().Get("Content-Type")
+		mutationResult := *reservation
+		storedBody := append([]byte(nil), recorded.body...)
+		if strings.Contains(contentType, "spreadsheetml") {
+			storedBody = []byte(base64.StdEncoding.EncodeToString(recorded.body))
+		}
+		mutationResult.Status, mutationResult.ContentType, mutationResult.Body = recorded.status, contentType, storedBody
+		state := stateFromServer(s)
+		if err := atomicStore.Commit(r.Context(), &state, &mutationResult); err != nil {
+			_ = atomicStore.Abort(context.Background(), mutationResult)
+			applyState(s, before)
+			log.Printf("persist mutation: %v", err)
+			writeAPIError(originalWriter, http.StatusServiceUnavailable, "persistence_unavailable", "ฐานข้อมูลยังไม่พร้อมใช้งาน")
+			return
+		}
+		s.mu.Lock()
+		if strings.Contains(contentType, "spreadsheetml") {
+			encoded, _ := json.Marshal(base64.StdEncoding.EncodeToString(recorded.body))
+			s.idempotency[requestScope], s.idempotencyBinary[requestScope] = encoded, true
+		} else {
+			s.idempotency[requestScope], s.idempotencyBinary[requestScope] = append([]byte(nil), recorded.body...), false
+		}
+		s.idempotencyStatus[requestScope], s.idempotencyHash[requestScope] = recorded.status, fingerprint
+		s.mu.Unlock()
+	} else if mutation && recorded.status >= http.StatusOK && recorded.status < http.StatusBadRequest {
 		s.mu.Lock()
 		if strings.Contains(recorded.Header().Get("Content-Type"), "spreadsheetml") {
 			encoded, _ := json.Marshal(base64.StdEncoding.EncodeToString(recorded.body))
-			s.idempotency[requestScope] = encoded
-			s.idempotencyBinary[requestScope] = true
+			s.idempotency[requestScope], s.idempotencyBinary[requestScope] = encoded, true
 		} else {
-			s.idempotency[requestScope] = append([]byte(nil), recorded.body...)
-			if s.idempotency[requestScope] == nil {
-				s.idempotency[requestScope] = []byte{}
-			}
+			s.idempotency[requestScope], s.idempotencyBinary[requestScope] = append([]byte(nil), recorded.body...), false
 		}
-		s.idempotencyStatus[requestScope] = recorded.status
-		s.idempotencyHash[requestScope] = fingerprint
+		s.idempotencyStatus[requestScope], s.idempotencyHash[requestScope] = recorded.status, fingerprint
 		s.mu.Unlock()
 	}
-	if s.store != nil && r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+	if s.store != nil && atomicStore == nil && mutation {
 		if err := s.store.Save(context.Background(), s); err != nil {
 			log.Printf("persist mutation: %v", err)
-			writeAPIError(w, http.StatusServiceUnavailable, "persistence_unavailable", "à¹„à¸¡à¹ˆà¸ªà¸²à¸¡à¸²à¸£à¸–à¸šà¸±à¸™à¸—à¸¶à¸à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¹„à¸”à¹‰ à¹‚à¸›à¸£à¸”à¸¥à¸­à¸‡à¸­à¸µà¸à¸„à¸£à¸±à¹‰à¸‡")
+			writeAPIError(originalWriter, http.StatusServiceUnavailable, "persistence_unavailable", "ฐานข้อมูลยังไม่พร้อมใช้งาน")
 			return
 		}
 	}
 	if mutation {
 		recorded.flush()
 	}
+}
+
+func replayMutation(w http.ResponseWriter, mutation storepkg.Mutation) {
+	if mutation.Status == http.StatusNoContent {
+		w.WriteHeader(mutation.Status)
+		return
+	}
+	if strings.Contains(mutation.ContentType, "spreadsheetml") {
+		body, err := base64.StdEncoding.DecodeString(strings.Trim(string(mutation.Body), "\""))
+		if err == nil {
+			writeBytes(w, mutation.Status, mutation.ContentType, body)
+			return
+		}
+		writeBytes(w, mutation.Status, mutation.ContentType, mutation.Body)
+		return
+	}
+	if mutation.ContentType == "" || strings.Contains(mutation.ContentType, "application/json") {
+		writeRaw(w, mutation.Status, mutation.Body)
+		return
+	}
+	writeBytes(w, mutation.Status, mutation.ContentType, mutation.Body)
 }
 
 type responseRecorder struct {
@@ -253,19 +342,19 @@ func (s *apiServer) validateWriteContext(r *http.Request, parts []string) error 
 	operatorID := strings.TrimSpace(r.Header.Get("X-Operator-Id"))
 	deviceID := strings.TrimSpace(r.Header.Get("X-Device-Id"))
 	if !isUUID(operatorID) || deviceID == "" || len(deviceID) > 64 || strings.ContainsAny(deviceID, "\r\n") {
-		return errors.New("X-Operator-Id à¸•à¹‰à¸­à¸‡à¹€à¸›à¹‡à¸™ UUID à¹à¸¥à¸° X-Device-Id à¸•à¹‰à¸­à¸‡à¸¡à¸µà¸„à¸§à¸²à¸¡à¸¢à¸²à¸§à¹„à¸¡à¹ˆà¹€à¸à¸´à¸™ 64 à¸•à¸±à¸§à¸­à¸±à¸à¸©à¸£")
+		return errors.New("X-Operator-Id ต้องเป็น UUID และ X-Device-Id ต้องมีความยาวไม่เกิน 64 ตัวอักษร")
 	}
 	if !(len(parts) > 0 && parts[0] == "operators" && len(parts) == 1 && r.Method == http.MethodPost) {
 		s.mu.RLock()
 		operator := s.entities["operators"][operatorID]
 		s.mu.RUnlock()
 		if operator == nil || operator["active"] == false {
-			return errors.New("operator à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡à¸«à¸£à¸·à¸­à¸–à¸¹à¸à¸›à¸´à¸”à¹ƒà¸Šà¹‰à¸‡à¸²à¸™")
+			return errors.New("operator ไม่ถูกต้องหรือถูกปิดใช้งาน")
 		}
 	}
 	key := r.Header.Get("X-Idempotency-Key")
 	if key == "" || !isUUID(key) {
-		return errors.New("à¸—à¸¸à¸à¸à¸²à¸£à¸šà¸±à¸™à¸—à¸¶à¸à¸•à¹‰à¸­à¸‡à¸¡à¸µ X-Idempotency-Key à¸—à¸µà¹ˆà¹€à¸›à¹‡à¸™ UUID")
+		return errors.New("ทุกการบันทึกต้องมี X-Idempotency-Key ที่เป็น UUID")
 	}
 	return nil
 }

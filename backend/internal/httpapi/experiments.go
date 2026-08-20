@@ -12,13 +12,13 @@ import (
 func (s *apiServer) createBatch(w http.ResponseWriter, r *http.Request) bool {
 	input, err := readMap(r)
 	if err != nil {
-		writeAPIError(w, 400, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		writeAPIError(w, 400, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 		return true
 	}
 	normalizeMap(input)
 	for _, field := range []string{"experimentDate", "siteId", "operatorId", "protocolId", "treatmentGroupId"} {
 		if stringValue(input[field]) == "" {
-			writeAPIError(w, 422, "validation_error", "à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ "+field)
+			writeAPIError(w, 422, "validation_error", "ต้องระบุ "+field)
 			return true
 		}
 	}
@@ -27,7 +27,7 @@ func (s *apiServer) createBatch(w http.ResponseWriter, r *http.Request) bool {
 	for resource, field := range map[string]string{"sites": "siteId", "operators": "operatorId", "protocols": "protocolId", "treatment-groups": "treatmentGroupId"} {
 		ref := s.entities[resource][stringValue(input[field])]
 		if ref == nil || ref["active"] == false {
-			writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "à¹„à¸¡à¹ˆà¸žà¸š "+field+" à¸—à¸µà¹ˆ active")
+			writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "ไม่พบ "+field+" ที่ active")
 			return true
 		}
 	}
@@ -36,7 +36,7 @@ func (s *apiServer) createBatch(w http.ResponseWriter, r *http.Request) bool {
 		profileID = "01900000-0000-7000-8000-000000000002"
 	}
 	if profile := s.entities["timing-profiles"][profileID]; profile == nil || profile["deletedAt"] != nil {
-		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "à¹„à¸¡à¹ˆà¸žà¸š timing profile")
+		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "ไม่พบ timing profile")
 		return true
 	}
 	key := idempotencyKey(r, input)
@@ -46,7 +46,7 @@ func (s *apiServer) createBatch(w http.ResponseWriter, r *http.Request) bool {
 	}
 	for _, existing := range s.entities["batches"] {
 		if strings.EqualFold(strings.TrimSpace(stringValue(existing["batchCode"])), strings.TrimSpace(stringValue(input["batchCode"]))) && stringValue(input["batchCode"]) != "" {
-			writeAPIError(w, http.StatusConflict, "conflict", "batchCode à¸‹à¹‰à¸³à¸à¸±à¸šà¸£à¸²à¸¢à¸à¸²à¸£à¸—à¸µà¹ˆà¸¡à¸µà¸­à¸¢à¸¹à¹ˆà¹à¸¥à¹‰à¸§")
+			writeAPIError(w, http.StatusConflict, "conflict", "batchCode ซ้ำกับรายการที่มีอยู่แล้ว")
 			return true
 		}
 	}
@@ -103,38 +103,38 @@ func (s *apiServer) batchRoute(w http.ResponseWriter, r *http.Request, p []strin
 func (s *apiServer) createLot(w http.ResponseWriter, r *http.Request, batchID string) bool {
 	input, err := readMap(r)
 	if err != nil {
-		writeAPIError(w, 400, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		writeAPIError(w, 400, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 		return true
 	}
 	normalizeMap(input)
 	if stringValue(input["lotNo"]) == "" || stringValue(input["donorCellLineId"]) == "" || stringValue(input["activatedAt"]) == "" {
-		writeAPIError(w, 422, "validation_error", "à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ lotNo, donorCellLineId à¹à¸¥à¸° activatedAt")
+		writeAPIError(w, 422, "validation_error", "ต้องระบุ lotNo, donorCellLineId และ activatedAt")
 		return true
 	}
 	activated, err := time.Parse(time.RFC3339, stringValue(input["activatedAt"]))
 	if err != nil {
-		writeAPIError(w, 422, "validation_error", "activatedAt à¸•à¹‰à¸­à¸‡à¹€à¸›à¹‡à¸™ RFC3339")
+		writeAPIError(w, 422, "validation_error", "activatedAt ต้องเป็น RFC3339")
 		return true
 	}
 	n := intValue(input["nActivated"])
 	if n < 0 || n > 96 {
-		writeAPIError(w, 422, "validation_error", "nActivated à¸•à¹‰à¸­à¸‡à¸­à¸¢à¸¹à¹ˆà¸£à¸°à¸«à¸§à¹ˆà¸²à¸‡ 0 à¸–à¸¶à¸‡ 96")
+		writeAPIError(w, 422, "validation_error", "nActivated ต้องอยู่ระหว่าง 0 ถึง 96")
 		return true
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	batch, ok := s.entities["batches"][batchID]
 	if !ok {
-		writeAPIError(w, 404, "not_found", "à¹„à¸¡à¹ˆà¸žà¸š batch")
+		writeAPIError(w, 404, "not_found", "ไม่พบ batch")
 		return true
 	}
 	if donor := s.entities["donor-cell-lines"][stringValue(input["donorCellLineId"])]; donor == nil || donor["active"] == false {
-		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "à¹„à¸¡à¹ˆà¸žà¸š donor cell line à¸—à¸µà¹ˆ active")
+		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "ไม่พบ donor cell line ที่ active")
 		return true
 	}
 	for _, existing := range s.entities["injection-lots"] {
 		if stringValue(existing["batchId"]) == batchID && strings.EqualFold(strings.TrimSpace(stringValue(existing["lotNo"])), strings.TrimSpace(stringValue(input["lotNo"]))) && existing["deletedAt"] == nil {
-			writeAPIError(w, http.StatusConflict, "conflict", "lotNo à¸‹à¹‰à¸³à¹ƒà¸™ batch")
+			writeAPIError(w, http.StatusConflict, "conflict", "lotNo ซ้ำใน batch")
 			return true
 		}
 	}
@@ -169,7 +169,7 @@ func (s *apiServer) lotEmbryos(w http.ResponseWriter, r *http.Request, lotID str
 		items := make([]map[string]any, 0)
 		if s.entities["injection-lots"][lotID] == nil {
 			s.mu.RUnlock()
-			writeAPIError(w, http.StatusNotFound, "not_found", "à¹„à¸¡à¹ˆà¸žà¸š injection lot")
+			writeAPIError(w, http.StatusNotFound, "not_found", "ไม่พบ injection lot")
 			return true
 		}
 		aliveOnly := r.URL.Query().Get("aliveOnly") == "true"
@@ -186,24 +186,24 @@ func (s *apiServer) lotEmbryos(w http.ResponseWriter, r *http.Request, lotID str
 	if r.Method == http.MethodPost {
 		input, err := readMap(r)
 		if err != nil {
-			writeAPIError(w, 400, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+			writeAPIError(w, 400, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 			return true
 		}
 		n := intValue(input["count"])
 		if n < 1 || n > 96 {
-			writeAPIError(w, 422, "validation_error", "count à¸•à¹‰à¸­à¸‡à¸­à¸¢à¸¹à¹ˆà¸£à¸°à¸«à¸§à¹ˆà¸²à¸‡ 1 à¸–à¸¶à¸‡ 96")
+			writeAPIError(w, 422, "validation_error", "count ต้องอยู่ระหว่าง 1 ถึง 96")
 			return true
 		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		lot, ok := s.entities["injection-lots"][lotID]
 		if !ok || lot["active"] == false {
-			writeAPIError(w, http.StatusNotFound, "not_found", "à¹„à¸¡à¹ˆà¸žà¸š injection lot")
+			writeAPIError(w, http.StatusNotFound, "not_found", "ไม่พบ injection lot")
 			return true
 		}
 		batch := s.entities["batches"][stringValue(lot["batchId"])]
 		if batch == nil {
-			writeAPIError(w, http.StatusConflict, "invalid_state", "injection lot à¹„à¸¡à¹ˆà¸¡à¸µ batch à¸—à¸µà¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+			writeAPIError(w, http.StatusConflict, "invalid_state", "injection lot ไม่มี batch ที่ถูกต้อง")
 			return true
 		}
 		maxSeq := 0
@@ -231,7 +231,7 @@ func (s *apiServer) duplicateBatch(w http.ResponseWriter, r *http.Request, id st
 	defer s.mu.Unlock()
 	old, ok := s.entities["batches"][id]
 	if !ok {
-		writeAPIError(w, 404, "not_found", "à¹„à¸¡à¹ˆà¸žà¸š batch")
+		writeAPIError(w, 404, "not_found", "ไม่พบ batch")
 		return true
 	}
 	copy := cloneMap(old)
@@ -269,7 +269,7 @@ func (s *apiServer) controlCounts(w http.ResponseWriter, r *http.Request, batchI
 	}
 	input, err := readMap(r)
 	if err != nil {
-		writeAPIError(w, 400, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		writeAPIError(w, 400, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 		return true
 	}
 	raw, _ := input["items"].([]any)

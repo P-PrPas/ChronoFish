@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 Generate the MySQL 8 migration set from the canonical PostgreSQL migrations.
-
 The PostgreSQL files under backend/db/migrations/postgres/ are the single source
 of truth. This script applies the small, documented set of dialect differences
 and writes backend/db/migrations/mysql/. Regenerate after every schema change:

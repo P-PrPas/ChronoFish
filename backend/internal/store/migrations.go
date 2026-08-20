@@ -8,15 +8,24 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
-	"time"
+
+	"github.com/golang-migrate/migrate/v4"
+	mysqlDriver "github.com/golang-migrate/migrate/v4/database/mysql"
+	postgresDriver "github.com/golang-migrate/migrate/v4/database/postgres"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
-// RunMigrations is the database lifecycle seam used by the API composition.
-// Each migration is applied in its own transaction and recorded before the
-// server accepts requests.
+// RunMigrations applies the checked-in migrations before the API accepts traffic.
+// golang-migrate owns versioning, SQL parsing, dirty-state recovery, and the
+// PostgreSQL/MySQL driver differences. MySQL DDL remains statement-committed
+// by the engine; the API never reports readiness until all files are applied.
 func RunMigrations(ctx context.Context, db *sql.DB, driver, directory string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if driver != "postgres" && driver != "mysql" {
+		return fmt.Errorf("unsupported migration driver %q", driver)
+	}
 	if directory == "" {
 		candidates := []string{filepath.Join("backend", "db", "migrations", driver), filepath.Join("db", "migrations", driver), filepath.Join("/migrations", driver)}
 		for _, candidate := range candidates {
@@ -31,88 +40,43 @@ func RunMigrations(ctx context.Context, db *sql.DB, driver, directory string) er
 	if directory == "" {
 		return fmt.Errorf("migration directory for %s not found", driver)
 	}
-	placeholder := func(index int) string {
-		if driver == "postgres" {
-			return fmt.Sprintf("$%d", index)
-		}
-		return "?"
+	if _, err := os.Stat(directory); err != nil {
+		return fmt.Errorf("migration directory %s: %w", directory, err)
 	}
-	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS chronofish_schema_migration (version VARCHAR(40) NOT NULL PRIMARY KEY, applied_at TIMESTAMP NOT NULL)`); err != nil {
-		return fmt.Errorf("create migration table: %w", err)
-	}
-	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS chronofish_runtime_state (resource VARCHAR(80) NOT NULL, record_id CHAR(36) NOT NULL, payload TEXT NOT NULL, active BOOLEAN NOT NULL DEFAULT TRUE, updated_at TIMESTAMP NOT NULL, PRIMARY KEY (resource, record_id))`); err != nil {
-		return fmt.Errorf("create runtime state table: %w", err)
-	}
-	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS chronofish_runtime_idempotency (scope VARCHAR(100) NOT NULL PRIMARY KEY, response TEXT NOT NULL, created_at TIMESTAMP NOT NULL)`); err != nil {
-		return fmt.Errorf("create idempotency table: %w", err)
-	}
-	files, err := filepath.Glob(filepath.Join(directory, "*.up.sql"))
+	source, err := iofs.New(os.DirFS(filepath.Dir(directory)), filepath.Base(directory))
 	if err != nil {
+		return fmt.Errorf("read migrations: %w", err)
+	}
+	var m *migrate.Migrate
+	switch driver {
+	case "postgres":
+		backend, err := postgresDriver.WithInstance(db, &postgresDriver.Config{MigrationsTable: "schema_migrations", MultiStatementEnabled: true})
+		if err != nil {
+			return fmt.Errorf("initialize PostgreSQL migrator: %w", err)
+		}
+		m, err = migrate.NewWithInstance("iofs", source, "postgres", backend)
+		if err != nil {
+			return fmt.Errorf("initialize PostgreSQL migrations: %w", err)
+		}
+	case "mysql":
+		backend, err := mysqlDriver.WithInstance(db, &mysqlDriver.Config{MigrationsTable: "schema_migrations"})
+		if err != nil {
+			return fmt.Errorf("initialize MySQL migrator: %w", err)
+		}
+		m, err = migrate.NewWithInstance("iofs", source, "mysql", backend)
+		if err != nil {
+			return fmt.Errorf("initialize MySQL migrations: %w", err)
+		}
+	}
+	if m == nil {
+		return errors.New("migration instance was not initialized")
+	}
+	defer func() { _, _ = m.Close() }()
+	if err := ctx.Err(); err != nil {
 		return err
 	}
-	sort.Strings(files)
-	for _, file := range files {
-		name := filepath.Base(file)
-		var exists int
-		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM chronofish_schema_migration WHERE version = `+placeholder(1), name).Scan(&exists); err != nil {
-			return fmt.Errorf("read migration %s: %w", name, err)
-		}
-		if exists > 0 {
-			continue
-		}
-		contents, err := os.ReadFile(file)
-		if err != nil {
-			return fmt.Errorf("read migration %s: %w", name, err)
-		}
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("begin migration %s: %w", name, err)
-		}
-		failed := func(cause error) error { _ = tx.Rollback(); return fmt.Errorf("apply migration %s: %w", name, cause) }
-		for _, statement := range splitSQLStatements(string(contents)) {
-			if _, err := tx.ExecContext(ctx, statement); err != nil {
-				return failed(err)
-			}
-		}
-		query := `INSERT INTO chronofish_schema_migration (version, applied_at) VALUES (` + placeholder(1) + `,` + placeholder(2) + `)`
-		if _, err := tx.ExecContext(ctx, query, name, time.Now().UTC()); err != nil {
-			return failed(err)
-		}
-		if err := tx.Commit(); err != nil {
-			return fmt.Errorf("commit migration %s: %w", name, err)
-		}
+	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
+		return fmt.Errorf("apply migrations: %w", err)
 	}
 	return nil
-}
-
-func splitSQLStatements(sqlText string) []string {
-	statements := make([]string, 0)
-	start, quote := 0, byte(0)
-	for index := 0; index < len(sqlText); index++ {
-		character := sqlText[index]
-		if quote != 0 {
-			if character == quote {
-				if index+1 < len(sqlText) && sqlText[index+1] == quote {
-					index++
-				} else {
-					quote = 0
-				}
-			}
-			continue
-		}
-		if character == '\'' || character == '"' || character == '`' {
-			quote = character
-			continue
-		}
-		if character == ';' {
-			if statement := strings.TrimSpace(sqlText[start:index]); statement != "" {
-				statements = append(statements, statement)
-			}
-			start = index + 1
-		}
-	}
-	if statement := strings.TrimSpace(sqlText[start:]); statement != "" {
-		statements = append(statements, statement)
-	}
-	return statements
 }

@@ -48,8 +48,10 @@ npm run check
 ```
 
 For a local stack with PostgreSQL, use `docker compose up --build`; Compose
-uses PostgreSQL 16 and the API applies migrations before serving traffic. A
-MySQL 8 deployment uses `docker compose --profile mysql up --build`.
+uses PostgreSQL 16 and the API applies migrations before serving traffic. The
+isolated MySQL 8 stack is in `compose.mysql.yaml`; start it with
+`docker compose -f compose.mysql.yaml --profile mysql up --build` so the
+PostgreSQL services are not started alongside it.
 Production configuration defaults to PostgreSQL and requires `DATABASE_URL`.
 The memory driver is available only when `APP_ENV=development|test` (for
 offline UI work and unit tests) and is never a Compose default.
@@ -61,7 +63,10 @@ a VPN/reverse proxy; otherwise enforce HTTPS, IP allowlisting and TLS at the
 reverse proxy. API requests are rate limited per source IP. Never commit
 credentials in `.env` files.
 
-Database migrations are applied in filename order. PostgreSQL is canonical; regenerate the MySQL copies after every schema change. CI boots both database engines, applies all migrations, and runs constraint smoke checks.
+Database migrations are applied by golang-migrate from the versioned SQL files.
+PostgreSQL is canonical; regenerate the MySQL copies after every schema change.
+CI boots both database engines, applies all migrations, and runs constraint
+smoke checks.
 
 Optional initial master data is under `backend/db/seeds/{postgres,mysql}/master_data.sql`.
 

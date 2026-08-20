@@ -52,7 +52,7 @@ func (s *apiServer) checkpoint(w http.ResponseWriter, r *http.Request, lotID, st
 	defer s.mu.RUnlock()
 	lot, ok := s.entities["injection-lots"][lotID]
 	if !ok {
-		writeAPIError(w, 404, "not_found", "à¹„à¸¡à¹ˆà¸žà¸š injection lot")
+		writeAPIError(w, 404, "not_found", "ไม่พบ injection lot")
 		return true
 	}
 	batch := s.entities["batches"][stringValue(lot["batchId"])]
@@ -98,12 +98,12 @@ func (s *apiServer) observationsRoute(w http.ResponseWriter, r *http.Request, p 
 func (s *apiServer) createEmbryoObservations(w http.ResponseWriter, r *http.Request) bool {
 	input, err := readMap(r)
 	if err != nil {
-		writeAPIError(w, 400, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		writeAPIError(w, 400, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 		return true
 	}
 	raw, ok := input["observations"].([]any)
 	if !ok {
-		writeAPIError(w, 422, "validation_error", "à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ observations")
+		writeAPIError(w, 422, "validation_error", "ต้องระบุ observations")
 		return true
 	}
 	s.mu.Lock()
@@ -113,12 +113,12 @@ func (s *apiServer) createEmbryoObservations(w http.ResponseWriter, r *http.Requ
 	for _, value := range raw {
 		item, ok := value.(map[string]any)
 		if !ok {
-			results = append(results, map[string]any{"status": "rejected", "error": map[string]any{"message": "à¸£à¸¹à¸›à¹à¸šà¸š observation à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡"}})
+			results = append(results, map[string]any{"status": "rejected", "error": map[string]any{"message": "รูปแบบ observation ไม่ถูกต้อง"}})
 			continue
 		}
 		client := stringValue(item["clientUuid"])
 		if client == "" {
-			results = append(results, map[string]any{"status": "rejected", "error": map[string]any{"message": "à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ clientUuid"}})
+			results = append(results, map[string]any{"status": "rejected", "error": map[string]any{"message": "ต้องระบุ clientUuid"}})
 			continue
 		}
 		if old, ok := s.idempotency["embryo:"+client]; ok {
@@ -179,42 +179,42 @@ func (s *apiServer) existingEmbryoObservationLocked(embryoID, stageCode string) 
 func (s *apiServer) validateEmbryoObservation(item map[string]any) error {
 	for _, f := range []string{"embryoId", "stageCode", "observedAt", "outcome", "condition"} {
 		if stringValue(item[f]) == "" {
-			return fmt.Errorf("à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ %s", f)
+			return fmt.Errorf("ต้องระบุ %s", f)
 		}
 	}
 	embryo, ok := s.entities["embryos"][stringValue(item["embryoId"])]
 	if !ok {
-		return errors.New("à¹„à¸¡à¹ˆà¸žà¸š embryo")
+		return errors.New("ไม่พบ embryo")
 	}
 	if stageNumber(stringValue(item["stageCode"])) < 1 || stageNumber(stringValue(item["stageCode"])) > 36 {
-		return errors.New("stageCode à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		return errors.New("stageCode ไม่ถูกต้อง")
 	}
 	lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
 	observed, err := time.Parse(time.RFC3339, stringValue(item["observedAt"]))
 	if err != nil {
-		return errors.New("observedAt à¸•à¹‰à¸­à¸‡à¹€à¸›à¹‡à¸™ RFC3339")
+		return errors.New("observedAt ต้องเป็น RFC3339")
 	}
 	activated, err := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
 	if err != nil || observed.Before(activated) {
-		return errors.New("observedAt à¸•à¹‰à¸­à¸‡à¹„à¸¡à¹ˆà¸à¹ˆà¸­à¸™ activatedAt")
+		return errors.New("observedAt ต้องไม่ก่อน activatedAt")
 	}
 	if observed.After(time.Now().UTC().Add(5 * time.Minute)) {
-		return errors.New("observedAt à¸«à¹‰à¸²à¸¡à¸­à¸¢à¸¹à¹ˆà¹ƒà¸™à¸­à¸™à¸²à¸„à¸•à¹€à¸à¸´à¸™ 5 à¸™à¸²à¸—à¸µ")
+		return errors.New("observedAt ห้ามอยู่ในอนาคตเกิน 5 นาที")
 	}
 	outcome := stringValue(item["outcome"])
 	if outcome != "ALIVE" && outcome != "DEAD" && outcome != "DEGENERATED" && outcome != "NOT_OBSERVED" {
-		return errors.New("outcome à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		return errors.New("outcome ไม่ถูกต้อง")
 	}
 	condition := stringValue(item["condition"])
 	if condition != "NORMAL" && condition != "ABNORMAL" && condition != "UNDETERMINED" {
-		return errors.New("condition à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		return errors.New("condition ไม่ถูกต้อง")
 	}
 	if outcome == "ALIVE" && embryo["exitReason"] != nil && stringValue(item["overrideReason"]) == "" {
-		return errors.New("à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ overrideReason à¹€à¸¡à¸·à¹ˆà¸­à¸•à¹‰à¸­à¸‡à¸à¸²à¸£à¸šà¸±à¸™à¸—à¸¶à¸ ALIVE à¸«à¸¥à¸±à¸‡à¸¡à¸µ exit event")
+		return errors.New("ต้องระบุ overrideReason เมื่อต้องการบันทึก ALIVE หลังมี exit event")
 	}
 	for _, old := range s.observations {
 		if stringValue(old["embryoId"]) == stringValue(item["embryoId"]) && stringValue(old["stageCode"]) == stringValue(item["stageCode"]) && old["deletedAt"] == nil {
-			return errors.New("à¸¡à¸µ observation à¸‚à¸­à¸‡ embryo à¹à¸¥à¸° stage à¸™à¸µà¹‰à¹à¸¥à¹‰à¸§")
+			return errors.New("มี observation ของ embryo และ stage นี้แล้ว")
 		}
 	}
 	return nil
@@ -223,9 +223,9 @@ func (s *apiServer) validateEmbryoObservation(item map[string]any) error {
 func deviationLabel(value float64) string {
 	minutes := int(value * 60)
 	if minutes >= 0 {
-		return fmt.Sprintf("à¸Šà¹‰à¸²à¸à¸§à¹ˆà¸²à¸ªà¸²à¸à¸¥ %d à¸™à¸²à¸—à¸µ", minutes)
+		return fmt.Sprintf("ช้ากว่าสากล %d นาที", minutes)
 	}
-	return fmt.Sprintf("à¹€à¸£à¹‡à¸§à¸à¸§à¹ˆà¸²à¸ªà¸²à¸à¸¥ %d à¸™à¸²à¸—à¸µ", -minutes)
+	return fmt.Sprintf("เร็วกว่าสากล %d นาที", -minutes)
 }
 
 func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Request, id string, fish bool) bool {
@@ -238,7 +238,7 @@ func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Req
 	}
 	old, ok := collection[id]
 	if !ok {
-		writeAPIError(w, 404, "not_found", "à¹„à¸¡à¹ˆà¸žà¸š observation")
+		writeAPIError(w, 404, "not_found", "ไม่พบ observation")
 		return true
 	}
 	before := cloneMap(old)
@@ -260,7 +260,7 @@ func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Req
 	}
 	input, err := readMap(r)
 	if err != nil {
-		writeAPIError(w, 400, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		writeAPIError(w, 400, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 		return true
 	}
 	correctionReason := stringValue(input["correctionReason"])
@@ -268,7 +268,7 @@ func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Req
 		correctionReason = stringValue(input["overrideReason"])
 	}
 	if correctionReason == "" {
-		writeAPIError(w, 422, "validation_error", "à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ correctionReason")
+		writeAPIError(w, 422, "validation_error", "ต้องระบุ correctionReason")
 		return true
 	}
 	input["overrideReason"] = correctionReason
@@ -288,7 +288,7 @@ func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Req
 				return true
 			}
 			if observedOn.After(bangkokDateStart(time.Now())) {
-				writeAPIError(w, 422, "validation_error", "observedOn à¸«à¹‰à¸²à¸¡à¹€à¸›à¹‡à¸™à¸§à¸±à¸™à¸—à¸µà¹ˆà¹ƒà¸™à¸­à¸™à¸²à¸„à¸•")
+				writeAPIError(w, 422, "validation_error", "observedOn ห้ามเป็นวันที่ในอนาคต")
 				return true
 			}
 		}
@@ -311,7 +311,7 @@ func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Req
 			lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
 			activated, activatedErr := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
 			if activatedErr != nil || observedAt.Before(activated) || observedAt.After(time.Now().UTC().Add(5*time.Minute)) {
-				writeAPIError(w, 422, "validation_error", "observedAt à¸­à¸¢à¸¹à¹ˆà¸™à¸­à¸à¸Šà¹ˆà¸§à¸‡ activation à¸–à¸¶à¸‡à¸›à¸±à¸ˆà¸ˆà¸¸à¸šà¸±à¸™")
+				writeAPIError(w, 422, "validation_error", "observedAt อยู่นอกช่วง activation ถึงปัจจุบัน")
 				return true
 			}
 		}
@@ -471,12 +471,12 @@ func (s *apiServer) rollCall(w http.ResponseWriter, r *http.Request) bool {
 func (s *apiServer) createFishObservations(w http.ResponseWriter, r *http.Request) bool {
 	input, err := readMap(r)
 	if err != nil {
-		writeAPIError(w, 400, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+		writeAPIError(w, 400, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 		return true
 	}
 	raw, ok := input["observations"].([]any)
 	if !ok {
-		writeAPIError(w, 422, "validation_error", "à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ observations")
+		writeAPIError(w, 422, "validation_error", "ต้องระบุ observations")
 		return true
 	}
 	s.mu.Lock()
@@ -485,12 +485,12 @@ func (s *apiServer) createFishObservations(w http.ResponseWriter, r *http.Reques
 	for _, value := range raw {
 		item, ok := value.(map[string]any)
 		if !ok {
-			results = append(results, map[string]any{"status": "rejected", "error": map[string]any{"message": "à¸£à¸¹à¸›à¹à¸šà¸š observation à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡"}})
+			results = append(results, map[string]any{"status": "rejected", "error": map[string]any{"message": "รูปแบบ observation ไม่ถูกต้อง"}})
 			continue
 		}
 		client := stringValue(item["clientUuid"])
 		if !isUUID(client) || stringValue(item["cloneFishId"]) == "" || stringValue(item["observedOn"]) == "" || stringValue(item["outcome"]) == "" || stringValue(item["condition"]) == "" {
-			results = append(results, map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "clientUuid, cloneFishId, observedOn, outcome à¹à¸¥à¸° condition à¹€à¸›à¹‡à¸™à¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸šà¸±à¸‡à¸„à¸±à¸š"}})
+			results = append(results, map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "clientUuid, cloneFishId, observedOn, outcome และ condition เป็นข้อมูลบังคับ"}})
 			continue
 		}
 		if body, ok := s.idempotency["fish:"+client]; ok {
@@ -501,13 +501,13 @@ func (s *apiServer) createFishObservations(w http.ResponseWriter, r *http.Reques
 		}
 		fish, ok := s.entities["fish"][stringValue(item["cloneFishId"])]
 		if !ok {
-			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "à¹„à¸¡à¹ˆà¸žà¸šà¸›à¸¥à¸²"}}
+			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "ไม่พบปลา"}}
 			results = append(results, result)
 			continue
 		}
 		observedOn, dateErr := time.ParseInLocation("2006-01-02", stringValue(item["observedOn"]), bangkokLocation())
 		if dateErr != nil || observedOn.After(bangkokDateStart(time.Now())) || !validFishOutcome(stringValue(item["outcome"])) || !validCondition(stringValue(item["condition"])) {
-			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "à¸§à¸±à¸™à¸—à¸µà¹ˆà¸«à¸£à¸·à¸­ enum à¸‚à¸­à¸‡ fish observation à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡"}}
+			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "วันที่หรือ enum ของ fish observation ไม่ถูกต้อง"}}
 			results = append(results, result)
 			continue
 		}
@@ -520,7 +520,7 @@ func (s *apiServer) createFishObservations(w http.ResponseWriter, r *http.Reques
 		}
 		outcome := stringValue(item["outcome"])
 		if outcome == "ALIVE" && stringValue(fish["status"]) != "ALIVE" && stringValue(item["overrideReason"]) == "" {
-			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "à¸•à¹‰à¸­à¸‡à¸£à¸°à¸šà¸¸ overrideReason à¹€à¸¡à¸·à¹ˆà¸­à¹à¸à¹‰à¸ªà¸–à¸²à¸™à¸°à¸›à¸¥à¸²à¸—à¸µà¹ˆà¸›à¸´à¸”à¹à¸¥à¹‰à¸§"}}
+			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "ต้องระบุ overrideReason เมื่อแก้สถานะปลาที่ปิดแล้ว"}}
 			results = append(results, result)
 			continue
 		}

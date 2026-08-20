@@ -40,7 +40,8 @@ func newHandlerWithConfig(buildVersion, allowedOrigins string, store stateStore,
 	server.buildVersion = buildVersion
 	server.store = store
 	if err := store.Load(context.Background(), server); err != nil {
-		log.Printf("load runtime state: %v", err)
+		server.startupErr = err
+		log.Printf("load canonical state: %v", err)
 	}
 	handler := http.HandlerFunc(server.ServeHTTP)
 	return withSecurityPolicy(withCORS(handler, allowedOrigins), ipAllowlist)
@@ -65,12 +66,12 @@ func withSecurityPolicy(next http.Handler, allowlist string) http.Handler {
 	allowed := parseCIDRs(allowlist)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if len(allowed) > 0 && !ipAllowed(clientIP(r), allowed) {
-			writeAPIError(w, http.StatusForbidden, "network_denied", "à¹€à¸„à¸£à¸·à¸­à¸‚à¹ˆà¸²à¸¢à¸™à¸µà¹‰à¹„à¸¡à¹ˆà¹„à¸”à¹‰à¸£à¸±à¸šà¸­à¸™à¸¸à¸à¸²à¸•")
+			writeAPIError(w, http.StatusForbidden, "network_denied", "เครือข่ายนี้ไม่ได้รับอนุญาต")
 			return
 		}
 		if !limiter.allow(clientIP(r)) {
 			w.Header().Set("Retry-After", "60")
-			writeAPIError(w, http.StatusTooManyRequests, "rate_limited", "à¹€à¸£à¸µà¸¢à¸ API à¸–à¸µà¹ˆà¹€à¸à¸´à¸™à¹„à¸› à¸à¸£à¸¸à¸“à¸²à¸¥à¸­à¸‡à¹ƒà¸«à¸¡à¹ˆà¸ à¸²à¸¢à¸«à¸¥à¸±à¸‡")
+			writeAPIError(w, http.StatusTooManyRequests, "rate_limited", "เรียก API ถี่เกินไป กรุณาลองใหม่ภายหลัง")
 			return
 		}
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -78,7 +79,7 @@ func withSecurityPolicy(next http.Handler, allowlist string) http.Handler {
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		defer func() {
 			if recovered := recover(); recovered != nil {
-				writeAPIError(w, 500, "internal_error", "à¹€à¸à¸´à¸”à¸‚à¹‰à¸­à¸œà¸´à¸”à¸žà¸¥à¸²à¸”à¸ à¸²à¸¢à¹ƒà¸™à¸£à¸°à¸šà¸š")
+				writeAPIError(w, 500, "internal_error", "เกิดข้อผิดพลาดภายในระบบ")
 			}
 		}()
 		next.ServeHTTP(w, r)

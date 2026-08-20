@@ -40,14 +40,14 @@ func (s *apiServer) exports(w http.ResponseWriter, r *http.Request, p []string) 
 		}
 		if r.Body != nil {
 			if err := json.NewDecoder(r.Body).Decode(&request); err != nil && !errors.Is(err, io.EOF) {
-				writeAPIError(w, http.StatusBadRequest, "invalid_json", "à¸‚à¹‰à¸­à¸¡à¸¹à¸¥ JSON à¹„à¸¡à¹ˆà¸–à¸¹à¸à¸•à¹‰à¸­à¸‡")
+				writeAPIError(w, http.StatusBadRequest, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 				return true
 			}
 			filters = queryFromMap(request.Filters)
 		}
 		workbook, err := s.buildWorkbook(filters)
 		if err != nil {
-			writeAPIError(w, http.StatusInternalServerError, "export_failed", "à¸ªà¸£à¹‰à¸²à¸‡à¹„à¸Ÿà¸¥à¹Œ Excel à¹„à¸¡à¹ˆà¸ªà¸³à¹€à¸£à¹‡à¸ˆ")
+			writeAPIError(w, http.StatusInternalServerError, "export_failed", "สร้างไฟล์ Excel ไม่สำเร็จ")
 			return true
 		}
 		w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

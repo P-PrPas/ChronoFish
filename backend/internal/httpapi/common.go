@@ -90,10 +90,37 @@ func cloneMap(input map[string]any) map[string]any {
 func stageNumber(code string) int {
 	return domain.StageNumber(code)
 }
+
+func stageDefinitionID(code string) string {
+	order := stageNumber(code)
+	if order < 1 || order > 36 {
+		return ""
+	}
+	return fmt.Sprintf("01900001-0000-7000-8000-%012d", order)
+}
+
+func numberValue(value any) float64 {
+	switch value := value.(type) {
+	case float64:
+		return value
+	case float32:
+		return float64(value)
+	case int:
+		return float64(value)
+	case int64:
+		return float64(value)
+	case string:
+		var result float64
+		_, _ = fmt.Sscan(value, &result)
+		return result
+	default:
+		return 0
+	}
+}
 func writeJSON(w http.ResponseWriter, status int, value any) {
 	body, err := json.Marshal(value)
 	if err != nil {
-		writeAPIError(w, 500, "internal_error", "à¹„à¸¡à¹ˆà¸ªà¸²à¸¡à¸²à¸£à¸–à¸ªà¸£à¹‰à¸²à¸‡à¸„à¸³à¸•à¸­à¸šà¹„à¸”à¹‰")
+		writeAPIError(w, 500, "internal_error", "ไม่สามารถสร้างคำตอบได้")
 		return
 	}
 	writeRaw(w, status, body)

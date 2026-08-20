@@ -1,13 +1,34 @@
 package store
 
-import "testing"
+import (
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"testing"
 
-func TestSplitSQLStatementsPreservesQuotedSemicolons(t *testing.T) {
-	statements := splitSQLStatements("INSERT INTO t VALUES ('a;b'); CREATE TABLE t (v TEXT);")
-	if len(statements) != 2 {
-		t.Fatalf("statements = %#v", statements)
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+)
+
+func TestMigrationFilesUseStandardSourceParser(t *testing.T) {
+	root := filepath.Join("..", "..", "db", "migrations")
+	source, err := iofs.New(os.DirFS(root), "postgres")
+	if err != nil {
+		t.Fatalf("create migration source: %v", err)
 	}
-	if statements[0] != "INSERT INTO t VALUES ('a;b')" {
-		t.Fatalf("first statement = %q", statements[0])
+	version, err := source.First()
+	if err != nil {
+		t.Fatalf("read first migration: %v", err)
+	}
+	if version != 1 {
+		t.Fatalf("first migration version = %d, want 1", version)
+	}
+}
+
+func TestRunMigrationsHonoursCancelledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := RunMigrations(ctx, nil, "postgres", ""); !errors.Is(err, context.Canceled) {
+		t.Fatalf("error = %v, want context cancellation", err)
 	}
 }
