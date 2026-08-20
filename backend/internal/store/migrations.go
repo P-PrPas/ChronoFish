@@ -11,7 +11,7 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	mysqlDriver "github.com/golang-migrate/migrate/v4/database/mysql"
-	postgresDriver "github.com/golang-migrate/migrate/v4/database/postgres"
+	postgresDriver "github.com/golang-migrate/migrate/v4/database/pgx/v5"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
@@ -71,7 +71,10 @@ func RunMigrations(ctx context.Context, db *sql.DB, driver, directory string) er
 	if m == nil {
 		return errors.New("migration instance was not initialized")
 	}
-	defer func() { _, _ = m.Close() }()
+	// Do not close the migrate instance here. Its database driver owns the
+	// *sql.DB passed to WithInstance, and the API must keep that pool open for
+	// canonical reads and writes after startup. The iofs source is read-only
+	// and does not hold resources that need explicit shutdown.
 	if err := ctx.Err(); err != nil {
 		return err
 	}

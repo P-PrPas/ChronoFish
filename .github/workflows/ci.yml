@@ -92,7 +92,8 @@ jobs:
           api_pid=$!
           echo "$api_pid" >/tmp/chronofish-postgres.pid
           for i in {1..30}; do curl --fail --silent http://127.0.0.1:8080/api/v1/health && exit 0 || sleep 2; done
-          while IFS= read -r line; do echo "::error::$line"; done </tmp/chronofish-postgres.log
+          boot_log_b64=$(tail -c 12000 /tmp/chronofish-postgres.log | base64 -w0)
+          echo "::error title=PostgreSQL boot log (base64)::$boot_log_b64"
           cat /tmp/chronofish-postgres.log
           exit 1
       - name: Smoke PostgreSQL durable idempotency
@@ -177,7 +178,8 @@ jobs:
           api_pid=$!
           echo "$api_pid" >/tmp/chronofish-mysql.pid
           for i in {1..45}; do curl --fail --silent http://127.0.0.1:8080/api/v1/health && exit 0 || sleep 2; done
-          while IFS= read -r line; do echo "::error::$line"; done </tmp/chronofish-mysql.log
+          boot_log_b64=$(tail -c 12000 /tmp/chronofish-mysql.log | base64 -w0)
+          echo "::error title=MySQL boot log (base64)::$boot_log_b64"
           cat /tmp/chronofish-mysql.log
           exit 1
       - name: Smoke MySQL durable idempotency
