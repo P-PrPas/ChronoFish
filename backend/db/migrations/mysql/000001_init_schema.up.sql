@@ -154,6 +154,7 @@ CREATE TABLE stage_definition (
     updated_at   DATETIME(3)    NOT NULL,
     deleted_at   DATETIME(3)        NULL,
     CONSTRAINT pk_stage_definition PRIMARY KEY (id),
+    CONSTRAINT uq_stage_definition_protocol UNIQUE (id, protocol_id),
     CONSTRAINT uq_stage_definition_order UNIQUE (protocol_id, stage_order),
     CONSTRAINT uq_stage_definition_code  UNIQUE (protocol_id, code),
     CONSTRAINT fk_stage_definition_protocol FOREIGN KEY (protocol_id) REFERENCES protocol (id),
@@ -189,6 +190,7 @@ CREATE TABLE stage_timing_profile (
 
 CREATE TABLE stage_timing (
     id                   CHAR(36)      NOT NULL,
+    protocol_id          CHAR(36)      NOT NULL,
     profile_id           CHAR(36)      NOT NULL,
     stage_definition_id  CHAR(36)      NOT NULL,
     expected_hpa         DECIMAL(10,4) NOT NULL,
@@ -197,8 +199,8 @@ CREATE TABLE stage_timing (
     deleted_at           DATETIME(3)         NULL,
     CONSTRAINT pk_stage_timing PRIMARY KEY (id),
     CONSTRAINT uq_stage_timing UNIQUE (profile_id, stage_definition_id),
-    CONSTRAINT fk_stage_timing_profile FOREIGN KEY (profile_id) REFERENCES stage_timing_profile (id),
-    CONSTRAINT fk_stage_timing_stage FOREIGN KEY (stage_definition_id) REFERENCES stage_definition (id),
+    CONSTRAINT fk_stage_timing_profile FOREIGN KEY (profile_id, protocol_id) REFERENCES stage_timing_profile (id, protocol_id),
+    CONSTRAINT fk_stage_timing_stage FOREIGN KEY (stage_definition_id, protocol_id) REFERENCES stage_definition (id, protocol_id),
     CONSTRAINT ck_stage_timing_hpa CHECK (expected_hpa >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

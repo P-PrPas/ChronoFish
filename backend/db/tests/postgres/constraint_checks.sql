@@ -49,6 +49,12 @@ SELECT pg_temp.expect_failure('only one current timing profile is allowed per pr
 $sql$);
 INSERT INTO protocol (id, name, stage1_max_age_days, active, created_at, updated_at) VALUES
     ('01900000-0000-7000-8000-000000000099', 'Other protocol', 5, TRUE, now(), now());
+INSERT INTO stage_timing_profile (id, protocol_id, version, name, is_current, created_at, updated_at) VALUES
+    ('01900000-0000-7000-8000-000000000098', '01900000-0000-7000-8000-000000000099', 1, 'Other profile', FALSE, now(), now());
+SELECT pg_temp.expect_failure('stage timing must use a stage from its protocol', $sql$
+    INSERT INTO stage_timing (id, protocol_id, profile_id, stage_definition_id, expected_hpa, created_at, updated_at) VALUES
+    ('01900000-0000-7000-8000-000000000097', '01900000-0000-7000-8000-000000000099', '01900000-0000-7000-8000-000000000098', '01900001-0000-7000-8000-000000000001', 1, now(), now())
+$sql$);
 SELECT pg_temp.expect_failure('batch timing profile must belong to its protocol', $sql$
     INSERT INTO experiment_batch (id, batch_code, experiment_date, site_id, operator_id, protocol_id, timing_profile_id, treatment_group_id, created_at, updated_at) VALUES
     ('66666666-0000-7000-8000-000000000099', 'Mismatched profile', '2026-04-24', '11111111-0000-7000-8000-000000000001', '22222222-0000-7000-8000-000000000001', '01900000-0000-7000-8000-000000000099', '01900000-0000-7000-8000-000000000002', '44444444-0000-7000-8000-000000000001', now(), now())
@@ -90,8 +96,8 @@ SELECT pg_temp.expect_failure('running number must be unique', $sql$
     ('bbbbbbbb-0000-7000-8000-000000000003', 'No.2_Clone2-AB cell-24', 1, '2026-04-24', '55555555-0000-7000-8000-000000000001', 'ALIVE', 'NORMAL', 'UNKNOWN', now(), now())
 $sql$);
 SELECT pg_temp.expect_failure('expected HPA cannot be negative', $sql$
-    INSERT INTO stage_timing (id, profile_id, stage_definition_id, expected_hpa, created_at, updated_at) VALUES
-    ('cccccccc-0000-7000-8000-000000000001', '01900000-0000-7000-8000-000000000002', '01900001-0000-7000-8000-000000000001', -1, now(), now())
+    INSERT INTO stage_timing (id, protocol_id, profile_id, stage_definition_id, expected_hpa, created_at, updated_at) VALUES
+    ('cccccccc-0000-7000-8000-000000000001', '01900000-0000-7000-8000-000000000001', '01900000-0000-7000-8000-000000000002', '01900001-0000-7000-8000-000000000001', -1, now(), now())
 $sql$);
 
 ROLLBACK;

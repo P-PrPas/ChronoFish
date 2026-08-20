@@ -2,7 +2,6 @@ name: CI
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 permissions:
@@ -54,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17
+        image: postgres:16
         env:
           POSTGRES_DB: chronofish
           POSTGRES_PASSWORD: postgres
@@ -97,13 +96,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Apply MySQL migrations
         run: for file in backend/db/migrations/mysql/*.up.sql; do mysql -h 127.0.0.1 -uroot -proot chronofish < "$file"; done
+      - name: Test MySQL constraints
+        run: mysql -h 127.0.0.1 -uroot -proot chronofish < backend/db/tests/mysql/constraint_checks.sql
       - name: Verify MySQL master seed is idempotent
         run: |
           mysql -h 127.0.0.1 -uroot -proot chronofish < backend/db/seeds/mysql/master_data.sql
           mysql -h 127.0.0.1 -uroot -proot chronofish < backend/db/seeds/mysql/master_data.sql
-      - name: Verify MySQL CHECK constraints are enforced
-        run: |
-          if mysql -h 127.0.0.1 -uroot -proot chronofish -e "INSERT INTO treatment_group (id, code, arm_type, active, created_at, updated_at) VALUES ('44444444-0000-7000-8000-000000000099', 'INVALID', 'GENE_EDIT', TRUE, NOW(), NOW())"; then
-            echo "invalid arm_type unexpectedly succeeded"
-            exit 1
-          fi

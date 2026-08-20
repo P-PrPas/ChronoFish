@@ -32,7 +32,9 @@ Open `http://localhost:5173`. Vite proxies `/api` to the Go server on port 8080.
 ## Validate
 
 ```powershell
-go test ./backend/...
+cd backend
+go test ./...
+cd ..
 python -m pip install -r requirements-dev.txt
 python scripts/validate_openapi.py
 python scripts/gen_mysql_migrations.py
