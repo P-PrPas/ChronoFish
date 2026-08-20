@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -14,28 +15,53 @@ import (
 func (s *apiServer) protocolStages(w http.ResponseWriter, r *http.Request, id string) bool {
 	s.mu.RLock()
 	p, ok := s.entities["protocols"][id]
-	profile := s.entities["timing-profiles"]["01900000-0000-7000-8000-000000000002"]
+	profile := s.currentTimingProfileLocked(id)
 	s.mu.RUnlock()
 	if !ok {
 		writeAPIError(w, 404, "not_found", "ไม่พบ protocol")
 		return true
 	}
 	_ = p
+	if profile == nil {
+		writeAPIError(w, 404, "not_found", "no current timing profile")
+		return true
+	}
 	writeJSON(w, 200, map[string]any{"items": profile["entries"]})
 	return true
 }
 
-func (s *apiServer) currentTiming(w http.ResponseWriter) bool {
+func (s *apiServer) currentTiming(w http.ResponseWriter, r *http.Request) bool {
+	protocolID := strings.TrimSpace(r.URL.Query().Get("protocolId"))
+	if protocolID != "" && !isUUID(protocolID) {
+		writeAPIError(w, 400, "invalid_query", "protocolId must be UUID")
+		return true
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	for _, profile := range s.entities["timing-profiles"] {
-		if profile["isCurrent"] == true {
-			writeJSON(w, 200, cloneMap(profile))
-			return true
-		}
+	profile := s.currentTimingProfileLocked(protocolID)
+	if profile != nil {
+		writeJSON(w, 200, cloneMap(profile))
+		return true
 	}
 	writeAPIError(w, 404, "not_found", "ยังไม่มี timing profile")
 	return true
+}
+
+// currentTimingProfileLocked is the single resolver for versioned timing
+// profiles. An empty protocol is only accepted for backwards-compatible reads
+// when exactly one current profile exists; writes always provide a protocol.
+func (s *apiServer) currentTimingProfileLocked(protocolID string) map[string]any {
+	var found map[string]any
+	for _, profile := range s.entities["timing-profiles"] {
+		if profile["isCurrent"] != true || (protocolID != "" && stringValue(profile["protocolId"]) != protocolID) {
+			continue
+		}
+		if found != nil && protocolID == "" {
+			return nil
+		}
+		found = profile
+	}
+	return found
 }
 
 func (s *apiServer) timingCSV(w http.ResponseWriter, r *http.Request) bool {
@@ -46,10 +72,7 @@ func (s *apiServer) timingCSV(w http.ResponseWriter, r *http.Request) bool {
 			return true
 		}
 		s.mu.RLock()
-		profile := s.entities["timing-profiles"]["01900000-0000-7000-8000-000000000002"]
-		if profile != nil && stringValue(profile["protocolId"]) != protocolID {
-			profile = nil
-		}
+		profile := s.currentTimingProfileLocked(protocolID)
 		s.mu.RUnlock()
 		if profile == nil {
 			writeAPIError(w, http.StatusNotFound, "not_found", "ไม่พบ timing profile ของ protocol")
@@ -68,7 +91,8 @@ func (s *apiServer) timingCSV(w http.ResponseWriter, r *http.Request) bool {
 		writer.Flush()
 		return true
 	}
-	input, err := timingCSVInput(r.Body)
+	protocolID := strings.TrimSpace(r.URL.Query().Get("protocolId"))
+	input, err := timingCSVInput(r.Body, protocolID)
 	if err != nil {
 		writeAPIError(w, 422, "validation_error", err.Error())
 		return true
@@ -76,7 +100,7 @@ func (s *apiServer) timingCSV(w http.ResponseWriter, r *http.Request) bool {
 	return s.createTiming(w, r, input)
 }
 
-func timingCSVInput(body io.Reader) (map[string]any, error) {
+func timingCSVInput(body io.Reader, protocolID string) (map[string]any, error) {
 	reader := csv.NewReader(io.LimitReader(body, 2<<20))
 	reader.FieldsPerRecord = -1
 	header, err := reader.Read()
@@ -126,8 +150,11 @@ func timingCSVInput(body io.Reader) (map[string]any, error) {
 	if len(entries) == 0 {
 		return nil, errors.New("CSV ต้องมีข้อมูล timing อย่างน้อยหนึ่งแถว")
 	}
+	if !isUUID(protocolID) {
+		return nil, errors.New("protocolId must be provided for CSV import")
+	}
 	return map[string]any{
-		"protocolId": "01900000-0000-7000-8000-000000000001",
+		"protocolId": protocolID,
 		"name":       "Imported timing profile", "entries": entries,
 	}, nil
 }
@@ -146,9 +173,33 @@ func (s *apiServer) createTiming(w http.ResponseWriter, r *http.Request, input m
 		return true
 	}
 	id := uuidV7()
-	profile := cloneMap(input)
-	profile["id"], profile["version"], profile["isCurrent"], profile["createdAt"], profile["updatedAt"] = id, len(s.entities["timing-profiles"])+1, true, time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339)
-	profile["createdByOperatorId"] = r.Header.Get("X-Operator-Id")
+	// Version numbers are scoped to a protocol. Start with the complete current
+	// profile so partial CSV/API overrides cannot silently delete stages.
+	var previous map[string]any
+	version := 0
+	for _, old := range s.entities["timing-profiles"] {
+		if stringValue(old["protocolId"]) != protocolID {
+			continue
+		}
+		if intValue(old["version"]) > version {
+			version = intValue(old["version"])
+		}
+		if old["isCurrent"] == true {
+			previous = old
+		}
+	}
+	if previous == nil {
+		writeAPIError(w, 422, "validation_error", "protocol has no current timing profile")
+		return true
+	}
+	baseEntries := make(map[int]map[string]any)
+	if oldEntries, ok := previous["entries"].([]any); ok {
+		for _, raw := range oldEntries {
+			if entry, ok := raw.(map[string]any); ok {
+				baseEntries[intValue(entry["stageOrder"])] = cloneMap(entry)
+			}
+		}
+	}
 	for _, raw := range entries {
 		entry, ok := raw.(map[string]any)
 		if !ok || stringValue(entry["stageCode"]) == "" || stringValue(entry["stageLabel"]) == "" {
@@ -179,9 +230,28 @@ func (s *apiServer) createTiming(w http.ResponseWriter, r *http.Request, input m
 		if stringValue(entry["stageLabel"]) == "" {
 			entry["stageLabel"] = entry["label"]
 		}
+		baseEntries[order] = cloneMap(entry)
 	}
+	merged := make([]any, 0, len(baseEntries))
+	for order := 1; order <= 36; order++ {
+		entry := baseEntries[order]
+		if entry == nil {
+			writeAPIError(w, 422, "validation_error", "timing profile must contain all 36 stages")
+			return true
+		}
+		merged = append(merged, entry)
+	}
+	profile := cloneMap(input)
+	profile["id"], profile["version"], profile["isCurrent"], profile["createdAt"], profile["updatedAt"], profile["entries"] = id, version+1, true, time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339), merged
+	profile["createdByOperatorId"] = r.Header.Get("X-Operator-Id")
 	for _, old := range s.entities["timing-profiles"] {
-		old["isCurrent"] = false
+		if stringValue(old["protocolId"]) == protocolID {
+			before := cloneMap(old)
+			old["isCurrent"] = false
+			if !reflect.DeepEqual(before, old) {
+				s.auditLocked(r, "UPDATE", "stage_timing_profile", stringValue(old["id"]), before, old)
+			}
+		}
 	}
 	s.entities["timing-profiles"][id] = profile
 	s.auditLocked(r, "INSERT", "stage_timing_profile", id, nil, profile)

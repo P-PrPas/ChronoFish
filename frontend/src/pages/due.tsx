@@ -3,6 +3,7 @@ import { type ApiItem, get } from '../api/client'
 import { putQueue } from '../offline'
 import { type AppText } from '../types'
 import { Empty, ErrorMessage } from '../components'
+import { dateTimeLocalToRFC3339, rfc3339ToDateTimeLocal } from '../time'
 
 type EmbryoOutcome = 'ALIVE' | 'DEAD' | 'DEGENERATED' | 'NOT_OBSERVED'
 const outcomeCycle: EmbryoOutcome[] = ['ALIVE', 'DEAD', 'DEGENERATED', 'NOT_OBSERVED']
@@ -35,7 +36,7 @@ function Checkpoint({ due, t, onBack }: { due: ApiItem; t: AppText; onBack: () =
   const [outcomes, setOutcomes] = useState<Record<string, EmbryoOutcome>>({})
   const [conditions, setConditions] = useState<Record<string, string>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
-  const [observedAt, setObservedAt] = useState(new Date().toISOString().slice(0, 16))
+  const [observedAt, setObservedAt] = useState(rfc3339ToDateTimeLocal(new Date().toISOString()))
   const [overrideReason, setOverrideReason] = useState('')
   const [now, setNow] = useState(Date.now())
   const [error, setError] = useState('')
@@ -84,7 +85,7 @@ function Checkpoint({ due, t, onBack }: { due: ApiItem; t: AppText; onBack: () =
     setSaving(true)
     const observations = embryos.map((embryo: ApiItem) => ({
       clientUuid: crypto.randomUUID(), embryoId: embryo.embryoId, stageCode: due.stageCode,
-      observedAt: new Date(observedAt).toISOString(), outcome: outcomes[String(embryo.embryoId)] ?? 'ALIVE',
+      observedAt: dateTimeLocalToRFC3339(observedAt), outcome: outcomes[String(embryo.embryoId)] ?? 'ALIVE',
       condition: conditions[String(embryo.embryoId)] ?? 'NORMAL', notes: notes[String(embryo.embryoId)] || null,
       ...(overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}),
     }))

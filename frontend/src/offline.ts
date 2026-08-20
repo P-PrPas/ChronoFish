@@ -99,16 +99,25 @@ async function countByStatus(status: QueueStatus): Promise<number> {
 export async function putQueue(path: string, body: unknown, contentType = 'application/json', method = 'POST'): Promise<ApiQueueResult> {
   const key = crypto.randomUUID()
   const headers = mutationHeaders(key)
-  const serialized = contentType === 'application/json' ? JSON.stringify(body) : String(body)
+  const item: QueuedWrite = { path, method, body, contentType, key, operatorId: headers['X-Operator-Id'], deviceId: headers['X-Device-Id'], createdAt: Date.now(), attempt: 0, nextAttempt: Date.now(), status: 'pending' }
+  // Durable intent is written before any network attempt. A tab close between
+  // fetch() and IndexedDB used to lose the mutation (and its idempotency key).
+  if (!('indexedDB' in window)) {
+    const serialized = contentType === 'application/json' ? JSON.stringify(body) : String(body)
+    return responseValue(await request(path, { method, body: serialized, headers: { ...headers, 'Content-Type': contentType } }))
+  }
+  await queueWrite(item)
+  if (!navigator.onLine) return { queued: true, key }
+  const db = await openQueue()
+  const record = (await records(db)).find(({ value }) => value.key === key)
+  if (!record) { db.close(); return { queued: true, key } }
   try {
-    return await (await request(path, { method, body: serialized, headers: { ...headers, 'Content-Type': contentType } })).json() as ApiQueueResult
+    const result = await transmit(db, record)
+    db.close()
+    return result
   } catch (error) {
-    const status = (error as Error & { status?: number }).status
-    if (status && status >= 400 && status < 500) throw error
-    if (!('indexedDB' in window)) throw error
-    const item: QueuedWrite = { path, method, body, contentType, key, operatorId: headers['X-Operator-Id'], deviceId: headers['X-Device-Id'], createdAt: Date.now(), attempt: 0, nextAttempt: Date.now(), status: 'pending' }
-    await queueWrite(item)
-    return { queued: true, key }
+    db.close()
+    throw error
   }
 }
 
@@ -132,32 +141,54 @@ export async function drainQueue(force = false): Promise<void> {
       const item = record.value
       if (item.status !== 'pending' || (!force && item.nextAttempt > Date.now())) continue
       try {
-        const contentType = item.contentType || 'application/json'
-        const body = contentType === 'application/json' ? JSON.stringify(item.body) : String(item.body)
-        const headers = queuedHeaders({ ...item, operatorId: item.operatorId || operatorId(), deviceId: item.deviceId || deviceId(), contentType })
-        await request(item.path, { method: item.method || 'POST', body, headers })
-        await new Promise<void>((resolve, reject) => {
-          const tx = db.transaction(storeName, 'readwrite')
-          tx.objectStore(storeName).delete(record.key)
-          tx.oncomplete = () => resolve()
-          tx.onerror = () => reject(tx.error)
-        })
-        window.dispatchEvent(new CustomEvent('chronofish:queue-drained', { detail: item }))
+        await transmit(db, record)
       } catch (error) {
-        const status = (error as Error & { status?: number }).status
-        if (status && status >= 400 && status < 500) {
-          await updateQueued(db, record.key, { ...item, status: 'rejected', lastError: (error as Error).message })
-          window.dispatchEvent(new CustomEvent('chronofish:queue-rejected', { detail: { ...item, lastError: (error as Error).message } }))
-        } else {
-          const attempt = item.attempt + 1
-          await updateQueued(db, record.key, { ...item, attempt, nextAttempt: nextAttemptAt(attempt) })
-        }
+        // transmit() persists rejected/next-attempt state before returning.
+        void error
       }
     }
     db.close()
   } catch {
     // IndexedDB may be unavailable or full; the next online tick retries.
   }
+}
+
+async function transmit(db: IDBDatabase, record: { key: IDBValidKey; value: QueuedWrite }): Promise<ApiQueueResult> {
+  const item = record.value
+  const contentType = item.contentType || 'application/json'
+  const body = contentType === 'application/json' ? JSON.stringify(item.body) : String(item.body)
+  const headers = queuedHeaders({ ...item, operatorId: item.operatorId || operatorId(), deviceId: item.deviceId || deviceId(), contentType })
+  try {
+    const response = await request(item.path, { method: item.method || 'POST', body, headers })
+    const result = await responseValue(response)
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite')
+      tx.objectStore(storeName).delete(record.key)
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+    window.dispatchEvent(new CustomEvent('chronofish:queue-drained', { detail: item }))
+    return result
+  } catch (error) {
+    const status = (error as Error & { status?: number }).status
+    if (status && status >= 400 && status < 500) {
+      await updateQueued(db, record.key, { ...item, status: 'rejected', lastError: (error as Error).message })
+      window.dispatchEvent(new CustomEvent('chronofish:queue-rejected', { detail: { ...item, lastError: (error as Error).message } }))
+      throw error
+    }
+    const attempt = item.attempt + 1
+    await updateQueued(db, record.key, { ...item, attempt, nextAttempt: nextAttemptAt(attempt) })
+    return { queued: true, key: item.key }
+  }
+}
+
+async function responseValue(response: Response): Promise<ApiQueueResult> {
+  if (response.status === 204) return {}
+  const contentType = response.headers.get('Content-Type') ?? ''
+  if (!contentType.includes('json')) return {}
+  const text = await response.text()
+  if (!text.trim()) return {}
+  try { return JSON.parse(text) as ApiQueueResult } catch { return {} }
 }
 
 export function startQueueSync(refresh: () => void): () => void {

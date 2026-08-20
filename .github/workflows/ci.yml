@@ -22,6 +22,19 @@ jobs:
       - name: Race-test backend (Linux)
         working-directory: backend
         run: go test -race ./...
+      - name: Enforce business-rule coverage
+        working-directory: backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test -coverprofile=/tmp/domain.cover ./internal/domain >/tmp/domain-cover.log
+          go test -coverprofile=/tmp/service.cover ./internal/service >/tmp/service-cover.log
+          domain=$(go tool cover -func=/tmp/domain.cover | awk '/total:/ {gsub("%", "", $3); print $3}')
+          service=$(go tool cover -func=/tmp/service.cover | awk '/total:/ {gsub("%", "", $3); print $3}')
+          echo "domain coverage: ${domain}%"
+          echo "service coverage: ${service}%"
+          test "${domain%.*}" -ge 90
+          test "${service%.*}" -ge 90
       - name: Check source encoding
         run: python scripts/check_source_encoding.py
       - uses: actions/setup-node@v4
@@ -38,6 +51,15 @@ jobs:
       - name: Type-check and build frontend
         working-directory: frontend
         run: npm run check
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm test -- --run
+      - name: Validate Compose files
+        run: |
+          docker compose -f compose.yaml config
+          docker compose -f compose.mysql.yaml --profile mysql config
+      - name: Build production API image
+        run: docker build -f backend/Dockerfile -t chronofish:ci .
 
   contract:
     runs-on: ubuntu-latest
@@ -114,6 +136,12 @@ jobs:
           conflict=$(curl --silent --show-error -o /tmp/postgres-conflict.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-postgres-site-other","name":"Conflict"}')
           test "$conflict" = 409
           cmp -s /tmp/postgres-create.json /tmp/postgres-retry.json
+      - name: Run repository and API integration suite on PostgreSQL
+        working-directory: backend
+        env:
+          CHRONOFISH_TEST_DATABASE_DRIVER: pgx
+          CHRONOFISH_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/chronofish?sslmode=disable
+        run: go test ./...
       - name: Restart PostgreSQL API and verify durable row and audit
         env:
           DB_DRIVER: postgres
@@ -200,6 +228,12 @@ jobs:
           conflict=$(curl --silent --show-error -o /tmp/mysql-conflict.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-mysql-site-other","name":"Conflict"}')
           test "$conflict" = 409
           cmp -s /tmp/mysql-create.json /tmp/mysql-retry.json
+      - name: Run repository and API integration suite on MySQL
+        working-directory: backend
+        env:
+          CHRONOFISH_TEST_DATABASE_DRIVER: mysql
+          CHRONOFISH_TEST_DATABASE_URL: root:root@tcp(127.0.0.1:3306)/chronofish?parseTime=true&multiStatements=true
+        run: go test ./...
       - name: Restart MySQL API and verify durable row and audit
         env:
           DB_DRIVER: mysql

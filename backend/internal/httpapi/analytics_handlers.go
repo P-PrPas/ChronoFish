@@ -46,7 +46,13 @@ func (s *apiServer) filteredEmbryos(query map[string][]string) []map[string]any 
 			continue
 		}
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+		if lot == nil || lot["active"] == false || lot["deletedAt"] != nil {
+			continue
+		}
 		batch := s.entities["batches"][stringValue(lot["batchId"])]
+		if batch == nil || batch["active"] == false || batch["deletedAt"] != nil {
+			continue
+		}
 		if wanted := firstQuery(query, "batchId"); wanted != "" && wanted != stringValue(batch["id"]) {
 			continue
 		}
@@ -115,6 +121,9 @@ func (s *apiServer) kpiLocked(embryos []map[string]any, query map[string][]strin
 func (s *apiServer) filteredBatchIDsLocked(query map[string][]string) map[string]bool {
 	result := make(map[string]bool)
 	for id, batch := range s.entities["batches"] {
+		if batch["active"] == false || batch["deletedAt"] != nil {
+			continue
+		}
 		if wanted := firstQuery(query, "batchId"); wanted != "" && wanted != id {
 			continue
 		}
@@ -141,6 +150,9 @@ func (s *apiServer) filteredBatchIDsLocked(query map[string][]string) map[string
 func (s *apiServer) filteredFishLocked(query map[string][]string) map[string]map[string]any {
 	result := make(map[string]map[string]any)
 	for id, fish := range s.entities["fish"] {
+		if fish["active"] == false || fish["deletedAt"] != nil {
+			continue
+		}
 		if wanted := firstQuery(query, "status"); wanted != "" && !strings.EqualFold(wanted, stringValue(fish["status"])) {
 			continue
 		}
@@ -168,11 +180,22 @@ func (s *apiServer) filteredFishLocked(query map[string][]string) map[string]map
 		}
 		if embryoID := stringValue(fish["embryoId"]); embryoID != "" {
 			embryo := s.entities["embryos"][embryoID]
+			if embryo == nil || embryo["active"] == false || embryo["deletedAt"] != nil {
+				continue
+			}
 			lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+			if lot == nil || lot["active"] == false || lot["deletedAt"] != nil {
+				continue
+			}
 			batch := s.entities["batches"][stringValue(lot["batchId"])]
+			if batch == nil || batch["active"] == false || batch["deletedAt"] != nil {
+				continue
+			}
 			if !s.filteredBatchIDsLocked(query)[stringValue(batch["id"])] {
 				continue
 			}
+		} else if firstQuery(query, "batchId") != "" || firstQuery(query, "siteId") != "" || firstQuery(query, "operatorId") != "" || firstQuery(query, "treatmentGroupId") != "" {
+			continue
 		}
 		result[id] = fish
 	}
@@ -206,7 +229,33 @@ func (s *apiServer) funnelLocked(embryos []map[string]any) []map[string]any {
 	return items
 }
 func (s *apiServer) survivalLocked(embryos []map[string]any) []map[string]any {
-	return s.stageSurvivalLocked(embryos)
+	groups := map[string][]map[string]any{}
+	for _, embryo := range embryos {
+		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+		batch := s.entities["batches"][stringValue(lot["batchId"])]
+		donor := s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]
+		site := stringValue(batch["siteId"])
+		strain := stringValue(donor["strain"])
+		groups[site+"\x00"+strain] = append(groups[site+"\x00"+strain], embryo)
+	}
+	items := make([]map[string]any, 0, len(groups)*26)
+	for key, group := range groups {
+		parts := strings.SplitN(key, "\x00", 2)
+		for _, point := range s.stageSurvivalLocked(group) {
+			point["siteId"], point["strain"] = parts[0], parts[1]
+			items = append(items, point)
+		}
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if stringValue(items[i]["siteId"]) != stringValue(items[j]["siteId"]) {
+			return stringValue(items[i]["siteId"]) < stringValue(items[j]["siteId"])
+		}
+		if stringValue(items[i]["strain"]) != stringValue(items[j]["strain"]) {
+			return stringValue(items[i]["strain"]) < stringValue(items[j]["strain"])
+		}
+		return intValue(items[i]["stageOrder"]) < intValue(items[j]["stageOrder"])
+	})
+	return items
 }
 
 func (s *apiServer) stageSurvivalLocked(embryos []map[string]any) []map[string]any {
@@ -387,23 +436,44 @@ func (s *apiServer) fishSurvivalLocked(query map[string][]string) []map[string]a
 			maxAge = age
 		}
 	}
-	items := make([]map[string]any, 0, maxAge+1)
-	for age := 0; age <= maxAge; age++ {
-		atRisk, alive := 0, 0
-		today := time.Now().In(bangkokLocation()).Format("2006-01-02")
-		for _, fish := range fishItems {
-			observedAge := ageDaysOn(stringValue(fish["dob"]), today)
-			if observedAge == 0 && stringValue(fish["dob"]) != today {
-				continue
+	split := strings.EqualFold(firstQuery(query, "splitByCondition"), "true")
+	groups := map[string]map[string]map[string]any{"ALL": fishItems}
+	if split {
+		groups = map[string]map[string]map[string]any{}
+		for id, fish := range fishItems {
+			condition := stringValue(fish["condition"])
+			if condition == "" {
+				condition = "UNDETERMINED"
 			}
-			if observedAge >= age {
-				atRisk++
-				if stringValue(fish["status"]) == "ALIVE" || s.exitAgeLocked(fish) > age {
-					alive++
+			if groups[condition] == nil {
+				groups[condition] = map[string]map[string]any{}
+			}
+			groups[condition][id] = fish
+		}
+	}
+	items := make([]map[string]any, 0, (maxAge+1)*len(groups))
+	today := time.Now().In(bangkokLocation()).Format("2006-01-02")
+	for condition, group := range groups {
+		for age := 0; age <= maxAge; age++ {
+			atRisk, alive := 0, 0
+			for _, fish := range group {
+				observedAge := ageDaysOn(stringValue(fish["dob"]), today)
+				if observedAge == 0 && stringValue(fish["dob"]) != today {
+					continue
+				}
+				if observedAge >= age {
+					atRisk++
+					if stringValue(fish["status"]) == "ALIVE" || s.exitAgeLocked(fish) > age {
+						alive++
+					}
 				}
 			}
+			row := map[string]any{"ageDays": age, "atRisk": atRisk, "alive": alive, "surv": percentage(alive, atRisk) / 100}
+			if split {
+				row["condition"] = condition
+			}
+			items = append(items, row)
 		}
-		items = append(items, map[string]any{"ageDays": age, "atRisk": atRisk, "alive": alive, "surv": percentage(alive, atRisk) / 100})
 	}
 	return items
 }
@@ -437,7 +507,18 @@ func (s *apiServer) pipelineLocked(embryos []map[string]any, query map[string][]
 	shield := s.reachedStageCountLocked(embryos, 19)
 	day1 := s.reachedStageCountLocked(embryos, 22)
 	promoted := len(s.filteredFishLocked(query))
-	return []map[string]any{{"step": "Activated", "count": start, "pctOfStart": percentage(start, start) / 100}, {"step": "Reached Shield", "count": shield, "pctOfStart": percentage(shield, start) / 100}, {"step": "Reached Day 1", "count": day1, "pctOfStart": percentage(day1, start) / 100}, {"step": "Promoted", "count": promoted, "pctOfStart": percentage(promoted, start) / 100}}
+	aliveFish := countFish(s.filteredFishLocked(query), "ALIVE")
+	counts := []struct {
+		step  string
+		count int
+	}{{"Activated", start}, {"Reached Shield", shield}, {"Reached Day 1", day1}, {"Promoted", promoted}, {"Alive Fish", aliveFish}}
+	items := make([]map[string]any, 0, len(counts))
+	previous := start
+	for _, entry := range counts {
+		items = append(items, map[string]any{"step": entry.step, "count": entry.count, "pctOfStart": percentage(entry.count, start) / 100, "pctOfPrevious": percentage(entry.count, previous) / 100})
+		previous = entry.count
+	}
+	return items
 }
 
 func countFish(items map[string]map[string]any, status string) int {

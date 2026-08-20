@@ -35,6 +35,38 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+func TestDuplicateBatchHonoursDateAndCopiesLotSettingsWithoutActivation(t *testing.T) {
+	server := newAPIServer()
+	server.entities["batches"]["batch-original"] = map[string]any{"id": "batch-original", "batchCode": "1_demo_scnt", "experimentDate": "2026-08-20", "dayNo": 20, "operatorId": "00000000-0000-7000-8000-000000000001", "treatmentGroupId": "treatment-1", "protocolId": "01900000-0000-7000-8000-000000000001", "timingProfileId": "01900000-0000-7000-8000-000000000002", "active": true}
+	server.entities["treatment-groups"]["treatment-1"] = map[string]any{"id": "treatment-1", "code": "SCNT", "active": true}
+	server.entities["injection-lots"]["lot-original"] = map[string]any{"id": "lot-original", "batchId": "batch-original", "lotNo": "1", "donorCellLineId": "donor-1", "nEggs": 20, "nActivated": 12, "activatedAt": "2026-08-20T02:00:00Z", "active": true}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/batches/batch-original/duplicate", strings.NewReader(`{"experimentDate":"2026-08-25","dayNo":25,"copyInjectionLots":true}`))
+	server.duplicateBatch(recorder, request, "batch-original")
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	var batch map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &batch); err != nil {
+		t.Fatal(err)
+	}
+	if batch["experimentDate"] != "2026-08-25" || intValue(batch["dayNo"]) != 25 {
+		t.Fatalf("duplicate batch = %#v, want requested date/day", batch)
+	}
+	count := 0
+	for _, lot := range server.entities["injection-lots"] {
+		if stringValue(lot["batchId"]) == stringValue(batch["id"]) {
+			count++
+			if lot["activatedAt"] != nil || intValue(lot["nActivated"]) != 0 {
+				t.Fatalf("copied lot retained activation: %#v", lot)
+			}
+		}
+	}
+	if count != 1 {
+		t.Fatalf("copied lot count = %d, want 1", count)
+	}
+}
+
 func TestCORS(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodOptions, "/api/v1/health", nil)
@@ -295,7 +327,7 @@ func TestRTableHasNotebookShape(t *testing.T) {
 
 func TestTimingCSVImportCreatesVersion(t *testing.T) {
 	handler := newHandler("test", "")
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/timing-profiles/csv", strings.NewReader("stage_order,stage_code,label,expected_hpa\n1,stage_01_1C,1-cell,0\n2,stage_02_2C,2-cell,0.75\n"))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/timing-profiles/csv?protocolId=01900000-0000-7000-8000-000000000001", strings.NewReader("stage_order,stage_code,label,expected_hpa\n1,stage_01_1C,1-cell,0\n2,stage_02_2C,2-cell,0.75\n"))
 	req.Header.Set("Content-Type", "text/csv")
 	req.Header.Set("X-Operator-Id", "00000000-0000-7000-8000-000000000001")
 	req.Header.Set("X-Device-Id", "test-device")
@@ -310,7 +342,7 @@ func TestTimingCSVImportCreatesVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	entries, ok := profile["entries"].([]any)
-	if !ok || len(entries) != 2 {
+	if !ok || len(entries) != 36 {
 		t.Fatalf("entries = %#v", profile["entries"])
 	}
 }

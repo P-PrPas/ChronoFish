@@ -65,8 +65,6 @@ export interface ApiItem extends ApiRecord {
 }
 
 export const apiBase = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
-const demoOperator = '00000000-0000-7000-8000-000000000001'
-
 export function deviceId(): string {
   const key = 'chronofish.device_id'
   let id = localStorage.getItem(key)
@@ -78,7 +76,13 @@ export function deviceId(): string {
 }
 
 export function operatorId(): string {
-  return localStorage.getItem('chronofish.operator_id') ?? demoOperator
+  const current = sessionStorage.getItem('chronofish.operator_id')
+  if (current) return current
+  // Migrate the pre-session setting once; mutations thereafter remain scoped
+  // to this browser session rather than permanently selecting a demo user.
+  const legacy = localStorage.getItem('chronofish.operator_id')
+  if (legacy) { sessionStorage.setItem('chronofish.operator_id', legacy); localStorage.removeItem('chronofish.operator_id'); return legacy }
+  return ''
 }
 
 export function mutationHeaders(key = crypto.randomUUID()): Record<string, string> {

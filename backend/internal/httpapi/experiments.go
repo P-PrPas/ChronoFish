@@ -33,9 +33,11 @@ func (s *apiServer) createBatch(w http.ResponseWriter, r *http.Request) bool {
 	}
 	profileID := stringValue(input["timingProfileId"])
 	if profileID == "" {
-		profileID = "01900000-0000-7000-8000-000000000002"
+		if current := s.currentTimingProfileLocked(stringValue(input["protocolId"])); current != nil {
+			profileID = stringValue(current["id"])
+		}
 	}
-	if profile := s.entities["timing-profiles"][profileID]; profile == nil || profile["deletedAt"] != nil {
+	if profile := s.entities["timing-profiles"][profileID]; profile == nil || profile["deletedAt"] != nil || stringValue(profile["protocolId"]) != stringValue(input["protocolId"]) || profile["isCurrent"] != true && stringValue(input["timingProfileId"]) == "" {
 		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "ไม่พบ timing profile")
 		return true
 	}
@@ -53,19 +55,41 @@ func (s *apiServer) createBatch(w http.ResponseWriter, r *http.Request) bool {
 	id := uuidV7()
 	now := time.Now().UTC().Format(time.RFC3339)
 	code := stringValue(input["batchCode"])
+	dayNo := intValue(input["dayNo"])
+	if dayNo < 1 {
+		if date, parseErr := time.Parse("2006-01-02", stringValue(input["experimentDate"])); parseErr == nil {
+			dayNo = date.Day()
+		} else {
+			dayNo = 1
+		}
+	}
 	if code == "" {
-		code = fmt.Sprintf("%s_%s_%s", stringValue(input["experimentDate"]), stringValue(input["operatorId"]), stringValue(input["treatmentGroupId"]))
+		operatorPart := stringValue(s.entities["operators"][stringValue(input["operatorId"])]["name"])
+		if operatorPart == "" {
+			operatorPart = stringValue(input["operatorId"])
+		}
+		treatmentPart := stringValue(s.entities["treatment-groups"][stringValue(input["treatmentGroupId"])]["code"])
+		if treatmentPart == "" {
+			treatmentPart = stringValue(input["treatmentGroupId"])
+		}
+		code = fmt.Sprintf("%d_%s_%s", dayNo, sanitizeBatchPart(operatorPart), sanitizeBatchPart(treatmentPart))
 	}
 	batch := cloneMap(input)
-	batch["id"], batch["batchCode"], batch["timingProfileId"], batch["createdAt"], batch["updatedAt"], batch["active"] = id, code, profileID, now, now, true
+	batch["id"], batch["batchCode"], batch["dayNo"], batch["timingProfileId"], batch["createdAt"], batch["updatedAt"], batch["active"] = id, code, dayNo, profileID, now, now, true
 	s.entities["batches"][id] = batch
 	s.auditLocked(r, "INSERT", "experiment_batch", id, nil, batch)
 	if key != "" {
 		body, _ := json.Marshal(batch)
-		s.idempotency["batch:"+key] = body
+		s.setMutationCache(r, "batch:"+key, body)
 	}
 	writeJSON(w, 201, batch)
 	return true
+}
+
+func sanitizeBatchPart(value string) string {
+	value = strings.TrimSpace(value)
+	value = strings.ReplaceAll(value, " ", "-")
+	return value
 }
 
 func (s *apiServer) batchRoute(w http.ResponseWriter, r *http.Request, p []string) bool {
@@ -116,6 +140,14 @@ func (s *apiServer) createLot(w http.ResponseWriter, r *http.Request, batchID st
 		writeAPIError(w, 422, "validation_error", "activatedAt ต้องเป็น RFC3339")
 		return true
 	}
+	for _, field := range []string{"enuStartAt", "enuFinishAt"} {
+		if value := stringValue(input[field]); value != "" {
+			if _, parseErr := parseBangkokInstant(value); parseErr != nil {
+				writeAPIError(w, 422, "validation_error", field+" must be RFC3339 with timezone offset")
+				return true
+			}
+		}
+	}
 	n := intValue(input["nActivated"])
 	if n < 0 || n > 96 {
 		writeAPIError(w, 422, "validation_error", "nActivated ต้องอยู่ระหว่าง 0 ถึง 96")
@@ -124,7 +156,7 @@ func (s *apiServer) createLot(w http.ResponseWriter, r *http.Request, batchID st
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	batch, ok := s.entities["batches"][batchID]
-	if !ok {
+	if !ok || batch["active"] == false || batch["deletedAt"] != nil {
 		writeAPIError(w, 404, "not_found", "ไม่พบ batch")
 		return true
 	}
@@ -156,6 +188,9 @@ func (s *apiServer) createLot(w http.ResponseWriter, r *http.Request, batchID st
 	}
 	s.entities["injection-lots"][lotID] = lot
 	s.auditLocked(r, "INSERT", "injection_lot", lotID, nil, lot)
+	for _, embryo := range embryos {
+		s.auditLocked(r, "INSERT", "embryo", stringValue(embryo["id"]), nil, embryo)
+	}
 	result := cloneMap(lot)
 	result["embryos"] = embryos
 	_ = activated
@@ -167,14 +202,15 @@ func (s *apiServer) lotEmbryos(w http.ResponseWriter, r *http.Request, lotID str
 	if r.Method == http.MethodGet {
 		s.mu.RLock()
 		items := make([]map[string]any, 0)
-		if s.entities["injection-lots"][lotID] == nil {
+		lot := s.entities["injection-lots"][lotID]
+		if lot == nil || lot["active"] == false || lot["deletedAt"] != nil {
 			s.mu.RUnlock()
 			writeAPIError(w, http.StatusNotFound, "not_found", "ไม่พบ injection lot")
 			return true
 		}
 		aliveOnly := r.URL.Query().Get("aliveOnly") == "true"
 		for _, embryo := range s.entities["embryos"] {
-			if stringValue(embryo["injectionLotId"]) == lotID && embryo["active"] != false && (!aliveOnly || embryo["exitReason"] == nil) {
+			if stringValue(embryo["injectionLotId"]) == lotID && embryo["active"] != false && embryo["deletedAt"] == nil && (!aliveOnly || embryo["exitReason"] == nil) {
 				items = append(items, cloneMap(embryo))
 			}
 		}
@@ -197,7 +233,7 @@ func (s *apiServer) lotEmbryos(w http.ResponseWriter, r *http.Request, lotID str
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		lot, ok := s.entities["injection-lots"][lotID]
-		if !ok || lot["active"] == false {
+		if !ok || lot["active"] == false || lot["deletedAt"] != nil {
 			writeAPIError(w, http.StatusNotFound, "not_found", "ไม่พบ injection lot")
 			return true
 		}
@@ -219,6 +255,7 @@ func (s *apiServer) lotEmbryos(w http.ResponseWriter, r *http.Request, lotID str
 			embryo := map[string]any{"id": id, "injectionLotId": lotID, "seqInLot": seq, "embryoCode": fmt.Sprintf("%s_%s_%d", stringValue(batch["batchCode"]), stringValue(lot["lotNo"]), seq), "active": true, "createdAt": time.Now().UTC().Format(time.RFC3339), "updatedAt": time.Now().UTC().Format(time.RFC3339)}
 			s.entities["embryos"][id] = embryo
 			created = append(created, embryo)
+			s.auditLocked(r, "INSERT", "embryo", id, nil, embryo)
 		}
 		writeJSON(w, 201, map[string]any{"items": created})
 		return true
@@ -227,16 +264,31 @@ func (s *apiServer) lotEmbryos(w http.ResponseWriter, r *http.Request, lotID str
 }
 
 func (s *apiServer) duplicateBatch(w http.ResponseWriter, r *http.Request, id string) bool {
+	input, err := readMap(r)
+	if err != nil {
+		writeAPIError(w, http.StatusBadRequest, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
+		return true
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	old, ok := s.entities["batches"][id]
-	if !ok {
+	if !ok || old["active"] == false || old["deletedAt"] != nil {
 		writeAPIError(w, 404, "not_found", "ไม่พบ batch")
 		return true
 	}
 	copy := cloneMap(old)
 	delete(copy, "id")
 	delete(copy, "batchCode")
+	date := stringValue(input["experimentDate"])
+	if _, err := time.Parse("2006-01-02", date); err != nil {
+		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "experimentDate ต้องเป็น YYYY-MM-DD")
+		return true
+	}
+	copy["experimentDate"] = date
+	copy["dayNo"] = input["dayNo"]
+	copy["batchCode"] = ""
+	copy["copyInjectionLots"] = input["copyInjectionLots"] == true
+	copy["sourceBatchId"] = id
 	if body, err := json.Marshal(copy); err == nil {
 		r.Body = io.NopCloser(strings.NewReader(string(body)))
 	}
@@ -246,10 +298,49 @@ func (s *apiServer) duplicateBatch(w http.ResponseWriter, r *http.Request, id st
 func (s *apiServer) createBatchLocked(w http.ResponseWriter, r *http.Request, input map[string]any) bool {
 	id := uuidV7()
 	now := time.Now().UTC().Format(time.RFC3339)
+	sourceBatchID := stringValue(input["sourceBatchId"])
+	copyInjectionLots := input["copyInjectionLots"] == true
 	batch := cloneMap(input)
-	batch["id"], batch["batchCode"], batch["experimentDate"], batch["createdAt"], batch["updatedAt"], batch["active"] = id, fmt.Sprintf("copy_%s", id[:8]), time.Now().UTC().Format("2006-01-02"), now, now, true
+	delete(batch, "sourceBatchId")
+	delete(batch, "copyInjectionLots")
+	dayNo := intValue(batch["dayNo"])
+	if dayNo < 1 {
+		if date, err := time.Parse("2006-01-02", stringValue(batch["experimentDate"])); err == nil {
+			dayNo = date.Day()
+		} else {
+			dayNo = 1
+		}
+	}
+	operatorPart := sanitizeBatchPart(stringValue(s.entities["operators"][stringValue(batch["operatorId"])]["name"]))
+	treatmentPart := sanitizeBatchPart(stringValue(s.entities["treatment-groups"][stringValue(batch["treatmentGroupId"])]["code"]))
+	batchCode := fmt.Sprintf("%d_%s_%s", dayNo, operatorPart, treatmentPart)
+	if operatorPart == "" {
+		operatorPart = stringValue(batch["operatorId"])
+	}
+	if treatmentPart == "" {
+		treatmentPart = stringValue(batch["treatmentGroupId"])
+	}
+	batchCode = fmt.Sprintf("%d_%s_%s", dayNo, operatorPart, treatmentPart)
+	for _, existing := range s.entities["batches"] {
+		if existing["active"] != false && strings.EqualFold(stringValue(existing["batchCode"]), batchCode) {
+			batchCode += "_" + id[:8]
+			break
+		}
+	}
+	batch["id"], batch["batchCode"], batch["dayNo"], batch["createdAt"], batch["updatedAt"], batch["active"] = id, batchCode, dayNo, now, now, true
 	s.entities["batches"][id] = batch
 	s.auditLocked(r, "INSERT", "experiment_batch", id, nil, batch)
+	if copyInjectionLots && sourceBatchID != "" {
+		for _, oldLot := range s.entities["injection-lots"] {
+			if stringValue(oldLot["batchId"]) != sourceBatchID || oldLot["deletedAt"] != nil || oldLot["active"] == false {
+				continue
+			}
+			lot := cloneMap(oldLot)
+			lot["id"], lot["batchId"], lot["activatedAt"], lot["nActivated"], lot["createdAt"], lot["updatedAt"] = uuidV7(), id, nil, 0, now, now
+			s.entities["injection-lots"][stringValue(lot["id"])] = lot
+			s.auditLocked(r, "INSERT", "injection_lot", stringValue(lot["id"]), nil, lot)
+		}
+	}
 	writeJSON(w, 201, batch)
 	return true
 }
@@ -284,6 +375,7 @@ func (s *apiServer) controlCounts(w http.ResponseWriter, r *http.Request, batchI
 		item["batchId"] = batchID
 		item["createdAt"] = time.Now().UTC().Format(time.RFC3339)
 		s.entities["control-arm-counts"][stringValue(item["id"])] = item
+		s.auditLocked(r, "INSERT", "control_arm_count", stringValue(item["id"]), nil, item)
 	}
 	writeJSON(w, 200, map[string]any{"items": raw})
 	return true

@@ -1,6 +1,7 @@
 export type DashboardFilters = {
   batchId?: string
   siteId?: string
+  operatorId?: string
   treatmentGroupId?: string
   strain?: string
   dateFrom?: string
@@ -13,7 +14,7 @@ export type DashboardFilters = {
   donorCellLineId?: string
 }
 
-const filterKeys = ['batchId', 'siteId', 'treatmentGroupId', 'strain', 'dateFrom', 'dateTo', 'status', 'boxId', 'condition', 'dobFrom', 'dobTo', 'donorCellLineId'] as const
+const filterKeys = ['batchId', 'siteId', 'operatorId', 'treatmentGroupId', 'strain', 'dateFrom', 'dateTo', 'status', 'boxId', 'condition', 'dobFrom', 'dobTo', 'donorCellLineId'] as const
 
 export function parseFilters(search = window.location.search): DashboardFilters {
   const params = new URLSearchParams(search)

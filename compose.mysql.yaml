@@ -29,6 +29,11 @@ services:
       MIGRATIONS_DIR: /migrations/mysql
     ports:
       - "8081:8080"
+    healthcheck:
+      test: ["CMD", "/chronofish", "-healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
     depends_on:
       mysql:
         condition: service_healthy

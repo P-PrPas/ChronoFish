@@ -17,17 +17,21 @@ func (s *apiServer) promotions(w http.ResponseWriter, r *http.Request, p []strin
 		items := []map[string]any{}
 		now := time.Now().UTC()
 		for _, e := range s.entities["embryos"] {
-			if e["exitReason"] != nil || s.fishForEmbryoLocked(stringValue(e["id"])) != nil || s.latestEmbryoObservationLocked(stringValue(e["id"])) == nil || stringValue(s.latestEmbryoObservationLocked(stringValue(e["id"]))["outcome"]) != "ALIVE" {
+			if e["active"] == false || e["deletedAt"] != nil || e["exitReason"] != nil || s.fishForEmbryoLocked(stringValue(e["id"])) != nil || s.latestEmbryoObservationLocked(stringValue(e["id"])) == nil || stringValue(s.latestEmbryoObservationLocked(stringValue(e["id"]))["outcome"]) != "ALIVE" {
 				continue
 			}
 			lot := s.entities["injection-lots"][stringValue(e["injectionLotId"])]
 			batch := s.entities["batches"][stringValue(lot["batchId"])]
+			if lot == nil || lot["active"] == false || lot["deletedAt"] != nil || batch == nil || batch["active"] == false || batch["deletedAt"] != nil {
+				continue
+			}
 			if wanted := firstQuery(r.URL.Query(), "siteId"); wanted != "" && wanted != stringValue(batch["siteId"]) {
 				continue
 			}
 			activated, err := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
 			if err == nil && domain.PromotionEligibleAt(e["exitReason"] != nil, true, activated, now, s.promotionThresholdLocked(batch)) {
-				items = append(items, map[string]any{"embryoId": e["id"], "embryoCode": e["embryoCode"], "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "ageDays": calendarAge(activated, now), "suggestedFishCode": "No." + strconv.Itoa(s.fishNo), "suggestedRunningNo": s.fishNo})
+				latest := s.latestEmbryoObservationLocked(stringValue(e["id"]))
+				items = append(items, map[string]any{"embryoId": e["id"], "embryoCode": e["embryoCode"], "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "ageDays": calendarAge(activated, now), "strain": s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]["strain"], "condition": latest["condition"], "firstAbnormalOn": e["firstAbnormalOn"], "firstAbnormalAgeDays": e["firstAbnormalAgeDays"], "firstAbnormalStageCode": e["firstAbnormalStageCode"], "suggestedFishCode": "No." + strconv.Itoa(s.fishNo), "suggestedRunningNo": s.fishNo})
 			}
 		}
 		writeJSON(w, 200, map[string]any{"items": items})
@@ -41,7 +45,7 @@ func (s *apiServer) promotions(w http.ResponseWriter, r *http.Request, p []strin
 
 func (s *apiServer) fishForEmbryoLocked(embryoID string) map[string]any {
 	for _, fish := range s.entities["fish"] {
-		if stringValue(fish["embryoId"]) == embryoID {
+		if fish["active"] != false && fish["deletedAt"] == nil && stringValue(fish["embryoId"]) == embryoID {
 			return fish
 		}
 	}
@@ -83,18 +87,18 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
 		batch := s.entities["batches"][stringValue(lot["batchId"])]
 		activated, activatedErr := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
-		eligible := ok && lot != nil && batch != nil && activatedErr == nil && domain.PromotionEligibleAt(embryo["exitReason"] != nil, latest != nil && stringValue(latest["outcome"]) == "ALIVE", activated, time.Now().UTC(), s.promotionThresholdLocked(batch))
+		eligible := ok && embryo["active"] != false && embryo["deletedAt"] == nil && lot != nil && lot["active"] != false && lot["deletedAt"] == nil && batch != nil && batch["active"] != false && batch["deletedAt"] == nil && activatedErr == nil && domain.PromotionEligibleAt(embryo["exitReason"] != nil, latest != nil && stringValue(latest["outcome"]) == "ALIVE", activated, time.Now().UTC(), s.promotionThresholdLocked(batch))
 		if !eligible {
 			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "embryo ยังไม่เข้าเกณฑ์เลื่อนขั้น"}}
 			body, _ := json.Marshal(result)
-			s.idempotency["promotion:"+client] = body
+			s.setMutationCache(r, "promotion:"+client, body)
 			results = append(results, result)
 			continue
 		}
 		if s.fishForEmbryoLocked(stringValue(embryo["id"])) != nil {
 			result := map[string]any{"clientUuid": client, "status": "duplicate", "id": s.fishForEmbryoLocked(stringValue(embryo["id"]))["id"]}
 			body, _ := json.Marshal(result)
-			s.idempotency["promotion:"+client] = body
+			s.setMutationCache(r, "promotion:"+client, body)
 			results = append(results, result)
 			continue
 		}
@@ -106,7 +110,7 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 		if s.fishCodeExistsLocked(fishCode) {
 			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "fishCode ซ้ำกับรายการเดิม"}}
 			body, _ := json.Marshal(result)
-			s.idempotency["promotion:"+client] = body
+			s.setMutationCache(r, "promotion:"+client, body)
 			results = append(results, result)
 			continue
 		}
@@ -132,7 +136,7 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 		embryo["exitReason"], embryo["exitAt"] = "PROMOTED", time.Now().UTC().Format(time.RFC3339)
 		result := map[string]any{"clientUuid": client, "id": id, "status": "created", "fish": fish}
 		body, _ := json.Marshal(result)
-		s.idempotency["promotion:"+client] = body
+		s.setMutationCache(r, "promotion:"+client, body)
 		results = append(results, result)
 		s.auditLocked(r, "INSERT", "clone_fish", id, nil, fish)
 		s.auditLocked(r, "UPDATE", "embryo", stringValue(embryo["id"]), beforeEmbryo, embryo)
@@ -167,7 +171,7 @@ func (s *apiServer) specimens(w http.ResponseWriter, r *http.Request, fishID str
 		defer s.mu.RUnlock()
 		items := []map[string]any{}
 		for _, item := range s.entities["specimens"] {
-			if stringValue(item["cloneFishId"]) == fishID {
+			if item["active"] != false && item["deletedAt"] == nil && stringValue(item["cloneFishId"]) == fishID {
 				items = append(items, cloneMap(item))
 			}
 		}
@@ -203,6 +207,7 @@ func (s *apiServer) specimens(w http.ResponseWriter, r *http.Request, fishID str
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	beforeFish := cloneMap(s.entities["fish"][fishID])
 	id := uuidV7()
 	input["id"], input["cloneFishId"], input["createdAt"] = id, fishID, time.Now().UTC().Format(time.RFC3339)
 	s.entities["specimens"][id] = input
@@ -212,6 +217,7 @@ func (s *apiServer) specimens(w http.ResponseWriter, r *http.Request, fishID str
 		}
 	}
 	s.auditLocked(r, "INSERT", "specimen", id, nil, input)
+	s.auditChangedFishLocked(r, fishID, beforeFish)
 	writeJSON(w, 201, input)
 	return true
 }

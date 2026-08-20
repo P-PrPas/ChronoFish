@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/P-PrPas/ChronoFish/backend/internal/service"
 	storepkg "github.com/P-PrPas/ChronoFish/backend/internal/store"
 )
 
@@ -42,7 +43,6 @@ type apiServer struct {
 	startupErr        error
 	store             stateStore
 	mu                sync.RWMutex
-	mutationMu        sync.Mutex
 	entities          map[string]map[string]map[string]any
 	audits            []map[string]any
 	observations      map[string]map[string]any
@@ -135,14 +135,6 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	mutation := r.Method != http.MethodGet && r.Method != http.MethodHead
-	if mutation {
-		// A mutation owns the complete reserve/check -> handler -> commit/publish
-		// sequence. This prevents two requests from taking snapshots of one
-		// another's partially-applied state and makes memory idempotency match the
-		// database reservation winner.
-		s.mutationMu.Lock()
-		defer s.mutationMu.Unlock()
-	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		if err := s.validateWriteContext(r, partsForContext(r.URL.Path)); err != nil {
 			writeAPIError(w, http.StatusBadRequest, "invalid_context", err.Error())
@@ -165,7 +157,15 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if mutation {
 		if atomicStore, ok := s.store.(atomicStateStore); ok {
 			reservation := storepkg.Mutation{Scope: requestScope, Key: idempotencyKey, RequestHash: fingerprint, OperatorID: r.Header.Get("X-Operator-Id"), DeviceID: r.Header.Get("X-Device-Id")}
-			reserved, created, err := atomicStore.Reserve(r.Context(), reservation)
+			persistentStore, persistent := s.store.(service.Persistence)
+			var reserved storepkg.Mutation
+			var created bool
+			var err error
+			if persistent {
+				reserved, created, err = service.Acquire(r.Context(), persistentStore, reservation)
+			} else {
+				reserved, created, err = atomicStore.Reserve(r.Context(), reservation)
+			}
 			if err != nil {
 				if errors.Is(err, storepkg.ErrIdempotencyConflict) {
 					writeAPIError(w, http.StatusConflict, "idempotency_conflict", "X-Idempotency-Key ถูกใช้กับ request อื่นแล้ว")
@@ -183,9 +183,14 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 						writeAPIError(w, http.StatusServiceUnavailable, "idempotency_in_progress", "request เดิมกำลังถูกประมวลผล")
 						return
 					}
+					if reserved.LeaseOwner {
+						created = true
+					}
 				}
-				replayMutation(w, reserved)
-				return
+				if !created {
+					replayMutation(w, reserved)
+					return
+				}
 			}
 		} else {
 			s.mu.RLock()
@@ -222,12 +227,25 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	originalWriter := w
 	var atomicStore atomicStateStore
+	var deltaStore deltaStateStore
+	var persistence service.Persistence
+	var work *service.UnitOfWork
+	var cacheBefore *mutationCacheJournal
 	var before storepkg.State
 	var reservation *storepkg.Mutation
 	if mutation {
 		atomicStore, _ = s.store.(atomicStateStore)
 		if atomicStore != nil {
-			before = stateFromServer(s)
+			deltaStore, _ = s.store.(deltaStateStore)
+			persistence, _ = s.store.(service.Persistence)
+			if deltaStore != nil {
+				work = service.NewUnitOfWork()
+				cacheBefore = snapshotMutationCache(s)
+				r = r.WithContext(context.WithValue(r.Context(), mutationDeltaContextKey{}, work))
+				r = r.WithContext(context.WithValue(r.Context(), mutationCacheContextKey{}, cacheBefore))
+			} else {
+				before = stateFromServer(s)
+			}
 			reservation = &storepkg.Mutation{Scope: requestScope, Key: idempotencyKey, RequestHash: fingerprint, OperatorID: r.Header.Get("X-Operator-Id"), DeviceID: r.Header.Get("X-Device-Id")}
 		}
 	}
@@ -251,11 +269,27 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			storedBody = []byte(base64.StdEncoding.EncodeToString(recorded.body))
 		}
 		mutationResult.Status, mutationResult.ContentType, mutationResult.Body = recorded.status, contentType, storedBody
-		after := stateFromServer(s)
-		if err := atomicStore.Commit(r.Context(), &before, &after, &mutationResult); err != nil {
-			_ = atomicStore.Abort(context.Background(), mutationResult)
-			applyState(s, before)
-			log.Printf("persist mutation: %v", err)
+		var commitErr error
+		if deltaStore != nil {
+			work.Delta().References = stateReferences(s)
+			commitErr = service.Commit(r.Context(), persistence, &service.Mutation{Request: mutationResult, Work: work})
+		} else {
+			after := stateFromServer(s)
+			commitErr = atomicStore.Commit(r.Context(), &before, &after, &mutationResult)
+		}
+		if commitErr != nil {
+			if persistence != nil {
+				_ = service.Abort(context.Background(), persistence, mutationResult)
+			} else {
+				_ = atomicStore.Abort(context.Background(), mutationResult)
+			}
+			if deltaStore != nil {
+				restoreDelta(s, work.Delta())
+				restoreMutationCache(s, cacheBefore)
+			} else {
+				applyState(s, before)
+			}
+			log.Printf("persist mutation: %v", commitErr)
 			writeAPIError(originalWriter, http.StatusServiceUnavailable, "persistence_unavailable", "ฐานข้อมูลยังไม่พร้อมใช้งาน")
 			return
 		}

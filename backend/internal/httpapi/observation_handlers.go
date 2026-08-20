@@ -4,7 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
+	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -15,9 +18,23 @@ func (s *apiServer) dueCheckpoints(w http.ResponseWriter, r *http.Request) bool 
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	now := time.Now().UTC()
+	query := r.URL.Query()
 	items := []map[string]any{}
 	upcoming := []map[string]any{}
 	for _, lot := range s.entities["injection-lots"] {
+		if lot["active"] == false || lot["deletedAt"] != nil || !s.lotHasActiveEmbryoLocked(stringValue(lot["id"])) {
+			continue
+		}
+		batch := s.entities["batches"][stringValue(lot["batchId"])]
+		if batch == nil || batch["active"] == false || batch["deletedAt"] != nil {
+			continue
+		}
+		if wanted := firstQuery(query, "siteId"); wanted != "" && wanted != stringValue(batch["siteId"]) {
+			continue
+		}
+		if wanted := firstQuery(query, "operatorId"); wanted != "" && wanted != stringValue(batch["operatorId"]) {
+			continue
+		}
 		activated, err := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
 		if err != nil {
 			continue
@@ -34,24 +51,33 @@ func (s *apiServer) dueCheckpoints(w http.ResponseWriter, r *http.Request) bool 
 			if !observed {
 				minutes := int(now.Sub(due).Minutes())
 				if minutes >= 0 {
-					items = append(items, map[string]any{"injectionLotId": lot["id"], "batchCode": s.entities["batches"][stringValue(lot["batchId"])]["batchCode"], "lotNo": lot["lotNo"], "stageCode": code, "stageLabel": stageLabel(stage), "stageOrder": stage, "dueAt": due.Format(time.RFC3339), "minutesLate": minutes})
+					items = append(items, map[string]any{"injectionLotId": lot["id"], "batchCode": batch["batchCode"], "lotNo": lot["lotNo"], "stageCode": code, "stageLabel": stageLabel(stage), "stageOrder": stage, "dueAt": due.Format(time.RFC3339), "minutesLate": minutes, "urgency": minutes})
 				} else if len(upcoming) == 0 || stringValue(upcoming[len(upcoming)-1]["injectionLotId"]) != stringValue(lot["id"]) {
-					upcoming = append(upcoming, map[string]any{"injectionLotId": lot["id"], "batchCode": s.entities["batches"][stringValue(lot["batchId"])]["batchCode"], "lotNo": lot["lotNo"], "stageCode": code, "stageLabel": stageLabel(stage), "stageOrder": stage, "dueAt": due.Format(time.RFC3339), "minutesLate": minutes})
+					upcoming = append(upcoming, map[string]any{"injectionLotId": lot["id"], "batchCode": batch["batchCode"], "lotNo": lot["lotNo"], "stageCode": code, "stageLabel": stageLabel(stage), "stageOrder": stage, "dueAt": due.Format(time.RFC3339), "minutesLate": minutes, "urgency": minutes})
 				}
 			}
 		}
 	}
-	sortItems(items)
-	sortItems(upcoming)
+	sort.SliceStable(items, func(i, j int) bool { return intValue(items[i]["minutesLate"]) > intValue(items[j]["minutesLate"]) })
+	sort.SliceStable(upcoming, func(i, j int) bool { return stringValue(upcoming[i]["dueAt"]) < stringValue(upcoming[j]["dueAt"]) })
 	writeJSON(w, 200, map[string]any{"overdue": items, "upcoming": upcoming, "pendingPromotionCount": s.pendingCountLocked(now)})
 	return true
+}
+
+func (s *apiServer) lotHasActiveEmbryoLocked(lotID string) bool {
+	for _, embryo := range s.entities["embryos"] {
+		if stringValue(embryo["injectionLotId"]) == lotID && embryo["active"] != false && embryo["deletedAt"] == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *apiServer) checkpoint(w http.ResponseWriter, r *http.Request, lotID, stageCode string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	lot, ok := s.entities["injection-lots"][lotID]
-	if !ok {
+	if !ok || lot["active"] == false || lot["deletedAt"] != nil {
 		writeAPIError(w, 404, "not_found", "ไม่พบ injection lot")
 		return true
 	}
@@ -139,12 +165,14 @@ func (s *apiServer) createEmbryoObservations(w http.ResponseWriter, r *http.Requ
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
 		observedAt, _ := time.Parse(time.RFC3339, stringValue(item["observedAt"]))
 		activated, _ := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
-		actual := observedAt.Sub(activated).Hours()
-		expected := s.expectedHPAForEmbryoLocked(map[string]any{"embryoId": embryo["id"], "stageCode": item["stageCode"]})
+		actual := round4(observedAt.Sub(activated).Hours())
+		expected := round4(s.expectedHPAForEmbryoLocked(map[string]any{"embryoId": embryo["id"], "stageCode": item["stageCode"]}))
+		deviation := round4(actual - expected)
 		id := uuidV7()
-		result := map[string]any{"clientUuid": client, "id": id, "status": "created", "hpaActual": actual, "hpaExpected": expected, "deviationH": actual - expected, "deviationLabel": deviationLabel(actual - expected)}
+		result := map[string]any{"clientUuid": client, "id": id, "status": "created", "hpaActual": actual, "hpaExpected": expected, "deviationH": deviation, "deviationLabel": deviationLabel(deviation)}
 		obs := cloneMap(item)
-		obs["id"], obs["injectionLotId"], obs["hpaActual"], obs["hpaExpectedSnapshot"], obs["deviationH"], obs["operatorId"], obs["deviceId"], obs["isBackdated"], obs["createdAt"] = id, lot["id"], actual, expected, actual-expected, r.Header.Get("X-Operator-Id"), r.Header.Get("X-Device-Id"), observedAt.Before(time.Now().UTC()), time.Now().UTC().Format(time.RFC3339)
+		now := time.Now().UTC()
+		obs["id"], obs["injectionLotId"], obs["hpaActual"], obs["hpaExpectedSnapshot"], obs["deviationH"], obs["operatorId"], obs["deviceId"], obs["isBackdated"], obs["createdAt"] = id, lot["id"], actual, expected, deviation, r.Header.Get("X-Operator-Id"), r.Header.Get("X-Device-Id"), isBackdated(observedAt, now), now.Format(time.RFC3339)
 		staged = append(staged, obs)
 		results = append(results, result)
 	}
@@ -155,12 +183,14 @@ func (s *apiServer) createEmbryoObservations(w http.ResponseWriter, r *http.Requ
 		touchedEmbryos[stringValue(obs["embryoId"])] = true
 	}
 	for embryoID := range touchedEmbryos {
+		before := cloneMap(s.entities["embryos"][embryoID])
 		s.recomputeEmbryoLocked(embryoID)
+		s.auditChangedEmbryoLocked(r, embryoID, before)
 	}
 	for i, result := range results {
 		item, _ := result.(map[string]any)
 		body, _ := json.Marshal(item)
-		s.idempotency["embryo:"+stringValue(item["clientUuid"])] = body
+		s.setMutationCache(r, "embryo:"+stringValue(item["clientUuid"]), body)
 		results[i] = item
 	}
 	writeJSON(w, 200, map[string]any{"results": results})
@@ -183,13 +213,16 @@ func (s *apiServer) validateEmbryoObservation(item map[string]any) error {
 		}
 	}
 	embryo, ok := s.entities["embryos"][stringValue(item["embryoId"])]
-	if !ok {
+	if !ok || embryo["active"] == false || embryo["deletedAt"] != nil {
 		return errors.New("ไม่พบ embryo")
 	}
 	if stageNumber(stringValue(item["stageCode"])) < 1 || stageNumber(stringValue(item["stageCode"])) > 36 {
 		return errors.New("stageCode ไม่ถูกต้อง")
 	}
 	lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+	if lot == nil || lot["active"] == false || lot["deletedAt"] != nil {
+		return errors.New("injection lot is inactive or missing")
+	}
 	observed, err := time.Parse(time.RFC3339, stringValue(item["observedAt"]))
 	if err != nil {
 		return errors.New("observedAt ต้องเป็น RFC3339")
@@ -220,12 +253,27 @@ func (s *apiServer) validateEmbryoObservation(item map[string]any) error {
 	return nil
 }
 
-func deviationLabel(value float64) string {
+func legacyDeviationLabel(value float64) string {
 	minutes := int(value * 60)
 	if minutes >= 0 {
 		return fmt.Sprintf("ช้ากว่าสากล %d นาที", minutes)
 	}
 	return fmt.Sprintf("เร็วกว่าสากล %d นาที", -minutes)
+}
+
+func deviationLabel(value float64) string {
+	if math.Abs(value) < 1.0/60.0 {
+		return "ตรงกับสากล"
+	}
+	minutes := int(math.Round(math.Abs(value) * 60))
+	direction := "ช้ากว่าสากล"
+	if value < 0 {
+		direction = "เร็วกว่าสากล"
+	}
+	if minutes < 60 {
+		return fmt.Sprintf("%s %d นาที", direction, minutes)
+	}
+	return fmt.Sprintf("%s %d ชม. %d นาที", direction, minutes/60, minutes%60)
 }
 
 func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Request, id string, fish bool) bool {
@@ -251,9 +299,14 @@ func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Req
 		old["deletedAt"] = time.Now().UTC().Format(time.RFC3339)
 		old["overrideReason"] = reason
 		if fish {
+			fishID := stringValue(old["cloneFishId"])
+			beforeFish := cloneMap(s.entities["fish"][fishID])
 			s.recomputeFishLocked(stringValue(old["cloneFishId"]))
+			s.auditChangedFishLocked(r, fishID, beforeFish)
 		} else {
+			beforeEmbryo := cloneMap(s.entities["embryos"][stringValue(old["embryoId"])])
 			s.recomputeEmbryoLocked(stringValue(old["embryoId"]))
+			s.auditChangedEmbryoLocked(r, stringValue(old["embryoId"]), beforeEmbryo)
 		}
 		s.auditLocked(r, "DELETE", table, id, before, old)
 		w.WriteHeader(http.StatusNoContent)
@@ -339,22 +392,40 @@ func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Req
 		if embryo := s.entities["embryos"][stringValue(old["embryoId"])]; embryo != nil {
 			if lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]; lot != nil {
 				if activated, activatedErr := time.Parse(time.RFC3339, stringValue(lot["activatedAt"])); activatedErr == nil {
-					actual := observedAt.Sub(activated).Hours()
+					actual := round4(observedAt.Sub(activated).Hours())
 					old["hpaActual"] = actual
-					old["deviationH"] = actual - numberValue(old["hpaExpectedSnapshot"])
+					old["deviationH"] = round4(actual - numberValue(old["hpaExpectedSnapshot"]))
 				}
 			}
 		}
 	}
 	old["updatedAt"] = time.Now().UTC().Format(time.RFC3339)
 	if fish {
+		beforeFish := cloneMap(s.entities["fish"][stringValue(old["cloneFishId"])])
 		s.recomputeFishLocked(stringValue(old["cloneFishId"]))
+		s.auditChangedFishLocked(r, stringValue(old["cloneFishId"]), beforeFish)
 	} else {
+		beforeEmbryo := cloneMap(s.entities["embryos"][stringValue(old["embryoId"])])
 		s.recomputeEmbryoLocked(stringValue(old["embryoId"]))
+		s.auditChangedEmbryoLocked(r, stringValue(old["embryoId"]), beforeEmbryo)
 	}
 	s.auditLocked(r, "UPDATE", table, id, before, old)
 	writeJSON(w, 200, old)
 	return true
+}
+
+func (s *apiServer) auditChangedEmbryoLocked(r *http.Request, id string, before map[string]any) {
+	after := s.entities["embryos"][id]
+	if after != nil && !reflect.DeepEqual(before, after) {
+		s.auditLocked(r, "UPDATE", "embryo", id, before, after)
+	}
+}
+
+func (s *apiServer) auditChangedFishLocked(r *http.Request, id string, before map[string]any) {
+	after := s.entities["fish"][id]
+	if after != nil && !reflect.DeepEqual(before, after) {
+		s.auditLocked(r, "UPDATE", "clone_fish", id, before, after)
+	}
 }
 
 func (s *apiServer) expectedHPAForEmbryoLocked(observation map[string]any) float64 {
@@ -512,7 +583,11 @@ func (s *apiServer) rollCall(w http.ResponseWriter, r *http.Request) bool {
 			}
 		}
 		already = observed
-		items = append(items, map[string]any{"fishId": fish["id"], "fishCode": fish["fishCode"], "ageDays": ageDaysOn(stringValue(fish["dob"]), date), "status": fish["status"], "condition": fish["condition"], "alreadyRecorded": already, "firstAbnormalOn": fish["firstAbnormalOn"], "firstAbnormalAgeDays": fish["firstAbnormalAgeDays"]})
+		lotID := ""
+		if embryo := s.entities["embryos"][stringValue(fish["embryoId"])]; embryo != nil {
+			lotID = stringValue(embryo["injectionLotId"])
+		}
+		items = append(items, map[string]any{"fishId": fish["id"], "fishCode": fish["fishCode"], "injectionLotId": lotID, "ageDays": ageDaysOn(stringValue(fish["dob"]), date), "status": fish["status"], "condition": fish["condition"], "alreadyRecorded": already, "firstAbnormalOn": fish["firstAbnormalOn"], "firstAbnormalAgeDays": fish["firstAbnormalAgeDays"]})
 	}
 	sortItems(items)
 	writeJSON(w, 200, map[string]any{"date": date, "items": items})
@@ -551,7 +626,7 @@ func (s *apiServer) createFishObservations(w http.ResponseWriter, r *http.Reques
 			continue
 		}
 		fish, ok := s.entities["fish"][stringValue(item["cloneFishId"])]
-		if !ok {
+		if !ok || fish["active"] == false || fish["deletedAt"] != nil {
 			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "ไม่พบปลา"}}
 			results = append(results, result)
 			continue
@@ -566,7 +641,7 @@ func (s *apiServer) createFishObservations(w http.ResponseWriter, r *http.Reques
 			original := s.fishObservationLocked(stringValue(item["cloneFishId"]), stringValue(item["observedOn"]))
 			result := map[string]any{"clientUuid": client, "id": original["id"], "status": "duplicate", "ageDays": original["ageDays"], "outcome": original["outcome"], "condition": original["condition"]}
 			body, _ := json.Marshal(result)
-			s.idempotency["fish:"+client] = body
+			s.setMutationCache(r, "fish:"+client, body)
 			results = append(results, result)
 			continue
 		}
@@ -580,15 +655,17 @@ func (s *apiServer) createFishObservations(w http.ResponseWriter, r *http.Reques
 		item["id"] = id
 		item["operatorId"], item["deviceId"] = r.Header.Get("X-Operator-Id"), r.Header.Get("X-Device-Id")
 		if observed, parseErr := time.ParseInLocation("2006-01-02", stringValue(item["observedOn"]), bangkokLocation()); parseErr == nil {
-			item["isBackdated"] = observed.Before(bangkokDateStart(time.Now()))
+			item["isBackdated"] = fishDateBackdated(observed, time.Now())
 		}
 		item["ageDays"] = ageDaysOn(stringValue(fish["dob"]), stringValue(item["observedOn"]))
 		item["createdAt"] = time.Now().UTC().Format(time.RFC3339)
 		s.fishObs[id] = item
+		beforeFish := cloneMap(fish)
 		s.recomputeFishLocked(stringValue(item["cloneFishId"]))
+		s.auditChangedFishLocked(r, stringValue(item["cloneFishId"]), beforeFish)
 		result := map[string]any{"clientUuid": client, "id": id, "status": "created", "ageDays": item["ageDays"], "fishClosed": outcome != "ALIVE"}
 		body, _ := json.Marshal(result)
-		s.idempotency["fish:"+client] = body
+		s.setMutationCache(r, "fish:"+client, body)
 		results = append(results, result)
 		s.auditLocked(r, "INSERT", "fish_observation", id, nil, item)
 	}
@@ -646,15 +723,28 @@ func bangkokDateStart(value time.Time) time.Time {
 	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, bangkokLocation())
 }
 
+func round4(value float64) float64 {
+	return math.Round(value*10000) / 10000
+}
+
+func isBackdated(observed, received time.Time) bool {
+	return math.Abs(received.Sub(observed).Minutes()) > 15
+}
+
+func fishDateBackdated(observed, received time.Time) bool {
+	return observed.In(bangkokLocation()).Format("2006-01-02") != received.In(bangkokLocation()).Format("2006-01-02")
+}
+
 func (s *apiServer) pendingCountLocked(now time.Time) int {
 	count := 0
 	for _, e := range s.entities["embryos"] {
-		if e["exitReason"] != nil || s.latestEmbryoObservationLocked(stringValue(e["id"])) == nil || stringValue(s.latestEmbryoObservationLocked(stringValue(e["id"]))["outcome"]) != "ALIVE" {
+		if e["active"] == false || e["deletedAt"] != nil || e["exitReason"] != nil || s.latestEmbryoObservationLocked(stringValue(e["id"])) == nil || stringValue(s.latestEmbryoObservationLocked(stringValue(e["id"]))["outcome"]) != "ALIVE" {
 			continue
 		}
 		lot := s.entities["injection-lots"][stringValue(e["injectionLotId"])]
+		batch := s.entities["batches"][stringValue(lot["batchId"])]
 		activated, err := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
-		if err == nil && calendarAge(activated, now) >= 5 {
+		if lot != nil && lot["active"] != false && lot["deletedAt"] == nil && batch != nil && batch["active"] != false && batch["deletedAt"] == nil && err == nil && domain.PromotionEligibleAt(false, true, activated, now, s.promotionThresholdLocked(batch)) {
 			count++
 		}
 	}

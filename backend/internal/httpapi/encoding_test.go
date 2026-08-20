@@ -36,6 +36,9 @@ func (failingCommitStore) Abort(context.Context, storepkg.Mutation) error { retu
 func (failingCommitStore) Commit(context.Context, *storepkg.State, *storepkg.State, *storepkg.Mutation) error {
 	return errors.New("transaction failed")
 }
+func (failingCommitStore) CommitDelta(context.Context, *storepkg.Delta, *storepkg.Mutation) error {
+	return errors.New("transaction failed")
+}
 
 func TestHTTPErrorMessagesAreUTF8(t *testing.T) {
 	recorder := httptest.NewRecorder()
@@ -73,6 +76,22 @@ func TestDatabaseCommitFailureDoesNotPublishMemoryMutation(t *testing.T) {
 	handler.ServeHTTP(readback, httptest.NewRequest(http.MethodGet, "/api/v1/sites", nil))
 	if strings.Contains(readback.Body.String(), "rollback") {
 		t.Fatalf("failed mutation remained in memory: %s", readback.Body.String())
+	}
+}
+
+func TestFailedDeltaRollbackPreservesConcurrentFeatureCacheEntries(t *testing.T) {
+	server := newAPIServer()
+	server.idempotency["other-request"] = []byte(`{"id":"other"}`)
+	journal := snapshotMutationCache(server)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/sites", nil).WithContext(context.WithValue(context.Background(), mutationCacheContextKey{}, journal))
+	server.setMutationCache(request, "this-request", []byte(`{"id":"this"}`))
+	server.idempotency["other-request"] = []byte(`{"id":"other-updated"}`)
+	restoreMutationCache(server, journal)
+	if _, ok := server.idempotency["this-request"]; ok {
+		t.Fatal("failed request cache entry was not rolled back")
+	}
+	if got := string(server.idempotency["other-request"]); got != `{"id":"other-updated"}` {
+		t.Fatalf("unrelated cache entry = %s, want concurrent update preserved", got)
 	}
 }
 

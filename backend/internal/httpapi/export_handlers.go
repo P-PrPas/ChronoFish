@@ -123,8 +123,11 @@ func (s *apiServer) exportProfileLocked(embryos []map[string]any) map[string]any
 			return profile
 		}
 	}
-	if profile := s.entities["timing-profiles"]["01900000-0000-7000-8000-000000000002"]; profile != nil {
-		return profile
+	for _, id := range sortedIDs(s.entities["timing-profiles"]) {
+		profile := s.entities["timing-profiles"][id]
+		if profile["isCurrent"] == true {
+			return profile
+		}
 	}
 	for _, id := range sortedIDs(s.entities["timing-profiles"]) {
 		return s.entities["timing-profiles"][id]
@@ -173,7 +176,7 @@ func (s *apiServer) batchExportRows(filters map[string][]string) [][]string {
 		batch := s.entities["batches"][id]
 		for _, lotID := range sortedIDs(s.entities["injection-lots"]) {
 			lot := s.entities["injection-lots"][lotID]
-			if stringValue(lot["batchId"]) != id {
+			if lot["active"] == false || lot["deletedAt"] != nil || stringValue(lot["batchId"]) != id {
 				continue
 			}
 			donor := s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]
@@ -193,7 +196,7 @@ func (s *apiServer) embryoObservationExportRows(embryos []map[string]any) [][]st
 	rows := [][]string{}
 	for _, id := range sortedIDs(s.observations) {
 		observation := s.observations[id]
-		if !allowed[stringValue(observation["embryoId"])] {
+		if observation["deletedAt"] != nil || !allowed[stringValue(observation["embryoId"])] {
 			continue
 		}
 		embryo := s.entities["embryos"][stringValue(observation["embryoId"])]
@@ -298,7 +301,7 @@ func (s *apiServer) fishObservationExportRows(fish map[string]map[string]any) []
 	rows := [][]string{}
 	for _, id := range sortedIDs(s.fishObs) {
 		observation := s.fishObs[id]
-		if fish[stringValue(observation["cloneFishId"])] == nil {
+		if observation["deletedAt"] != nil || fish[stringValue(observation["cloneFishId"])] == nil {
 			continue
 		}
 		item := fish[stringValue(observation["cloneFishId"])]
@@ -317,7 +320,7 @@ func (s *apiServer) fishMatrixExportRows(fish map[string]map[string]any) [][]str
 			age, _ := strconv.Atoi(strings.TrimPrefix(column, "d"))
 			value := ""
 			for _, observation := range s.fishObs {
-				if stringValue(observation["cloneFishId"]) == id && intValue(observation["ageDays"]) == age {
+				if observation["deletedAt"] == nil && stringValue(observation["cloneFishId"]) == id && intValue(observation["ageDays"]) == age {
 					if stringValue(observation["outcome"]) == "ALIVE" {
 						value = "1"
 					} else {
@@ -337,7 +340,13 @@ func (s *apiServer) controlExportRows(filters map[string][]string) [][]string {
 	allowed := s.filteredBatchIDsLocked(filters)
 	for _, id := range sortedIDs(s.entities["control-arm-counts"]) {
 		item := s.entities["control-arm-counts"][id]
+		if item["active"] == false || item["deletedAt"] != nil {
+			continue
+		}
 		batch := s.entities["batches"][stringValue(item["batchId"])]
+		if batch == nil || batch["active"] == false || batch["deletedAt"] != nil {
+			continue
+		}
 		if !allowed[stringValue(batch["id"])] {
 			continue
 		}
@@ -350,6 +359,9 @@ func (s *apiServer) specimenExportRows(fish map[string]map[string]any) [][]strin
 	rows := [][]string{}
 	for _, id := range sortedIDs(s.entities["specimens"]) {
 		item := s.entities["specimens"][id]
+		if item["active"] == false || item["deletedAt"] != nil {
+			continue
+		}
 		fishItem := fish[stringValue(item["cloneFishId"])]
 		if fishItem == nil {
 			continue

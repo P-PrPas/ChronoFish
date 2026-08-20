@@ -36,6 +36,10 @@ HEADER = (
 
 
 def convert(sql: str) -> str:
+    # XLSX idempotent responses are base64 text and can exceed MySQL's 64 KiB
+    # TEXT limit. Keep PostgreSQL's TEXT source type while using LONGTEXT on
+    # MySQL 8 (the generated file remains reproducible).
+    sql = sql.replace("response_body   TEXT NOT NULL", "response_body   LONGTEXT NOT NULL")
     # 2. typed timestamp literals
     sql = re.sub(r"TIMESTAMP\s+('(?:[^']*)')", r"\1", sql)
     # 1. TIMESTAMP column type -> DATETIME(3)

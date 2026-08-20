@@ -85,7 +85,7 @@ func (s *apiServer) entity(w http.ResponseWriter, r *http.Request, resource stri
 		return s.listEntity(w, r, resource)
 	}
 	if resource == "timing-profiles" && r.Method == http.MethodGet && r.URL.Path == "/api/v1/timing-profiles/current" {
-		return s.currentTiming(w)
+		return s.currentTiming(w, r)
 	}
 	if len(p) == 0 {
 		if r.Method == http.MethodGet {
@@ -115,7 +115,7 @@ func (s *apiServer) listEntity(w http.ResponseWriter, r *http.Request, resource 
 	includeInactive := r.URL.Query().Get("includeInactive") == "true"
 	items := make([]map[string]any, 0, len(s.entities[resource]))
 	for _, item := range s.entities[resource] {
-		if !includeInactive && item["active"] == false {
+		if !includeInactive && (item["active"] == false || item["deletedAt"] != nil) {
 			continue
 		}
 		items = append(items, cloneMap(item))
@@ -129,7 +129,7 @@ func (s *apiServer) getEntity(w http.ResponseWriter, resource, id string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	item, ok := s.entities[resource][id]
-	if !ok {
+	if !ok || item["deletedAt"] != nil || item["active"] == false {
 		writeAPIError(w, http.StatusNotFound, "not_found", "ไม่พบรายการที่ร้องขอ")
 		return true
 	}
@@ -137,11 +137,11 @@ func (s *apiServer) getEntity(w http.ResponseWriter, resource, id string) bool {
 	if resource == "batches" {
 		lots := make([]map[string]any, 0)
 		for _, lot := range s.entities["injection-lots"] {
-			if stringValue(lot["batchId"]) == id {
+			if stringValue(lot["batchId"]) == id && lot["active"] != false && lot["deletedAt"] == nil {
 				detail := cloneMap(lot)
 				embryos := make([]map[string]any, 0)
 				for _, embryo := range s.entities["embryos"] {
-					if stringValue(embryo["injectionLotId"]) == stringValue(lot["id"]) && embryo["active"] != false {
+					if stringValue(embryo["injectionLotId"]) == stringValue(lot["id"]) && embryo["active"] != false && embryo["deletedAt"] == nil {
 						embryos = append(embryos, cloneMap(embryo))
 					}
 				}
@@ -156,7 +156,7 @@ func (s *apiServer) getEntity(w http.ResponseWriter, resource, id string) bool {
 	if resource == "injection-lots" {
 		embryos := make([]map[string]any, 0)
 		for _, embryo := range s.entities["embryos"] {
-			if stringValue(embryo["injectionLotId"]) == id && embryo["active"] != false {
+			if stringValue(embryo["injectionLotId"]) == id && embryo["active"] != false && embryo["deletedAt"] == nil {
 				embryos = append(embryos, cloneMap(embryo))
 			}
 		}
@@ -173,7 +173,7 @@ func (s *apiServer) getEntity(w http.ResponseWriter, resource, id string) bool {
 		result["observations"] = observations
 		specimens := make([]map[string]any, 0)
 		for _, specimen := range s.entities["specimens"] {
-			if stringValue(specimen["cloneFishId"]) == id {
+			if stringValue(specimen["cloneFishId"]) == id && specimen["deletedAt"] == nil && specimen["active"] != false {
 				specimens = append(specimens, cloneMap(specimen))
 			}
 		}
@@ -212,6 +212,10 @@ func (s *apiServer) createEntity(w http.ResponseWriter, r *http.Request, resourc
 			writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "ไม่พบ "+field+" ที่ active")
 			return true
 		}
+	}
+	if err := validateEntityReferencesLocked(s, resource, input); err != nil {
+		writeAPIError(w, 422, "validation_error", err.Error())
+		return true
 	}
 	if resource == "fish" {
 		if _, err := time.ParseInLocation("2006-01-02", stringValue(input["dob"]), bangkokLocation()); err != nil {
@@ -274,7 +278,7 @@ func (s *apiServer) createEntity(w http.ResponseWriter, r *http.Request, resourc
 	s.auditLocked(r, "INSERT", resource, id, nil, item)
 	body, _ := json.Marshal(item)
 	if key != "" {
-		s.idempotency[key] = body
+		s.setMutationCache(r, key, body)
 	}
 	writeRaw(w, http.StatusCreated, body)
 	return true
@@ -303,6 +307,29 @@ func (s *apiServer) patchEntity(w http.ResponseWriter, r *http.Request, resource
 		return true
 	}
 	old := cloneMap(item)
+	merged := cloneMap(item)
+	for key, value := range input {
+		if key != "id" {
+			merged[key] = value
+		}
+	}
+	if r.Method == http.MethodDelete {
+		merged["active"] = false
+	}
+	if err := validateEntity(resource, merged); err != nil {
+		writeAPIError(w, 422, "validation_error", err.Error())
+		return true
+	}
+	if err := validateEntityReferencesLocked(s, resource, merged); err != nil {
+		writeAPIError(w, 422, "validation_error", err.Error())
+		return true
+	}
+	if resource == "embryos" {
+		if stage := stringValue(merged["exitStageCode"]); stage != "" && (stageNumber(stage) < 1 || stageNumber(stage) > 36) {
+			writeAPIError(w, 422, "validation_error", "exitStageCode is invalid")
+			return true
+		}
+	}
 	for key, value := range input {
 		if key != "id" {
 			item[key] = value
@@ -337,6 +364,35 @@ func validateEntity(resource string, input map[string]any) error {
 	}
 	if resource == "treatment-groups" && stringValue(input["armType"]) != "SCNT" && stringValue(input["armType"]) != "NATURAL_BREEDING" && stringValue(input["armType"]) != "IVF" {
 		return errors.New("armType ไม่ถูกต้อง")
+	}
+	return nil
+}
+
+func validateEntityReferencesLocked(s *apiServer, resource string, input map[string]any) error {
+	references := map[string]map[string]string{
+		"operators":      {"siteId": "sites"},
+		"fish-boxes":     {"siteId": "sites"},
+		"fish":           {"donorCellLineId": "donor-cell-lines", "siteId": "sites", "fishBoxId": "fish-boxes", "embryoId": "embryos"},
+		"batches":        {"siteId": "sites", "operatorId": "operators", "protocolId": "protocols", "timingProfileId": "timing-profiles", "treatmentGroupId": "treatment-groups", "recipientEggLotId": "recipient-egg-lots", "csofLotId": "csof-lots"},
+		"injection-lots": {"batchId": "batches", "donorCellLineId": "donor-cell-lines"},
+		"embryos":        {"injectionLotId": "injection-lots"},
+		"specimens":      {"cloneFishId": "fish"},
+	}
+	for field, refResource := range references[resource] {
+		value := stringValue(input[field])
+		if value == "" {
+			continue
+		}
+		ref := s.entities[refResource][value]
+		if ref == nil || ref["active"] == false || ref["deletedAt"] != nil {
+			return fmt.Errorf("%s references an inactive or missing %s", field, refResource)
+		}
+	}
+	if resource == "batches" {
+		profile := s.entities["timing-profiles"][stringValue(input["timingProfileId"])]
+		if profile != nil && stringValue(profile["protocolId"]) != stringValue(input["protocolId"]) {
+			return errors.New("timingProfileId must belong to protocolId")
+		}
 	}
 	return nil
 }

@@ -22,24 +22,24 @@ func TestReserveSameKeyReturnsStoredWinner(t *testing.T) {
 	repo := NewSQLRepository(db, "postgres")
 	request := Mutation{Scope: "site:create", Key: "key-1", RequestHash: "hash-1", OperatorID: "operator-1", DeviceID: "device-1"}
 
-	reserve := func(row *sqlmock.Rows) (Mutation, bool, error) {
+	reserve := func(row *sqlmock.Rows, affected int64) (Mutation, bool, error) {
 		mock.ExpectBegin()
 		mock.ExpectExec("INSERT INTO request_idempotency").WithArgs(
 			request.Scope, request.Key, request.RequestHash,
-			sqlmock.AnyArg(), sqlmock.AnyArg(), request.OperatorID, request.DeviceID, sqlmock.AnyArg(),
-		).WillReturnResult(sqlmock.NewResult(0, 1))
-		mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at").WithArgs(request.Scope, request.Key).WillReturnRows(row)
+			sqlmock.AnyArg(), sqlmock.AnyArg(), request.OperatorID, request.DeviceID, sqlmock.AnyArg(), sqlmock.AnyArg(),
+		).WillReturnResult(sqlmock.NewResult(0, affected))
+		mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until").WithArgs(request.Scope, request.Key).WillReturnRows(row)
 		mock.ExpectCommit()
 		return repo.Reserve(context.Background(), request)
 	}
 
-	reserved, created, err := reserve(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at"}).AddRow("hash-1", 102, "", "", nil))
+	reserved, created, err := reserve(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until"}).AddRow("hash-1", 102, "", "", nil, time.Now().Add(time.Minute)), 1)
 	if err != nil || !created || reserved.RequestHash != request.RequestHash {
 		t.Fatalf("first reservation = %#v, created=%v, err=%v", reserved, created, err)
 	}
 
 	winnerBody := `{"id":"winner"}`
-	reserved, created, err = reserve(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at"}).AddRow("hash-1", 201, "application/json", winnerBody, time.Now()))
+	reserved, created, err = reserve(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until"}).AddRow("hash-1", 201, "application/json", winnerBody, time.Now(), time.Now().Add(time.Minute)), 0)
 	if err != nil || created || string(reserved.Body) != winnerBody || reserved.Status != 201 {
 		t.Fatalf("replay reservation = %#v, created=%v, err=%v", reserved, created, err)
 	}
@@ -59,14 +59,36 @@ func TestReserveRejectsHashMismatch(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectExec("INSERT INTO request_idempotency").WithArgs(
 		request.Scope, request.Key, request.RequestHash,
-		sqlmock.AnyArg(), sqlmock.AnyArg(), request.OperatorID, request.DeviceID, sqlmock.AnyArg(),
+		sqlmock.AnyArg(), sqlmock.AnyArg(), request.OperatorID, request.DeviceID, sqlmock.AnyArg(), sqlmock.AnyArg(),
 	).WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at").WithArgs(request.Scope, request.Key).
-		WillReturnRows(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at"}).AddRow("winner-hash", 201, "application/json", `{"id":"winner"}`, time.Now()))
+	mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until").WithArgs(request.Scope, request.Key).
+		WillReturnRows(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until"}).AddRow("winner-hash", 201, "application/json", `{"id":"winner"}`, time.Now(), time.Now().Add(time.Minute)))
 	mock.ExpectRollback()
 	_, _, err = repo.Reserve(context.Background(), request)
 	if !errors.Is(err, ErrIdempotencyConflict) {
 		t.Fatalf("error = %v, want idempotency conflict", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReserveExpiredLeaseElectsNewOwner(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := NewSQLRepository(db, "postgres")
+	request := Mutation{Scope: "site:create", Key: "lease-key", RequestHash: "lease-hash", OperatorID: "operator-1", DeviceID: "device-1"}
+	mock.ExpectBegin()
+	mock.ExpectExec("INSERT INTO request_idempotency").WithArgs(request.Scope, request.Key, request.RequestHash, sqlmock.AnyArg(), sqlmock.AnyArg(), request.OperatorID, request.DeviceID, sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until").WithArgs(request.Scope, request.Key).WillReturnRows(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until"}).AddRow(request.RequestHash, 102, "", "", nil, time.Now().Add(-time.Minute)))
+	mock.ExpectExec("UPDATE request_idempotency SET lease_until").WithArgs(sqlmock.AnyArg(), request.Scope, request.Key, request.RequestHash, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	_, created, err := repo.Reserve(context.Background(), request)
+	if err != nil || !created {
+		t.Fatalf("expired reservation = created %v, err %v; want new owner", created, err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
@@ -127,6 +149,12 @@ func TestStringValueDecodesDriverBytes(t *testing.T) {
 	}
 }
 
+func TestSQLRepositoryNormalizesPGXDriver(t *testing.T) {
+	if NewSQLRepository(nil, "pgx").placeholder(2) != "$2" {
+		t.Fatal("pgx integration driver must use PostgreSQL placeholders")
+	}
+}
+
 func TestCommitPersistsOnlyChangedCanonicalRows(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -152,6 +180,31 @@ func TestCommitPersistsOnlyChangedCanonicalRows(t *testing.T) {
 	mock.ExpectExec("INSERT INTO site").WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 	if err := repo.Commit(context.Background(), before, after, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCommitDeltaPersistsOnlyTouchedRows(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := NewSQLRepository(db, "postgres")
+	refs := &State{Entities: map[string]map[string]map[string]any{"sites": {
+		"site-1": {"id": "site-1", "code": "LAB", "name": "Lab", "active": true, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+		"site-2": {"id": "site-2", "code": "OTHER", "name": "Other", "active": true, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+	}}}
+	delta := &Delta{References: refs, After: State{Entities: map[string]map[string]map[string]any{"sites": {
+		"site-1": refs.Entities["sites"]["site-1"],
+	}}}}
+	mock.ExpectBegin()
+	mock.ExpectExec("INSERT INTO site").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	if err := repo.CommitDelta(context.Background(), delta, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {

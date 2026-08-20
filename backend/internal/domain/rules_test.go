@@ -36,3 +36,67 @@ func TestPromotionElapsedBoundaryIsStrict(t *testing.T) {
 		t.Fatal("promotion should become eligible after five full days")
 	}
 }
+
+func TestDomainRulesRejectMalformedAndUnsupportedValues(t *testing.T) {
+	location := time.FixedZone("Asia/Bangkok", 7*60*60)
+	tests := []struct {
+		name string
+		got  bool
+	}{
+		{"stage without number", StageNumber("stage_x_256C") != 0},
+		{"stage zero", StageNumber("stage_00_256C") != 0},
+		{"stage negative", StageNumber("stage_-1_256C") != 0},
+		{"invalid dob", AgeDaysOn("not-a-date", "2026-08-25", location) != 0},
+		{"invalid observed date", AgeDaysOn("2026-08-20", "not-a-date", location) != 0},
+		{"fish unknown", FishOutcomeValid("UNKNOWN")},
+		{"fish empty", FishOutcomeValid("")},
+		{"condition unknown", ConditionValid("UNKNOWN")},
+		{"condition empty", ConditionValid("")},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.got {
+				t.Fatalf("invalid input unexpectedly accepted: %s", test.name)
+			}
+		})
+	}
+}
+
+func TestDomainRulesValidOutcomesConditionsAndAges(t *testing.T) {
+	for _, outcome := range []string{"ALIVE", "DEAD", "FROZEN", "DISCARDED"} {
+		if !FishOutcomeValid(outcome) {
+			t.Fatalf("outcome %q rejected", outcome)
+		}
+	}
+	for _, condition := range []string{"NORMAL", "ABNORMAL", "UNDETERMINED"} {
+		if !ConditionValid(condition) {
+			t.Fatalf("condition %q rejected", condition)
+		}
+	}
+	location := time.FixedZone("Asia/Bangkok", 7*60*60)
+	if got := AgeDaysOn("2026-08-25", "2026-08-20", location); got != -5 {
+		t.Fatalf("negative age = %d, want -5", got)
+	}
+	if got := AgeDaysOn("2026-08-20", "2026-08-20", location); got != 0 {
+		t.Fatalf("same-day age = %d, want 0", got)
+	}
+	if got := StageNumber("stage_10_1K"); got != 10 {
+		t.Fatalf("stage 10 = %d", got)
+	}
+}
+
+func TestPromotionRulesRejectInvalidThresholdAndExit(t *testing.T) {
+	now := time.Date(2026, 8, 21, 0, 0, 0, 0, time.UTC)
+	if PromotionEligibleAt(false, true, now.Add(-24*time.Hour), now, 0) {
+		t.Fatal("zero threshold must be rejected")
+	}
+	if PromotionEligibleAt(true, true, now.Add(-200*time.Hour), now, 5) {
+		t.Fatal("exited embryo must be rejected")
+	}
+	if PromotionEligibleAt(false, false, now.Add(-200*time.Hour), now, 5) {
+		t.Fatal("non-alive embryo must be rejected")
+	}
+	if PromotionEligible(false, true, 4, 5) || PromotionEligible(true, true, 5, 5) {
+		t.Fatal("calendar promotion accepted an ineligible embryo")
+	}
+}
