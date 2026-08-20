@@ -265,6 +265,8 @@ func (s *apiServer) checkpointStatusLocked(embryo map[string]any, stage int) str
 			return "alive"
 		case "DEAD", "DEGENERATED":
 			return "dead"
+		case "NOT_OBSERVED":
+			return "blank"
 		}
 	}
 	if stringValue(embryo["exitReason"]) == "PROMOTED" && stage <= 26 {

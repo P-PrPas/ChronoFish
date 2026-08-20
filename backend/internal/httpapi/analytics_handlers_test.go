@@ -26,6 +26,7 @@ func TestStageSurvivalUsesSparseImpliedStatesAndDueRiskSet(t *testing.T) {
 		s.entities["embryos"][stringValue(embryo["id"])] = embryo
 	}
 	s.observations["o-alive"] = map[string]any{"id": "o-alive", "embryoId": "e-alive", "stageCode": stageCode(5), "outcome": "ALIVE"}
+	s.observations["o-not-observed"] = map[string]any{"id": "o-not-observed", "embryoId": "e-alive", "stageCode": stageCode(4), "outcome": "NOT_OBSERVED"}
 	s.observations["o-dead"] = map[string]any{"id": "o-dead", "embryoId": "e-dead", "stageCode": stageCode(3), "outcome": "DEAD"}
 
 	items := s.survivalLocked([]map[string]any{s.entities["embryos"]["e-alive"], s.entities["embryos"]["e-dead"], s.entities["embryos"]["e-unobserved"], s.entities["embryos"]["e-not-due"]})
@@ -41,6 +42,9 @@ func TestStageSurvivalUsesSparseImpliedStatesAndDueRiskSet(t *testing.T) {
 	}
 	if got := intValue(byStage(3)["nDead"]); got != 1 {
 		t.Fatalf("stage 3 nDead = %d, want 1", got)
+	}
+	if got := intValue(byStage(4)["alive"]); got != 0 {
+		t.Fatalf("stage 4 alive = %d, want 0 for direct NOT_OBSERVED", got)
 	}
 	if got := floatValue(byStage(3)["surv"]); got != 0.5 {
 		t.Fatalf("stage 3 survival = %v, want 0.5", got)
