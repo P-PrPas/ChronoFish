@@ -5,7 +5,7 @@
 -- ZFIN Zebrafish Developmental Staging Series, measured at 28.5 C.
 -- These match the values already used in the customer's own spreadsheets
 -- (the single exception is 2-cell, which their 'raw data' sheet mistypes
--- as 1 h; the correct standard value is 0.75 h).  See SRS appendix C.
+-- as 1 h, the correct standard value is 0.75 h).  See SRS appendix C.
 --
 -- UUIDs are fixed constants so that the seed is reproducible and safe to
 -- re-run across environments.

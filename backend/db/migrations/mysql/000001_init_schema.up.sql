@@ -387,7 +387,7 @@ CREATE TABLE clone_fish (
     CONSTRAINT ck_fish_sex       CHECK (sex       IN ('M', 'F', 'UNKNOWN')),
     CONSTRAINT ck_fish_exit_reason CHECK (exit_reason IS NULL OR exit_reason IN ('DEAD', 'FROZEN', 'DISCARDED', 'LOST')),
     CONSTRAINT ck_fish_running   CHECK (running_no > 0),
-    -- a fish that has left must have both a date and a reason; one alive must have neither
+    -- a fish that has left must have both a date and a reason, one alive must have neither
     CONSTRAINT ck_fish_exit_consistent CHECK (
         (status = 'ALIVE'     AND exit_date IS NULL     AND exit_reason IS NULL) OR
         (status = 'DEAD'      AND exit_date IS NOT NULL AND exit_reason = 'DEAD') OR
