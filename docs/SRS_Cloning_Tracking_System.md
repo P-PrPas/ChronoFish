@@ -726,8 +726,9 @@ erDiagram
 | คอลัมน์ | ชนิด | Null | หมายเหตุ |
 |---|---|---|---|
 | `id` | CHAR(36) | ไม่ | PK |
-| `profile_id` | CHAR(36) | ไม่ | FK → `stage_timing_profile` |
-| `stage_definition_id` | CHAR(36) | ไม่ | FK → `stage_definition` · unique (`profile_id`,`stage_definition_id`) |
+| `protocol_id` | CHAR(36) | ไม่ | ใช้ใน composite FK เพื่อบังคับให้ profile และ stage อยู่ใน protocol เดียวกัน |
+| `profile_id` | CHAR(36) | ไม่ | (`profile_id`,`protocol_id`) FK → `stage_timing_profile` |
+| `stage_definition_id` | CHAR(36) | ไม่ | (`stage_definition_id`,`protocol_id`) FK → `stage_definition` · unique (`profile_id`,`stage_definition_id`) |
 | `expected_hpa` | DECIMAL(10,4) | ไม่ | ชั่วโมงหลัง activation · CHECK ≥ 0 |
 
 ## 5.5 ตารางการทดลอง
