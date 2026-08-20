@@ -34,6 +34,7 @@ Repository ปัจจุบันเป็น foundation ที่ดีสำ
 | Database | `[x]` schema, protocol/stage seed, optional master seed และ constraint checks สำหรับ PostgreSQL/MySQL | runtime connection, sqlc queries, repository integration tests, migration lifecycle และ backup/restore |
 | Frontend | `[x]` Vite + React + TypeScript shell, responsive baseline และ generated API types | routing/navigation, API client, operator/device context, i18n, ทุกหน้าจอ SCR-01 ถึง SCR-18, offline queue และ tests |
 | CI | `[x]` ตรวจ Go, frontend build, OpenAPI, generated types, migrations และ constraints บนฐานข้อมูลสองชนิด | เพิ่ม unit/integration/UI/E2E/performance gates ตามแต่ละ phase |
+| Container | ยังไม่มี Dockerfile/Compose | เพิ่ม development container ใน Phase 1 และทำ production hardening ใน Phase 9 โดยต้องคงวิธีรันแบบ binary + static ไว้ |
 | Discovery | `[x]` domain, ERD และข้อกำหนดถูกวิเคราะห์ไว้ละเอียด | `[!]` สังเกต workflow จริงในแลปหนึ่งรอบ, ยืนยันตัวอย่าง export และสภาพแวดล้อม deploy |
 
 สรุป: งาน foundation ด้าน contract และ schema เดินหน้าไปมากแล้ว แต่ feature ตาม FR-100 ถึง FR-1100 ยังต้อง implement เกือบทั้งหมด
@@ -107,7 +108,10 @@ PostgreSQL migration เป็น canonical source แล้ว generate MySQL c
 api/
   openapi.yaml                 # HTTP contract เดียวของระบบ
 
+compose.yaml                   # local API + PostgreSQL; MySQL compatibility profile
+
 backend/
+  Dockerfile                   # multi-stage build ของ Go executable
   cmd/api/                     # composition root และ executable
   internal/config/             # อ่าน/validate environment
   internal/httpapi/            # generated API types + handlers/middleware
@@ -139,6 +143,8 @@ frontend/src/
   lib/                         # time/i18n/offline primitives ที่ใช้ข้าม feature
 ```
 
+Frontend ยัง build เป็น `frontend/dist/` และนำไปวางบน static hosting โดยตรง ไม่ต้องมี frontend container ใน Phase 1 หากสภาพแวดล้อมจริงต้องการ container สำหรับ static files ค่อยใช้ web-server image มาตรฐานใน Phase 9 โดยไม่เปลี่ยน application code
+
 เหตุผลที่ store มีสอง implementation คือระบบต้องรันจริงบนฐานข้อมูลสองชนิด ไม่ใช่ abstraction เผื่ออนาคต ส่วน component หรือ helper ใดใช้เพียง feature เดียวให้เก็บใกล้ feature นั้นก่อน
 
 ## 6. ลำดับ Phase และ Dependency
@@ -146,7 +152,7 @@ frontend/src/
 | Phase | ผลลัพธ์หลัก | Dependency | วันทำงานโดยประมาณ* | Roadmap เดิม |
 |---|---|---|---:|---|
 | 0 | ปิดข้อเท็จจริงจากหน้างาน | Foundation ปัจจุบัน | 1–2 | P0 |
-| 1 | Runtime foundation + Master Data end-to-end | Phase 0 เฉพาะคำตอบที่กระทบ flow | 5–7 | P1 |
+| 1 | Runtime/Docker foundation + Master Data end-to-end | Phase 0 เฉพาะคำตอบที่กระทบ flow | 6–8 | P1 |
 | 2 | Protocol/Timing Profile versioning | Phase 1 | 3–4 | P1 |
 | 3 | Batch, Injection Lot, Embryo, Control registration | Phase 1–2 | 4–6 | P2 |
 | 4 | Due Now และ Embryo Checkpoint | Phase 3 | 6–8 | P2 |
@@ -178,9 +184,9 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 **Exit criteria:** ไม่มีคำถามที่เปลี่ยน schema หรือ main workflow ค้างอยู่; deployment owner และ export reference files ถูกระบุแล้ว
 
-### Phase 1 — Runtime Foundation และ Master Data
+### Phase 1 — Runtime/Docker Foundation และ Master Data
 
-**เป้าหมาย:** ส่งมอบ slice แรกที่เปิดระบบ, ต่อฐานข้อมูล, เลือก operator และ CRUD master data ได้จริงทั้ง PostgreSQL/MySQL
+**เป้าหมาย:** ส่งมอบ slice แรกที่เปิดระบบแบบ native หรือ container, ต่อฐานข้อมูล, เลือก operator และ CRUD master data ได้จริงทั้ง PostgreSQL/MySQL
 
 #### Backend
 
@@ -196,6 +202,17 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [ ] normalize `trim + lower` ก่อน uniqueness check พร้อมรับ DB unique violation เพื่อกัน race condition
 - [ ] ทุก list query ไม่คืน soft-deleted rows และเรียงผล deterministic
 - [ ] รายการสำหรับ dropdown คืนเฉพาะ `active = true` แต่หน้ารายละเอียดเก่าต้อง resolve master ที่ inactive ได้ตาม FR-111
+
+#### Docker/Local Environment
+
+- [ ] เพิ่ม `backend/Dockerfile` แบบ multi-stage: build Go executable ใน build stage และใส่เฉพาะ executable/CA certificates ที่จำเป็นใน runtime stage
+- [ ] รัน process ด้วย non-root user, รับ `PORT`/database configuration จาก environment และไม่ bake secret ลง image
+- [ ] เพิ่ม `.dockerignore` เพื่อไม่ส่ง `.git`, frontend dependencies, build output, local env และไฟล์ชั่วคราวเข้า build context
+- [ ] เพิ่ม root `compose.yaml`: API + PostgreSQL 16 เป็น local default และ MySQL 8 เป็น compatibility profile
+- [ ] ใช้ named volume เฉพาะข้อมูลฐานข้อมูล; API/frontend ต้องไม่มี persistent application state บน local filesystem
+- [ ] ให้ migration mode ของ executable ใช้ได้เหมือนกันทั้ง native และ container
+- [ ] ระบุคำสั่งเริ่ม/หยุด/reset เฉพาะ local database และวิธีสลับ driver ใน README โดยไม่ commit credentials จริง
+- [ ] ไม่เพิ่ม Kubernetes, Helm, container registry workflow หรือ cloud-specific config จนกว่าจะทราบ production hosting
 
 #### Frontend
 
@@ -215,6 +232,9 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [ ] frontend tests ของ operator/device persistence และ master form validation
 - [ ] keyboard/touch targets ≥ 44×44, contrast ≥ 4.5:1 และไม่ใช้สีอย่างเดียว
 - [ ] API executable start ได้กับ DB ทั้งสองชนิด และ master data CRUD ผ่าน UI จริง
+- [ ] `docker compose up --build` เปิด API + PostgreSQL แล้ว health check ผ่านจาก clean checkout
+- [ ] MySQL compatibility profile เปิดฐานข้อมูลและรัน migration/integration suite ผ่าน
+- [ ] `go build` และ static frontend build ยังส่งมอบได้โดยไม่ต้องมี Docker
 - [ ] ครอบคลุม UAT T-17 และฐานของ T-21/T-22
 
 ### Phase 2 — Protocol และ Timing Profile
@@ -456,7 +476,10 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 - [ ] enforce HTTPS และ IP allowlist/VPN ที่ reverse proxy/hosting
 - [ ] ตรวจ rate limit, CORS, body limits, SQL parameters, output escaping และ error redaction
-- [ ] เพิ่ม multi-stage Dockerfile และคำสั่ง build binary/static artifacts
+- [ ] harden Docker image จาก Phase 1: pin base versions, non-root, minimal runtime files, image labels และ vulnerability scan
+- [ ] ทดสอบ production image กับ environment จริงโดยใช้ artifact เดียวกับที่ผ่าน UAT
+- [ ] ส่งมอบ Dockerfile/image build instructions ควบคู่กับ Go binary + `frontend/dist/`; ห้ามบังคับให้ปลายทางต้องใช้ container
+- [ ] หาก hosting ต้องการ frontend container ให้เพิ่ม static web-server configuration ที่รองรับ SPA fallback โดยไม่เพิ่ม Node runtime ฝั่ง production
 - [ ] ทดสอบ fresh install จาก migration + seed บน PostgreSQL และ MySQL
 - [ ] ตั้ง daily backup เก็บ 30 วัน และทำ restore drill อย่างน้อยหนึ่งครั้ง
 - [ ] บันทึก environment variables, migration, rollback, backup/restore และ upgrade procedure ในคู่มือส่งมอบ
@@ -525,10 +548,11 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 1. OpenAPI validation และ generated frontend/backend types clean
 2. PostgreSQL canonical migration → generated MySQL migration clean
 3. Go format/vet/test และ business-rule coverage
-4. PostgreSQL integration suite
-5. MySQL integration suite เดียวกันในเชิงพฤติกรรม
-6. frontend unit test, type-check และ static build
-7. critical browser E2E เมื่อมี flow พร้อม
+4. build backend Docker image และตรวจว่า container start/health ผ่าน
+5. PostgreSQL integration suite
+6. MySQL integration suite เดียวกันในเชิงพฤติกรรม
+7. frontend unit test, type-check และ static build
+8. critical browser E2E เมื่อมี flow พร้อม
 
 ถ้า migration หรือ API contract เปลี่ยนโดย generated artifact ไม่ตรง CI ต้อง fail ทันที
 
@@ -545,13 +569,14 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [ ] UI มี loading/empty/error/success/pending state และ touch/accessibility basics
 - [ ] automated test ที่เล็กที่สุดแต่จับ regression สำคัญถูกเพิ่ม
 - [ ] commands ใน README ยังรันผ่านจาก clean checkout
+- [ ] เมื่อเปลี่ยน runtime/dependency Docker image และ native binary ต้อง build ผ่านทั้งคู่
 - [ ] ไม่มี secret, temporary export หรือ generated junk ถูก commit
 
 ## 11. ลำดับ PR/Commit ที่แนะนำสำหรับเริ่มงานทันที
 
 ให้เริ่มจาก slice เล็กและพิสูจน์ architecture ด้วยของจริง:
 
-1. **Runtime DB + code generation** — config, connection, migration mode, sqlc/oapi generation และ CI
+1. **Runtime DB + Docker + code generation** — config, connection, migration mode, backend Dockerfile, Compose, sqlc/oapi generation และ CI
 2. **Site + Operator end-to-end** — สอง master types แรก, audit, headers, operator/device UI
 3. **Remaining Master Data** — ขยาย pattern ที่พิสูจน์แล้วไปอีกห้าประเภท
 4. **Timing Profile read** — protocol/stages/current/history
