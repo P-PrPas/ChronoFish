@@ -1284,7 +1284,7 @@ paths:
                 properties:
                   items:
                     type: array
-                    items: { $ref: '#/components/schemas/CloneFish' }
+                    items: { $ref: '#/components/schemas/PromotionResult' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
 
@@ -2410,6 +2410,16 @@ components:
           description: Abnormal embryos are promoted like any other; this just carries the marker across (FR-506).
         suggestedFishCode: { type: string, examples: ['No.47_Clone1-AB cell-24'] }
         suggestedRunningNo: { type: integer, examples: [47] }
+
+    PromotionResult:
+      type: object
+      required: [clientUuid, status]
+      properties:
+        clientUuid: { type: string, format: uuid }
+        id: { type: [string, 'null'], format: uuid }
+        status: { $ref: '#/components/schemas/WriteStatus' }
+        fish: { $ref: '#/components/schemas/CloneFish' }
+        error: { type: [object, 'null'], additionalProperties: true }
 
     CloneFish:
       type: object

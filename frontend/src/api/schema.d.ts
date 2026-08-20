@@ -1667,6 +1667,17 @@ export interface components {
             /** @example 47 */
             suggestedRunningNo: number;
         };
+        PromotionResult: {
+            /** Format: uuid */
+            clientUuid: string;
+            /** Format: uuid */
+            id?: string | null;
+            status: components["schemas"]["WriteStatus"];
+            fish?: components["schemas"]["CloneFish"];
+            error?: {
+                [key: string]: unknown;
+            } | null;
+        };
         CloneFish: {
             /** Format: uuid */
             id: string;
@@ -3515,7 +3526,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        items: components["schemas"]["CloneFish"][];
+                        items: components["schemas"]["PromotionResult"][];
                     };
                 };
             };
