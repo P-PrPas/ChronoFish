@@ -35,3 +35,14 @@ button { cursor: pointer; }
   .report-panel { border-color: #c5d0da; }
   @page { size: A4; margin: 12mm; }
 }
+.filter-bar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; gap: .75rem; align-items: end; margin: 0 0 1.5rem; padding: 1rem; border: 1px solid #cddbe6; border-left: 4px solid #1c8191; border-radius: .7rem; background: #edf6f5; }
+.filter-bar legend { grid-column: 1 / -1; padding: 0; color: #285d68; font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.filter-bar label { display: grid; gap: .3rem; color: #496474; font-size: .75rem; font-weight: 700; }
+.filter-bar input, .filter-bar select { min-height: 2.55rem; border: 1px solid #b5cbd1; border-radius: .4rem; padding: 0 .55rem; color: #173b48; background: #fff; }
+.tabs { display: flex; gap: .35rem; margin: 0 0 1.25rem; padding-bottom: .4rem; border-bottom: 1px solid #d8e3ea; overflow-x: auto; }
+.tab { min-height: 2.75rem; border: 0; border-bottom: 3px solid transparent; padding: 0 .85rem; color: #5e7484; background: transparent; font-weight: 750; white-space: nowrap; }
+.tab:hover, .tab--active { border-bottom-color: #1c8191; color: #145a68; background: #edf6f5; }
+.table-note { margin: .7rem 0 0; color: #6d7d90; font-size: .78rem; }
+.inline-action { min-height: 2.1rem; margin-left: .35rem; border: 1px solid #b5cbd1; border-radius: .35rem; padding: 0 .45rem; color: #1e5c68; background: #f4fbfa; font-size: .72rem; font-weight: 700; }
+.inline-action--danger { color: #9b3d25; border-color: #e1b7a8; background: #fff5f1; }
+@media (max-width: 760px) { .filter-bar { grid-template-columns: repeat(2, minmax(0, 1fr)); }.filter-bar legend { grid-column: 1 / -1; }.filter-bar .button { width: 100%; } }
