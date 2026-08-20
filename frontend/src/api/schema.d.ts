@@ -1910,6 +1910,8 @@ export interface components {
         OperatorId: string;
         /** @description Stable per-device identifier generated on first use and kept in local storage. */
         DeviceId: string;
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        IdempotencyKey: string;
         /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
         IncludeInactive: boolean;
         Limit: number;
@@ -1961,6 +1963,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -1992,6 +1996,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -2050,6 +2056,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -2105,6 +2113,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -2160,6 +2170,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -2215,6 +2227,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -2270,6 +2284,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -2325,6 +2341,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -2355,6 +2373,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -2388,6 +2408,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -2421,6 +2443,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -2454,6 +2478,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -2487,6 +2513,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -2520,6 +2548,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -2647,6 +2677,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -2717,6 +2749,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -2778,6 +2812,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -2832,6 +2868,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -2864,6 +2902,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -2904,6 +2944,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -2964,6 +3006,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -2999,6 +3043,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -3025,6 +3071,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -3084,6 +3132,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -3176,6 +3226,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -3209,6 +3261,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -3235,6 +3289,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -3303,6 +3359,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -3338,6 +3396,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -3364,6 +3424,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -3420,6 +3482,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -3501,6 +3565,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;
@@ -3554,6 +3620,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -3617,6 +3685,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path: {
                 id: components["parameters"]["PathId"];
@@ -3914,6 +3984,8 @@ export interface operations {
                 "X-Operator-Id": components["parameters"]["OperatorId"];
                 /** @description Stable per-device identifier generated on first use and kept in local storage. */
                 "X-Device-Id": components["parameters"]["DeviceId"];
+                /** @description Stable key for one logical mutation. Replays return the original result. */
+                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
             };
             path?: never;
             cookie?: never;

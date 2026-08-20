@@ -45,6 +45,16 @@ npm run generate:api
 npm run check
 ```
 
+For a local stack with PostgreSQL, use `docker compose up --build`. The API
+defaults to the portable memory driver so the UI can be exercised without a
+database; set `DB_DRIVER=postgres` and `DATABASE_URL` when running against the
+migrations in `backend/db/migrations/postgres`. A MySQL deployment uses the
+generated files under `backend/db/migrations/mysql` and `DB_DRIVER=mysql`.
+
+Writes require `X-Operator-Id` and `X-Device-Id`. Offline-capable clients also
+send a stable `X-Idempotency-Key`; retries are safe and return the original
+result. Never commit credentials in `.env` files.
+
 Database migrations are applied in filename order. PostgreSQL is canonical; regenerate the MySQL copies after every schema change. CI boots both database engines, applies all migrations, and runs constraint smoke checks.
 
 Optional initial master data is under `backend/db/seeds/{postgres,mysql}/master_data.sql`.
