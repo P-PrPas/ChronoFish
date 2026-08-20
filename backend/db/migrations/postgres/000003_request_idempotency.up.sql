@@ -9,7 +9,6 @@ CREATE TABLE request_idempotency (
     device_id       VARCHAR(64) NOT NULL,
     created_at      TIMESTAMP NOT NULL,
     completed_at    TIMESTAMP NULL,
-    lease_until     TIMESTAMP NOT NULL,
     CONSTRAINT pk_request_idempotency PRIMARY KEY (scope, idempotency_key),
     CONSTRAINT ck_request_idempotency_status CHECK (status_code >= 100 AND status_code <= 599),
     CONSTRAINT fk_request_idempotency_operator FOREIGN KEY (operator_id) REFERENCES operator (id)

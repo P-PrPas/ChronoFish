@@ -21,6 +21,20 @@ func (s *apiServer) dueCheckpoints(w http.ResponseWriter, r *http.Request) bool 
 	query := r.URL.Query()
 	items := []map[string]any{}
 	upcoming := []map[string]any{}
+	observedStages := make(map[string]map[string]struct{})
+	for _, observation := range s.observations {
+		if observation["deletedAt"] != nil {
+			continue
+		}
+		lotID := stringValue(observation["injectionLotId"])
+		stage := stringValue(observation["stageCode"])
+		if lotID != "" && stage != "" {
+			if observedStages[lotID] == nil {
+				observedStages[lotID] = make(map[string]struct{})
+			}
+			observedStages[lotID][stage] = struct{}{}
+		}
+	}
 	for _, lot := range s.entities["injection-lots"] {
 		if lot["active"] == false || lot["deletedAt"] != nil || !s.lotHasActiveEmbryoLocked(stringValue(lot["id"])) {
 			continue
@@ -42,18 +56,14 @@ func (s *apiServer) dueCheckpoints(w http.ResponseWriter, r *http.Request) bool 
 		for stage := 1; stage <= 26; stage++ {
 			code := stageCode(stage)
 			due := activated.Add(time.Duration(s.expectedHPAForLotLocked(lot, code) * float64(time.Hour)))
-			observed := false
-			for _, o := range s.observations {
-				if stringValue(o["injectionLotId"]) == stringValue(lot["id"]) && stringValue(o["stageCode"]) == code && o["deletedAt"] == nil {
-					observed = true
-				}
-			}
+			_, observed := observedStages[stringValue(lot["id"])][code]
 			if !observed {
 				minutes := int(now.Sub(due).Minutes())
+				embryosRemaining := s.activeEmbryoCountLocked(stringValue(lot["id"]))
 				if minutes >= 0 {
-					items = append(items, map[string]any{"injectionLotId": lot["id"], "batchCode": batch["batchCode"], "lotNo": lot["lotNo"], "stageCode": code, "stageLabel": stageLabel(stage), "stageOrder": stage, "dueAt": due.Format(time.RFC3339), "minutesLate": minutes, "urgency": minutes})
+					items = append(items, map[string]any{"injectionLotId": lot["id"], "batchCode": batch["batchCode"], "lotNo": lot["lotNo"], "stageCode": code, "stageLabel": stageLabel(stage), "stageOrder": stage, "dueAt": due.Format(time.RFC3339), "minutesLate": minutes, "urgency": minutes, "embryosRemaining": embryosRemaining})
 				} else if len(upcoming) == 0 || stringValue(upcoming[len(upcoming)-1]["injectionLotId"]) != stringValue(lot["id"]) {
-					upcoming = append(upcoming, map[string]any{"injectionLotId": lot["id"], "batchCode": batch["batchCode"], "lotNo": lot["lotNo"], "stageCode": code, "stageLabel": stageLabel(stage), "stageOrder": stage, "dueAt": due.Format(time.RFC3339), "minutesLate": minutes, "urgency": minutes})
+					upcoming = append(upcoming, map[string]any{"injectionLotId": lot["id"], "batchCode": batch["batchCode"], "lotNo": lot["lotNo"], "stageCode": code, "stageLabel": stageLabel(stage), "stageOrder": stage, "dueAt": due.Format(time.RFC3339), "minutesLate": minutes, "urgency": minutes, "embryosRemaining": embryosRemaining})
 				}
 			}
 		}
@@ -71,6 +81,16 @@ func (s *apiServer) lotHasActiveEmbryoLocked(lotID string) bool {
 		}
 	}
 	return false
+}
+
+func (s *apiServer) activeEmbryoCountLocked(lotID string) int {
+	count := 0
+	for _, embryo := range s.entities["embryos"] {
+		if stringValue(embryo["injectionLotId"]) == lotID && embryo["active"] != false && embryo["deletedAt"] == nil && embryo["exitReason"] == nil {
+			count++
+		}
+	}
+	return count
 }
 
 func (s *apiServer) checkpoint(w http.ResponseWriter, r *http.Request, lotID, stageCode string) bool {
@@ -94,7 +114,11 @@ func (s *apiServer) checkpoint(w http.ResponseWriter, r *http.Request, lotID, st
 	}
 	activated := stringValue(lot["activatedAt"])
 	expected := s.expectedHPAForLotLocked(lot, stageCode)
-	writeJSON(w, 200, map[string]any{"injectionLotId": lotID, "batchCode": batch["batchCode"], "lotNo": lot["lotNo"], "stage": map[string]any{"code": stageCode, "label": stageLabel(stageNumber(stageCode)), "stageOrder": stageNumber(stageCode)}, "activatedAt": activated, "expectedHpa": expected, "dueAt": activated, "totalEmbryos": len(embryos), "embryos": embryos})
+	dueAt := activated
+	if parsed, err := time.Parse(time.RFC3339, activated); err == nil {
+		dueAt = parsed.Add(time.Duration(expected * float64(time.Hour))).Format(time.RFC3339)
+	}
+	writeJSON(w, 200, map[string]any{"injectionLotId": lotID, "batchCode": batch["batchCode"], "lotNo": lot["lotNo"], "stage": map[string]any{"code": stageCode, "label": stageLabel(stageNumber(stageCode)), "stageOrder": stageNumber(stageCode)}, "activatedAt": activated, "expectedHpa": expected, "dueAt": dueAt, "totalEmbryos": len(embryos), "embryosRemaining": len(embryos), "embryos": embryos})
 	return true
 }
 
@@ -567,13 +591,18 @@ func (s *apiServer) recomputeEmbryoLocked(embryoID string) {
 func (s *apiServer) rollCall(w http.ResponseWriter, r *http.Request) bool {
 	date := r.URL.Query().Get("date")
 	if date == "" {
-		date = time.Now().UTC().Format("2006-01-02")
+		date = time.Now().In(bangkokLocation()).Format("2006-01-02")
 	}
+	if _, err := time.ParseInLocation("2006-01-02", date, bangkokLocation()); err != nil {
+		writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "invalid Bangkok date")
+		return true
+	}
+	siteID, boxID := r.URL.Query().Get("siteId"), r.URL.Query().Get("boxId")
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	items := []map[string]any{}
 	for _, fish := range s.entities["fish"] {
-		if stringValue(fish["status"]) != "ALIVE" {
+		if fish["active"] == false || fish["deletedAt"] != nil || (siteID != "" && stringValue(fish["siteId"]) != siteID) || (boxID != "" && stringValue(fish["fishBoxId"]) != boxID) {
 			continue
 		}
 		observed, already := false, false
@@ -587,7 +616,13 @@ func (s *apiServer) rollCall(w http.ResponseWriter, r *http.Request) bool {
 		if embryo := s.entities["embryos"][stringValue(fish["embryoId"])]; embryo != nil {
 			lotID = stringValue(embryo["injectionLotId"])
 		}
-		items = append(items, map[string]any{"fishId": fish["id"], "fishCode": fish["fishCode"], "injectionLotId": lotID, "ageDays": ageDaysOn(stringValue(fish["dob"]), date), "status": fish["status"], "condition": fish["condition"], "alreadyRecorded": already, "firstAbnormalOn": fish["firstAbnormalOn"], "firstAbnormalAgeDays": fish["firstAbnormalAgeDays"]})
+		strain := ""
+		if embryo := s.entities["embryos"][stringValue(fish["embryoId"])]; embryo != nil {
+			if lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]; lot != nil {
+				strain = stringValue(s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]["strain"])
+			}
+		}
+		items = append(items, map[string]any{"fishId": fish["id"], "fishCode": fish["fishCode"], "injectionLotId": lotID, "ageDays": ageDaysOn(stringValue(fish["dob"]), date), "status": fish["status"], "condition": fish["condition"], "strain": strain, "alreadyRecorded": already, "firstAbnormalOn": fish["firstAbnormalOn"], "firstAbnormalAgeDays": fish["firstAbnormalAgeDays"]})
 	}
 	sortItems(items)
 	writeJSON(w, 200, map[string]any{"date": date, "items": items})

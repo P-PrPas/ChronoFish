@@ -35,11 +35,39 @@ HEADER = (
 )
 
 
-def convert(sql: str) -> str:
-    # XLSX idempotent responses are base64 text and can exceed MySQL's 64 KiB
-    # TEXT limit. Keep PostgreSQL's TEXT source type while using LONGTEXT on
-    # MySQL 8 (the generated file remains reproducible).
-    sql = sql.replace("response_body   TEXT NOT NULL", "response_body   LONGTEXT NOT NULL")
+def convert(sql: str, upgrade: bool) -> str:
+    # Migration 000003 is immutable and remains TEXT. Migration 000004 carries
+    # an explicit canonical type marker and widens only that upgrade to
+    # LONGTEXT on MySQL 8.
+    response_type = "LONGTEXT" if upgrade else "TEXT"
+    sql = re.sub(
+        r"ALTER TABLE request_idempotency\s+ALTER COLUMN response_body TYPE TEXT;",
+        f"ALTER TABLE request_idempotency MODIFY response_body {response_type} NOT NULL;",
+        sql,
+    )
+    sql = sql.replace("INTERVAL '30 seconds'", "INTERVAL 30 SECOND")
+    sql = re.sub(
+        r"ALTER TABLE request_idempotency\s+ALTER COLUMN lease_until SET NOT NULL;",
+        "ALTER TABLE request_idempotency MODIFY lease_until DATETIME(3) NOT NULL;",
+        sql,
+    )
+    sql = re.sub(
+        r"ALTER TABLE request_idempotency\s+ALTER COLUMN lease_token SET NOT NULL;",
+        "ALTER TABLE request_idempotency MODIFY lease_token CHAR(36) NOT NULL;",
+        sql,
+    )
+    sql = sql.replace(
+        "DROP INDEX IF EXISTS ix_request_idempotency_lease;",
+        "DROP INDEX ix_request_idempotency_lease ON request_idempotency;",
+    )
+    sql = sql.replace(
+        "ALTER TABLE request_idempotency\n    DROP COLUMN IF EXISTS lease_until;",
+        "ALTER TABLE request_idempotency DROP COLUMN lease_until;",
+    )
+    sql = sql.replace(
+        "ALTER TABLE request_idempotency\n    DROP COLUMN IF EXISTS lease_token;",
+        "ALTER TABLE request_idempotency DROP COLUMN lease_token;",
+    )
     # 2. typed timestamp literals
     sql = re.sub(r"TIMESTAMP\s+('(?:[^']*)')", r"\1", sql)
     # 1. TIMESTAMP column type -> DATETIME(3)
@@ -59,7 +87,7 @@ def main() -> None:
     DST.mkdir(parents=True, exist_ok=True)
     written = []
     for src in sorted(SRC.glob("*.sql")):
-        out = HEADER.format(name=src.name) + convert(src.read_text(encoding="utf-8"))
+        out = HEADER.format(name=src.name) + convert(src.read_text(encoding="utf-8"), src.name.endswith(".up.sql"))
         (DST / src.name).write_text(out, encoding="utf-8", newline="\n")
         written.append(src.name)
     for name in written:

@@ -2,8 +2,8 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,7 +31,9 @@ func (s *apiServer) promotions(w http.ResponseWriter, r *http.Request, p []strin
 			activated, err := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
 			if err == nil && domain.PromotionEligibleAt(e["exitReason"] != nil, true, activated, now, s.promotionThresholdLocked(batch)) {
 				latest := s.latestEmbryoObservationLocked(stringValue(e["id"]))
-				items = append(items, map[string]any{"embryoId": e["id"], "embryoCode": e["embryoCode"], "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "ageDays": calendarAge(activated, now), "strain": s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]["strain"], "condition": latest["condition"], "firstAbnormalOn": e["firstAbnormalOn"], "firstAbnormalAgeDays": e["firstAbnormalAgeDays"], "firstAbnormalStageCode": e["firstAbnormalStageCode"], "suggestedFishCode": "No." + strconv.Itoa(s.fishNo), "suggestedRunningNo": s.fishNo})
+				donor := s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]
+				strain := stringValue(donor["strain"])
+				items = append(items, map[string]any{"embryoId": e["id"], "embryoCode": e["embryoCode"], "batchCode": batch["batchCode"], "siteId": batch["siteId"], "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "ageDays": calendarAge(activated, now), "strain": strain, "condition": latest["condition"], "firstAbnormalOn": e["firstAbnormalOn"], "firstAbnormalAgeDays": e["firstAbnormalAgeDays"], "firstAbnormalStageCode": e["firstAbnormalStageCode"], "firstAbnormalStageLabel": stageLabel(stageNumber(stringValue(e["firstAbnormalStageCode"]))), "suggestedFishCode": s.promotionFishCodeLocked(e, strain, activated), "suggestedRunningNo": s.fishNo})
 			}
 		}
 		writeJSON(w, 200, map[string]any{"items": items})
@@ -105,7 +107,8 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 		id := uuidV7()
 		fishCode := stringValue(item["fishCode"])
 		if fishCode == "" {
-			fishCode = "No." + strconv.Itoa(s.fishNo)
+			donor := s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]
+			fishCode = s.promotionFishCodeLocked(embryo, stringValue(donor["strain"]), activated)
 		}
 		if s.fishCodeExistsLocked(fishCode) {
 			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "fishCode ซ้ำกับรายการเดิม"}}
@@ -114,7 +117,7 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 			results = append(results, result)
 			continue
 		}
-		fish := map[string]any{"id": id, "embryoId": embryo["id"], "embryoCode": embryo["embryoCode"], "fishCode": fishCode, "runningNo": s.fishNo, "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "donorCellLineId": lot["donorCellLineId"], "siteId": batch["siteId"], "fishBoxId": item["fishBoxId"], "status": "ALIVE", "condition": stringValue(latest["condition"]), "sex": "UNKNOWN", "finClipped": false, "active": true}
+		fish := map[string]any{"id": id, "embryoId": embryo["id"], "embryoCode": embryo["embryoCode"], "fishCode": fishCode, "runningNo": s.fishNo, "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "donorCellLineId": lot["donorCellLineId"], "siteId": batch["siteId"], "fishBoxId": item["fishBoxId"], "status": "ALIVE", "condition": stringValue(latest["condition"]), "sex": "UNKNOWN", "finClipped": false, "active": true, "remarks": item["remarks"]}
 		for _, field := range []string{"firstAbnormalOn", "firstAbnormalAgeDays", "firstAbnormalStageCode", "firstAbnormalStageId"} {
 			if value, exists := embryo[field]; exists {
 				fish[field] = value
@@ -154,6 +157,14 @@ func (s *apiServer) promotionThresholdLocked(batch map[string]any) int {
 		return threshold
 	}
 	return 5
+}
+
+func (s *apiServer) promotionFishCodeLocked(embryo map[string]any, strain string, activated time.Time) string {
+	if strain == "" {
+		strain = "unknown"
+	}
+	day := activated.In(bangkokLocation()).Format("02")
+	return fmt.Sprintf("No.%d_Clone%d-%s cell-%s", s.fishNo, intValue(embryo["seqInLot"]), strain, day)
 }
 
 func (s *apiServer) fishCodeExistsLocked(code string) bool {

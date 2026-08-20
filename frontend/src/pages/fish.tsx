@@ -3,6 +3,7 @@ import { type ApiItem, get } from '../api/client'
 import { putQueue, type QueuedWrite } from '../offline'
 import { type AppText } from '../types'
 import { Empty, ErrorMessage, ReportTable } from '../components'
+import { uuidv7 } from '../uuidv7'
 
 type FishOutcome = 'ALIVE' | 'DEAD' | 'FROZEN' | 'DISCARDED'
 type FishCondition = 'NORMAL' | 'ABNORMAL' | 'UNDETERMINED'
@@ -55,7 +56,7 @@ export function Fish({ t, onPendingChange }: { t: AppText; onPendingChange: (cou
     const id = String(fish.fishId)
     setOutcomesByFish((current) => ({ ...current, [id]: outcome }))
     try {
-      await putQueue('/observations/fish', { observations: [{ clientUuid: crypto.randomUUID(), cloneFishId: fish.fishId, observedOn: date, outcome, condition: fish.condition ?? 'NORMAL' }] })
+      await putQueue('/observations/fish', { observations: [{ clientUuid: uuidv7(), cloneFishId: fish.fishId, observedOn: date, outcome, condition: fish.condition ?? 'NORMAL' }] })
       loadRollCall()
     } catch (e) {
       setOutcomesByFish((current) => { const next = { ...current }; delete next[id]; return next })
@@ -64,17 +65,11 @@ export function Fish({ t, onPendingChange }: { t: AppText; onPendingChange: (cou
   }
   const markAlive = async () => {
     const pending = items.filter((item) => !item.alreadyRecorded)
-    const lots = new Map<string, ApiItem[]>()
-    for (const fish of pending) {
-      const lot = String(fish.injectionLotId ?? 'unassigned')
-      lots.set(lot, [...(lots.get(lot) ?? []), fish])
-    }
-    for (const group of lots.values()) {
-      for (const fish of group) setOutcomesByFish((current) => ({ ...current, [String(fish.fishId)]: 'ALIVE' }))
-      try {
-        await putQueue('/observations/fish', { observations: group.map((fish) => ({ clientUuid: crypto.randomUUID(), cloneFishId: fish.fishId, observedOn: date, outcome: 'ALIVE', condition: fish.condition ?? 'NORMAL' })) })
-      } catch (e) { setError((e as Error).message); break }
-    }
+    if (pending.length === 0) return
+    for (const fish of pending) setOutcomesByFish((current) => ({ ...current, [String(fish.fishId)]: 'ALIVE' }))
+    try {
+      await putQueue('/observations/fish', { observations: pending.map((fish) => ({ clientUuid: uuidv7(), cloneFishId: fish.fishId, observedOn: date, outcome: 'ALIVE', condition: fish.condition ?? 'NORMAL' })) })
+    } catch (e) { setError((e as Error).message) }
     loadRollCall()
   }
   const visible = useMemo(() => registry.filter((fish) =>

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 )
@@ -87,6 +88,10 @@ func (s *apiServer) entity(w http.ResponseWriter, r *http.Request, resource stri
 	if resource == "timing-profiles" && r.Method == http.MethodGet && r.URL.Path == "/api/v1/timing-profiles/current" {
 		return s.currentTiming(w, r)
 	}
+	if resource == "timing-profiles" && r.Method == http.MethodGet && len(p) == 0 && strings.TrimSpace(r.URL.Query().Get("protocolId")) == "" {
+		writeAPIError(w, http.StatusBadRequest, "invalid_query", "protocolId is required")
+		return true
+	}
 	if len(p) == 0 {
 		if r.Method == http.MethodGet {
 			return s.listEntity(w, r, resource)
@@ -118,10 +123,84 @@ func (s *apiServer) listEntity(w http.ResponseWriter, r *http.Request, resource 
 		if !includeInactive && (item["active"] == false || item["deletedAt"] != nil) {
 			continue
 		}
-		items = append(items, cloneMap(item))
+		result := cloneMap(item)
+		if resource == "fish" {
+			s.enrichFishLocked(result)
+			if !fishMatchesQuery(result, r.URL.Query()) {
+				continue
+			}
+		}
+		items = append(items, result)
 	}
-	sortItems(items)
+	if resource == "timing-profiles" {
+		if protocolID := r.URL.Query().Get("protocolId"); protocolID != "" {
+			filtered := items[:0]
+			for _, item := range items {
+				if stringValue(item["protocolId"]) == protocolID {
+					filtered = append(filtered, item)
+				}
+			}
+			items = filtered
+		}
+		sort.SliceStable(items, func(i, j int) bool { return intValue(items[i]["version"]) > intValue(items[j]["version"]) })
+	} else {
+		sortItems(items)
+	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	return true
+}
+
+func (s *apiServer) enrichFishLocked(fish map[string]any) {
+	if fish == nil {
+		return
+	}
+	embryo := s.entities["embryos"][stringValue(fish["embryoId"])]
+	lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+	if lot == nil {
+		return
+	}
+	if donor := s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]; donor != nil {
+		fish["strain"] = donor["strain"]
+	}
+	if batch := s.entities["batches"][stringValue(lot["batchId"])]; batch != nil {
+		fish["treatmentGroupId"] = batch["treatmentGroupId"]
+	}
+}
+
+func fishMatchesQuery(fish map[string]any, query map[string][]string) bool {
+	first := func(key string) string {
+		values := query[key]
+		if len(values) == 0 {
+			return ""
+		}
+		return values[0]
+	}
+	if value := first("siteId"); value != "" && stringValue(fish["siteId"]) != value {
+		return false
+	}
+	if value := first("boxId"); value == "" {
+		value = first("fishBoxId")
+		if value != "" && stringValue(fish["fishBoxId"]) != value {
+			return false
+		}
+	} else if stringValue(fish["fishBoxId"]) != value {
+		return false
+	}
+	if value := first("status"); value != "" && stringValue(fish["status"]) != value {
+		return false
+	}
+	if value := first("strain"); value != "" && !strings.Contains(strings.ToLower(stringValue(fish["strain"])), strings.ToLower(value)) {
+		return false
+	}
+	if value := first("treatmentGroupId"); value != "" && stringValue(fish["treatmentGroupId"]) != value {
+		return false
+	}
+	if value := first("dobFrom"); value != "" && stringValue(fish["dob"]) < value {
+		return false
+	}
+	if value := first("dobTo"); value != "" && stringValue(fish["dob"]) > value {
+		return false
+	}
 	return true
 }
 
@@ -344,6 +423,10 @@ func (s *apiServer) patchEntity(w http.ResponseWriter, r *http.Request, resource
 	}
 	item["updatedAt"] = time.Now().UTC().Format(time.RFC3339)
 	s.auditLocked(r, "UPDATE", resource, id, old, item)
+	if r.Method == http.MethodDelete && resource == "embryos" {
+		w.WriteHeader(http.StatusNoContent)
+		return true
+	}
 	writeJSON(w, http.StatusOK, cloneMap(item))
 	return true
 }

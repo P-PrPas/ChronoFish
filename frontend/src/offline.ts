@@ -1,4 +1,5 @@
 import { deviceId, mutationHeaders, operatorId, request } from './api/client'
+import { uuidv7 } from './uuidv7'
 
 export type QueueStatus = 'pending' | 'rejected'
 export type QueuedWrite = {
@@ -20,12 +21,16 @@ const databaseName = 'chronofish'
 const databaseVersion = 2
 const storeName = 'writes'
 
-export function retryDelay(attempt: number): number {
-  return Math.min(15 * 60_000, 1_000 * 2 ** Math.min(Math.max(attempt, 0), 10))
+export type JitterSource = () => number
+
+export function retryDelay(attempt: number, random: JitterSource = () => 0.5): number {
+  const base = Math.min(15 * 60_000, 1_000 * 2 ** Math.min(Math.max(attempt, 0), 10))
+  const jitter = Math.max(0, Math.min(1, random())) * 0.2 - 0.1
+  return Math.round(Math.min(15 * 60_000, Math.max(250, base * (1 + jitter))))
 }
 
-export function nextAttemptAt(attempt: number, now = Date.now()): number {
-  return now + retryDelay(attempt)
+export function nextAttemptAt(attempt: number, now = Date.now(), random: JitterSource = () => 0.5): number {
+  return now + retryDelay(attempt, random)
 }
 
 export function queuedHeaders(item: Pick<QueuedWrite, 'operatorId' | 'deviceId' | 'key' | 'contentType'>): Record<string, string> {
@@ -97,7 +102,7 @@ async function countByStatus(status: QueueStatus): Promise<number> {
 }
 
 export async function putQueue(path: string, body: unknown, contentType = 'application/json', method = 'POST'): Promise<ApiQueueResult> {
-  const key = crypto.randomUUID()
+  const key = uuidv7()
   const headers = mutationHeaders(key)
   const item: QueuedWrite = { path, method, body, contentType, key, operatorId: headers['X-Operator-Id'], deviceId: headers['X-Device-Id'], createdAt: Date.now(), attempt: 0, nextAttempt: Date.now(), status: 'pending' }
   // Durable intent is written before any network attempt. A tab close between
@@ -108,17 +113,11 @@ export async function putQueue(path: string, body: unknown, contentType = 'appli
   }
   await queueWrite(item)
   if (!navigator.onLine) return { queued: true, key }
-  const db = await openQueue()
-  const record = (await records(db)).find(({ value }) => value.key === key)
-  if (!record) { db.close(); return { queued: true, key } }
-  try {
-    const result = await transmit(db, record)
-    db.close()
-    return result
-  } catch (error) {
-    db.close()
-    throw error
-  }
+  // Return the optimistic queued state immediately. The durable record is the
+  // source of truth; replay runs independently so a slow network never blocks
+  // a lab form or loses the original headers/key.
+  void drainQueue(true)
+  return { queued: true, key }
 }
 
 export type ApiQueueResult = { queued?: boolean; key?: string; [key: string]: unknown }
@@ -177,7 +176,7 @@ async function transmit(db: IDBDatabase, record: { key: IDBValidKey; value: Queu
       throw error
     }
     const attempt = item.attempt + 1
-    await updateQueued(db, record.key, { ...item, attempt, nextAttempt: nextAttemptAt(attempt) })
+    await updateQueued(db, record.key, { ...item, attempt, nextAttempt: nextAttemptAt(attempt, Date.now(), Math.random) })
     return { queued: true, key: item.key }
   }
 }

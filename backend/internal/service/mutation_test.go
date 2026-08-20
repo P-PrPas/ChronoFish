@@ -50,6 +50,19 @@ func TestUnitOfWorkRecordsSpecializedRowsAndAllCanonicalTargets(t *testing.T) {
 	}
 }
 
+func TestUnitOfWorkKeepsFirstBeforeAndLatestAfter(t *testing.T) {
+	work := NewUnitOfWork()
+	work.RecordAudit(map[string]any{"id": "a1"}, "clone_fish", "fish-1", map[string]any{"id": "fish-1", "status": "ALIVE"}, map[string]any{"id": "fish-1", "status": "DEAD"})
+	work.RecordAudit(map[string]any{"id": "a2"}, "clone_fish", "fish-1", map[string]any{"id": "fish-1", "status": "DEAD"}, map[string]any{"id": "fish-1", "status": "FROZEN"})
+	delta := work.Delta()
+	if delta.Before.Entities["fish"]["fish-1"]["status"] != "ALIVE" {
+		t.Fatalf("before status = %#v, want first value", delta.Before.Entities["fish"]["fish-1"])
+	}
+	if delta.After.Entities["fish"]["fish-1"]["status"] != "FROZEN" {
+		t.Fatalf("after status = %#v, want latest value", delta.After.Entities["fish"]["fish-1"])
+	}
+}
+
 type fakePersistence struct {
 	reserved       store.Mutation
 	waitResult     store.Mutation
@@ -58,6 +71,7 @@ type fakePersistence struct {
 	waitErr        error
 	commitErr      error
 	abortErr       error
+	renewErr       error
 	waitCalls      int
 	commitCalls    int
 	abortCalls     int
@@ -79,6 +93,10 @@ func (f *fakePersistence) WaitForCompletion(context.Context, store.Mutation) (st
 func (f *fakePersistence) Abort(context.Context, store.Mutation) error {
 	f.abortCalls++
 	return f.abortErr
+}
+
+func (f *fakePersistence) Renew(context.Context, store.Mutation) error {
+	return f.renewErr
 }
 
 func (f *fakePersistence) CommitDelta(_ context.Context, delta *store.Delta, _ *store.Mutation) error {

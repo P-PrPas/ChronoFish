@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"regexp"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -26,20 +27,20 @@ func TestReserveSameKeyReturnsStoredWinner(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectExec("INSERT INTO request_idempotency").WithArgs(
 			request.Scope, request.Key, request.RequestHash,
-			sqlmock.AnyArg(), sqlmock.AnyArg(), request.OperatorID, request.DeviceID, sqlmock.AnyArg(), sqlmock.AnyArg(),
+			sqlmock.AnyArg(), sqlmock.AnyArg(), request.OperatorID, request.DeviceID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
 		).WillReturnResult(sqlmock.NewResult(0, affected))
-		mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until").WithArgs(request.Scope, request.Key).WillReturnRows(row)
+		mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until, lease_token").WithArgs(request.Scope, request.Key).WillReturnRows(row)
 		mock.ExpectCommit()
 		return repo.Reserve(context.Background(), request)
 	}
 
-	reserved, created, err := reserve(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until"}).AddRow("hash-1", 102, "", "", nil, time.Now().Add(time.Minute)), 1)
+	reserved, created, err := reserve(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until", "lease_token"}).AddRow("hash-1", 102, "", "", nil, time.Now().Add(time.Minute), "token-1"), 1)
 	if err != nil || !created || reserved.RequestHash != request.RequestHash {
 		t.Fatalf("first reservation = %#v, created=%v, err=%v", reserved, created, err)
 	}
 
 	winnerBody := `{"id":"winner"}`
-	reserved, created, err = reserve(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until"}).AddRow("hash-1", 201, "application/json", winnerBody, time.Now(), time.Now().Add(time.Minute)), 0)
+	reserved, created, err = reserve(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until", "lease_token"}).AddRow("hash-1", 201, "application/json", winnerBody, time.Now(), time.Now().Add(time.Minute), "token-1"), 0)
 	if err != nil || created || string(reserved.Body) != winnerBody || reserved.Status != 201 {
 		t.Fatalf("replay reservation = %#v, created=%v, err=%v", reserved, created, err)
 	}
@@ -59,10 +60,10 @@ func TestReserveRejectsHashMismatch(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectExec("INSERT INTO request_idempotency").WithArgs(
 		request.Scope, request.Key, request.RequestHash,
-		sqlmock.AnyArg(), sqlmock.AnyArg(), request.OperatorID, request.DeviceID, sqlmock.AnyArg(), sqlmock.AnyArg(),
+		sqlmock.AnyArg(), sqlmock.AnyArg(), request.OperatorID, request.DeviceID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg(),
 	).WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until").WithArgs(request.Scope, request.Key).
-		WillReturnRows(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until"}).AddRow("winner-hash", 201, "application/json", `{"id":"winner"}`, time.Now(), time.Now().Add(time.Minute)))
+	mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until, lease_token").WithArgs(request.Scope, request.Key).
+		WillReturnRows(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until", "lease_token"}).AddRow("winner-hash", 201, "application/json", `{"id":"winner"}`, time.Now(), time.Now().Add(time.Minute), "token-1"))
 	mock.ExpectRollback()
 	_, _, err = repo.Reserve(context.Background(), request)
 	if !errors.Is(err, ErrIdempotencyConflict) {
@@ -82,9 +83,9 @@ func TestReserveExpiredLeaseElectsNewOwner(t *testing.T) {
 	repo := NewSQLRepository(db, "postgres")
 	request := Mutation{Scope: "site:create", Key: "lease-key", RequestHash: "lease-hash", OperatorID: "operator-1", DeviceID: "device-1"}
 	mock.ExpectBegin()
-	mock.ExpectExec("INSERT INTO request_idempotency").WithArgs(request.Scope, request.Key, request.RequestHash, sqlmock.AnyArg(), sqlmock.AnyArg(), request.OperatorID, request.DeviceID, sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until").WithArgs(request.Scope, request.Key).WillReturnRows(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until"}).AddRow(request.RequestHash, 102, "", "", nil, time.Now().Add(-time.Minute)))
-	mock.ExpectExec("UPDATE request_idempotency SET lease_until").WithArgs(sqlmock.AnyArg(), request.Scope, request.Key, request.RequestHash, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO request_idempotency").WithArgs(request.Scope, request.Key, request.RequestHash, sqlmock.AnyArg(), sqlmock.AnyArg(), request.OperatorID, request.DeviceID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until, lease_token").WithArgs(request.Scope, request.Key).WillReturnRows(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until", "lease_token"}).AddRow(request.RequestHash, 102, "", "", nil, time.Now().Add(-time.Minute), "old-token"))
+	mock.ExpectExec("UPDATE request_idempotency SET lease_until").WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), request.Scope, request.Key, request.RequestHash, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 	_, created, err := repo.Reserve(context.Background(), request)
 	if err != nil || !created {
@@ -113,6 +114,82 @@ func TestCommitRollsBackWhenResponseCompletionFails(t *testing.T) {
 	})
 	if err == nil || !regexp.MustCompile("connection dropped").MatchString(err.Error()) {
 		t.Fatalf("error = %v, want commit failure", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCommitDeltaRejectsStaleLeaseOwner(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := NewSQLRepository(db, "postgres")
+	mock.ExpectBegin()
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE request_idempotency SET status_code = $1")).
+		WithArgs(201, "application/json", `{"ok":true}`, sqlmock.AnyArg(), "scope", "key", "hash", "stale-token").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+	err = repo.CommitDelta(context.Background(), &Delta{}, &Mutation{Scope: "scope", Key: "key", RequestHash: "hash", LeaseToken: "stale-token", Status: 201, ContentType: "application/json", Body: []byte(`{"ok":true}`)})
+	if err == nil {
+		t.Fatal("stale lease owner unexpectedly committed")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCommitDeltaRejectsStaleCanonicalVersionBeforeUpsert(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := NewSQLRepository(db, "postgres")
+	old := "2026-01-01T00:00:00Z"
+	mock.ExpectBegin()
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT updated_at FROM site WHERE id = $1")).
+		WithArgs("site-1").
+		WillReturnRows(sqlmock.NewRows([]string{"updated_at"}).AddRow(time.Date(2026, 1, 1, 0, 0, 1, 0, time.UTC)))
+	mock.ExpectRollback()
+	delta := &Delta{
+		Before: State{Entities: map[string]map[string]map[string]any{"sites": {
+			"site-1": {"id": "site-1", "updatedAt": old},
+		}}},
+		After: State{Entities: map[string]map[string]map[string]any{"sites": {
+			"site-1": {"id": "site-1", "code": "new", "updatedAt": old},
+		}}},
+	}
+	err = repo.CommitDelta(context.Background(), delta, nil)
+	if err == nil || !strings.Contains(err.Error(), "concurrent mutation conflict") {
+		t.Fatalf("error = %v, want concurrent mutation conflict", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAbortAndRenewRequireCurrentLeaseToken(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := NewSQLRepository(db, "postgres")
+	mutation := Mutation{Scope: "scope", Key: "key", RequestHash: "hash", LeaseToken: "token"}
+	mock.ExpectExec(regexp.QuoteMeta("UPDATE request_idempotency SET lease_until = $1")).
+		WithArgs(sqlmock.AnyArg(), mutation.Scope, mutation.Key, mutation.RequestHash, mutation.LeaseToken).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	if err := repo.Renew(context.Background(), mutation); err == nil {
+		t.Fatal("renew unexpectedly succeeded for stale owner")
+	}
+	mock.ExpectExec(regexp.QuoteMeta("DELETE FROM request_idempotency")).
+		WithArgs(mutation.Scope, mutation.Key, mutation.RequestHash, mutation.LeaseToken).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	if err := repo.Abort(context.Background(), mutation); err == nil {
+		t.Fatal("stale owner unexpectedly aborted reservation")
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
@@ -198,7 +275,7 @@ func TestCommitDeltaPersistsOnlyTouchedRows(t *testing.T) {
 		"site-1": {"id": "site-1", "code": "LAB", "name": "Lab", "active": true, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
 		"site-2": {"id": "site-2", "code": "OTHER", "name": "Other", "active": true, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
 	}}}
-	delta := &Delta{References: refs, After: State{Entities: map[string]map[string]map[string]any{"sites": {
+	delta := &Delta{After: State{Entities: map[string]map[string]map[string]any{"sites": {
 		"site-1": refs.Entities["sites"]["site-1"],
 	}}}}
 	mock.ExpectBegin()

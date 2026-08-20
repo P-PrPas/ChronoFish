@@ -15,8 +15,43 @@ import (
 type Persistence interface {
 	Reserve(context.Context, store.Mutation) (store.Mutation, bool, error)
 	WaitForCompletion(context.Context, store.Mutation) (store.Mutation, error)
+	Renew(context.Context, store.Mutation) error
 	Abort(context.Context, store.Mutation) error
 	CommitDelta(context.Context, *store.Delta, *store.Mutation) error
+}
+
+// StartLeaseHeartbeat keeps a legitimate long-running request fenced to its
+// owner. The returned stop function is idempotent and must be called after
+// the use case has produced its response.
+func StartLeaseHeartbeat(ctx context.Context, persistence Persistence, mutation store.Mutation) func() {
+	if persistence == nil || mutation.LeaseToken == "" {
+		return func() {}
+	}
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+		defer close(done)
+		for {
+			select {
+			case <-ticker.C:
+				_ = persistence.Renew(ctx, mutation)
+			case <-stop:
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return func() {
+		select {
+		case <-stop:
+		default:
+			close(stop)
+		}
+		<-done
+	}
 }
 
 type Mutation struct {
@@ -47,7 +82,7 @@ func (u *UnitOfWork) RecordAudit(entry map[string]any, table, id string, old, ne
 		if u.delta.After.Observations == nil {
 			u.delta.After.Observations = map[string]map[string]any{}
 		}
-		if old != nil {
+		if old != nil && u.delta.Before.Observations[id] == nil {
 			u.delta.Before.Observations[id] = cloneMap(old)
 		}
 		if next != nil {
@@ -62,7 +97,7 @@ func (u *UnitOfWork) RecordAudit(entry map[string]any, table, id string, old, ne
 		if u.delta.After.FishObservations == nil {
 			u.delta.After.FishObservations = map[string]map[string]any{}
 		}
-		if old != nil {
+		if old != nil && u.delta.Before.FishObservations[id] == nil {
 			u.delta.Before.FishObservations[id] = cloneMap(old)
 		}
 		if next != nil {
@@ -85,7 +120,7 @@ func (u *UnitOfWork) RecordAudit(entry map[string]any, table, id string, old, ne
 	if u.delta.After.Entities[resource] == nil {
 		u.delta.After.Entities[resource] = map[string]map[string]any{}
 	}
-	if old != nil {
+	if old != nil && u.delta.Before.Entities[resource][id] == nil {
 		u.delta.Before.Entities[resource][id] = cloneMap(old)
 	}
 	if next != nil {

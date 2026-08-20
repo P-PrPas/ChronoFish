@@ -4,9 +4,10 @@ import { putQueue } from '../offline'
 import { type AppText } from '../types'
 import { Empty, ErrorMessage } from '../components'
 import { dateTimeLocalToRFC3339, rfc3339ToDateTimeLocal } from '../time'
+import { uuidv7 } from '../uuidv7'
 
 type EmbryoOutcome = 'ALIVE' | 'DEAD' | 'DEGENERATED' | 'NOT_OBSERVED'
-const outcomeCycle: EmbryoOutcome[] = ['ALIVE', 'DEAD', 'DEGENERATED', 'NOT_OBSERVED']
+const outcomeCycle: EmbryoOutcome[] = ['ALIVE', 'DEAD', 'DEGENERATED']
 
 export function Due({ t, onPendingChange }: { t: AppText; onPendingChange: (count: number) => void }) {
   const [data, setData] = useState<ApiItem>({ overdue: [], upcoming: [] })
@@ -66,6 +67,7 @@ function Checkpoint({ due, t, onBack }: { due: ApiItem; t: AppText; onBack: () =
   const expected = Number(entry?.expectedHpa ?? 0)
   const actual = elapsedMinutes === null ? null : elapsedMinutes / 60
   const deviation = actual === null ? null : actual - expected
+  const deviationLabel = deviation === null || Math.abs(deviation) < 1 / 60 ? 'ตรงกับสากล' : `${deviation < 0 ? 'เร็วกว่า' : 'ช้ากว่า'}สากล ${Math.floor(Math.abs(deviation))} ชม. ${Math.round((Math.abs(deviation) % 1) * 60)} นาที`
   const stageOrder = Number((entry?.stage as ApiItem | undefined)?.stageOrder ?? due.stageOrder ?? 0)
   const progressLabel = `Checkpoint ${stageOrder || '?'} / 26 · Survivors ${alive} / ${total}`
   const timeLabel = elapsedMinutes === null ? 'T+—' : `T+${String(Math.floor(elapsedMinutes / 60)).padStart(2, '0')}:${String(elapsedMinutes % 60).padStart(2, '0')}`
@@ -84,7 +86,7 @@ function Checkpoint({ due, t, onBack }: { due: ApiItem; t: AppText; onBack: () =
     }
     setSaving(true)
     const observations = embryos.map((embryo: ApiItem) => ({
-      clientUuid: crypto.randomUUID(), embryoId: embryo.embryoId, stageCode: due.stageCode,
+      clientUuid: uuidv7(), embryoId: embryo.embryoId, stageCode: due.stageCode,
       observedAt: dateTimeLocalToRFC3339(observedAt), outcome: outcomes[String(embryo.embryoId)] ?? 'ALIVE',
       condition: conditions[String(embryo.embryoId)] ?? 'NORMAL', notes: notes[String(embryo.embryoId)] || null,
       ...(overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}),
@@ -95,7 +97,7 @@ function Checkpoint({ due, t, onBack }: { due: ApiItem; t: AppText; onBack: () =
     <button className="back" onClick={onBack}>← {t.due}</button>
     <div className="page-heading"><div><p className="eyebrow">{String(due.batchCode)} / LOT {String(due.lotNo)}</p><h1>{String(due.stageLabel)}</h1><p className="muted">{progressLabel} · {timeLabel}</p></div><button className="button button--primary" disabled={saving || !entry} onClick={save}>{saving ? 'Saving…' : 'Save checkpoint'}</button></div>
     {error && <ErrorMessage message={error} />}
-    <div className="metric-grid"><div className="metric"><span>Actual HPA</span><strong>{actual === null ? '—' : actual.toFixed(2)}</strong></div><div className="metric"><span>Expected HPA</span><strong>{expected.toFixed(2)}</strong></div><div className="metric"><span>Deviation</span><strong>{deviation === null ? '—' : `${deviation >= 0 ? '+' : ''}${deviation.toFixed(2)} h`}</strong></div></div>
+    <div className="metric-grid"><div className="metric"><span>Actual HPA</span><strong>{actual === null ? '—' : actual.toFixed(4)}</strong></div><div className="metric"><span>Expected HPA</span><strong>{expected.toFixed(4)}</strong></div><div className="metric"><span>Deviation</span><strong>{deviation === null ? '—' : `${deviation >= 0 ? '+' : ''}${deviation.toFixed(4)} h · ${deviationLabel}`}</strong></div></div>
     <div className="button-row checkpoint-shortcuts"><button className="button button--secondary" type="button" onClick={() => setAll('ALIVE')}>All alive</button><button className="button button--secondary" type="button" onClick={() => setAll('DEAD')}>All remaining dead</button></div>
     <label className="form-card">Observed at<input type="datetime-local" value={observedAt} onChange={(event) => setObservedAt(event.target.value)} /></label>
     <label className="form-card">Override reason (required for an exit override)<input value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} placeholder="Why this checkpoint overrides the exit state" /></label>

@@ -32,6 +32,7 @@ func (failingCommitStore) Reserve(_ context.Context, value storepkg.Mutation) (s
 func (failingCommitStore) WaitForCompletion(context.Context, storepkg.Mutation) (storepkg.Mutation, error) {
 	return storepkg.Mutation{}, errors.New("not expected")
 }
+func (failingCommitStore) Renew(context.Context, storepkg.Mutation) error { return nil }
 func (failingCommitStore) Abort(context.Context, storepkg.Mutation) error { return nil }
 func (failingCommitStore) Commit(context.Context, *storepkg.State, *storepkg.State, *storepkg.Mutation) error {
 	return errors.New("transaction failed")

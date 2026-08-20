@@ -86,7 +86,7 @@ func (s *apiServer) buildWorkbook(query ...map[string][]string) ([]byte, error) 
 	}
 	embryos := s.filteredEmbryos(filters)
 	fish := s.filteredFishLocked(filters)
-	profile := s.exportProfileLocked(embryos)
+	profiles := s.exportProfilesLocked(embryos)
 	sheets := []workbookSheet{
 		{name: "00_Metadata", headers: []string{"key", "value"}},
 		{name: "01_Batches", headers: []string{"batch_code", "experiment_date", "site", "operator", "treatment_group", "clutch_code", "replicate_no", "recipient_egg_lot", "csof_lot", "incubation_temp_c", "lot_no", "donor_strain", "donor_preparation", "donor_batch_code", "enu_power_pct", "enu_pulse_us", "enu_led", "enu_start_at", "enu_finish_at", "activated_at", "n_eggs", "n_activated", "notes"}, rows: s.batchExportRows(filters)},
@@ -101,9 +101,9 @@ func (s *apiServer) buildWorkbook(query ...map[string][]string) ([]byte, error) 
 		{name: "10_Specimens", headers: []string{"specimen_code", "fish_code", "specimen_kind", "specimen_type", "collected_on", "frozen_on", "storage", "notes"}, rows: s.specimenExportRows(fish)},
 		{name: "11_Summary", headers: []string{"strain", "n_batches", "n_eggs", "n_activated", "n_reached_shield", "n_reached_day1", "n_promoted", "n_normal", "n_abnormal", "pct_normal", "pct_abnormal"}, rows: s.summaryExportRows(embryos, fish)},
 		{name: "12_R_Analysis_Table", headers: append([]string{"Sites", "Strain", "Replicate", "Strain_Rep"}, stageCodes(26)...), rows: s.rAnalysisExportRows(embryos)},
-		{name: "13_Stage_Timing_Reference", headers: []string{"stage_order", "stage_code", "stage_label", "expected_hpa", "phase", "stage_scope", "profile_version", "reference_temp_c", "source_note"}, rows: timingReferenceRows(profile)},
+		{name: "13_Stage_Timing_Reference", headers: []string{"stage_order", "stage_code", "stage_label", "expected_hpa", "phase", "stage_scope", "profile_id", "profile_version", "reference_temp_c", "source_note"}, rows: timingReferenceRowsForProfiles(profiles)},
 	}
-	metadata := [][]string{{"exported_at", time.Now().UTC().Format(time.RFC3339)}, {"date_from", firstQuery(filters, "dateFrom")}, {"date_to", firstQuery(filters, "dateTo")}, {"filter", jsonString(filters)}, {"system_version", s.buildVersion}, {"timing_profile_version", fmt.Sprint(profile["version"])}}
+	metadata := [][]string{{"exported_at", time.Now().UTC().Format(time.RFC3339)}, {"date_from", firstQuery(filters, "dateFrom")}, {"date_to", firstQuery(filters, "dateTo")}, {"filter", jsonString(filters)}, {"system_version", s.buildVersion}, {"timing_profile_versions", profileVersions(profiles)}}
 	for _, sheet := range sheets[1:] {
 		metadata = append(metadata, []string{"row_count." + sheet.name, strconv.Itoa(len(sheet.rows))})
 	}
@@ -133,6 +133,36 @@ func (s *apiServer) exportProfileLocked(embryos []map[string]any) map[string]any
 		return s.entities["timing-profiles"][id]
 	}
 	return map[string]any{}
+}
+
+func (s *apiServer) exportProfilesLocked(embryos []map[string]any) []map[string]any {
+	seen := make(map[string]bool)
+	profiles := make([]map[string]any, 0)
+	for _, embryo := range embryos {
+		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+		batch := s.entities["batches"][stringValue(lot["batchId"])]
+		profile := s.entities["timing-profiles"][stringValue(batch["timingProfileId"])]
+		id := stringValue(profile["id"])
+		if profile != nil && id != "" && !seen[id] {
+			seen[id] = true
+			profiles = append(profiles, profile)
+		}
+	}
+	if len(profiles) == 0 {
+		if profile := s.exportProfileLocked(embryos); len(profile) > 0 {
+			profiles = append(profiles, profile)
+		}
+	}
+	sort.Slice(profiles, func(i, j int) bool { return intValue(profiles[i]["version"]) < intValue(profiles[j]["version"]) })
+	return profiles
+}
+
+func profileVersions(profiles []map[string]any) string {
+	versions := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		versions = append(versions, stringValue(profile["id"])+"/v"+fmt.Sprint(profile["version"]))
+	}
+	return strings.Join(versions, ",")
 }
 
 func stageCodes(max int) []string {
@@ -454,11 +484,17 @@ func (s *apiServer) rAnalysisExportRows(embryos []map[string]any) [][]string {
 	return rows
 }
 func timingReferenceRows(profile map[string]any) [][]string {
+	return timingReferenceRowsForProfiles([]map[string]any{profile})
+}
+
+func timingReferenceRowsForProfiles(profiles []map[string]any) [][]string {
 	rows := [][]string{}
-	entries, _ := profile["entries"].([]any)
-	for _, value := range entries {
-		item, _ := value.(map[string]any)
-		rows = append(rows, []string{fmt.Sprint(item["stageOrder"]), stringValue(item["stageCode"]), stringValue(item["stageLabel"]), fmt.Sprint(item["expectedHpa"]), stringValue(item["phase"]), stringValue(item["stageScope"]), fmt.Sprint(profile["version"]), fmt.Sprint(profile["referenceTempC"]), stringValue(profile["sourceNote"])})
+	for _, profile := range profiles {
+		entries, _ := profile["entries"].([]any)
+		for _, value := range entries {
+			item, _ := value.(map[string]any)
+			rows = append(rows, []string{fmt.Sprint(item["stageOrder"]), stringValue(item["stageCode"]), stringValue(item["stageLabel"]), fmt.Sprint(item["expectedHpa"]), stringValue(item["phase"]), stringValue(item["stageScope"]), stringValue(profile["id"]), fmt.Sprint(profile["version"]), fmt.Sprint(profile["referenceTempC"]), stringValue(profile["sourceNote"])})
+		}
 	}
 	return rows
 }

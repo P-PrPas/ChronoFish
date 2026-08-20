@@ -57,10 +57,14 @@ func (s *apiServer) createBatch(w http.ResponseWriter, r *http.Request) bool {
 	code := stringValue(input["batchCode"])
 	dayNo := intValue(input["dayNo"])
 	if dayNo < 1 {
-		if date, parseErr := time.Parse("2006-01-02", stringValue(input["experimentDate"])); parseErr == nil {
-			dayNo = date.Day()
-		} else {
-			dayNo = 1
+		dayNo = 1
+		for _, existing := range s.entities["batches"] {
+			if existing["deletedAt"] != nil || existing["active"] == false || stringValue(existing["operatorId"]) != stringValue(input["operatorId"]) || stringValue(existing["protocolId"]) != stringValue(input["protocolId"]) || stringValue(existing["treatmentGroupId"]) != stringValue(input["treatmentGroupId"]) {
+				continue
+			}
+			if candidate := intValue(existing["dayNo"]) + 1; candidate > dayNo {
+				dayNo = candidate
+			}
 		}
 	}
 	if code == "" {
@@ -113,7 +117,7 @@ func (s *apiServer) batchRoute(w http.ResponseWriter, r *http.Request, p []strin
 				return s.duplicateBatch(w, r, p[0])
 			}
 		case "control-arm-counts":
-			if len(p) == 2 && (r.Method == http.MethodGet || r.Method == http.MethodPut || r.Method == http.MethodPost) {
+			if len(p) == 2 && (r.Method == http.MethodGet || r.Method == http.MethodPut) {
 				return s.controlCounts(w, r, p[0])
 			}
 		}
@@ -144,6 +148,20 @@ func (s *apiServer) createLot(w http.ResponseWriter, r *http.Request, batchID st
 		if value := stringValue(input[field]); value != "" {
 			if _, parseErr := parseBangkokInstant(value); parseErr != nil {
 				writeAPIError(w, 422, "validation_error", field+" must be RFC3339 with timezone offset")
+				return true
+			}
+		}
+	}
+	if finish := stringValue(input["enuFinishAt"]); finish != "" {
+		finishAt, finishErr := parseBangkokInstant(finish)
+		if finishErr != nil || !finishAt.After(activated) {
+			writeAPIError(w, 422, "validation_error", "enuFinishAt must be after activatedAt")
+			return true
+		}
+		if start := stringValue(input["enuStartAt"]); start != "" {
+			startAt, startErr := parseBangkokInstant(start)
+			if startErr != nil || !finishAt.After(startAt) {
+				writeAPIError(w, 422, "validation_error", "enuFinishAt must be after enuStartAt")
 				return true
 			}
 		}
@@ -363,20 +381,94 @@ func (s *apiServer) controlCounts(w http.ResponseWriter, r *http.Request, batchI
 		writeAPIError(w, 400, "invalid_json", "ข้อมูล JSON ไม่ถูกต้อง")
 		return true
 	}
-	raw, _ := input["items"].([]any)
+	raw, ok := input["items"].([]any)
+	if !ok {
+		writeAPIError(w, 422, "validation_error", "items is required")
+		return true
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	batch, ok := s.entities["batches"][batchID]
+	if !ok || batch["active"] == false || batch["deletedAt"] != nil {
+		writeAPIError(w, 404, "not_found", "batch not found")
+		return true
+	}
+	seen := make(map[string]bool)
+	result := make([]map[string]any, 0, len(raw))
 	for _, v := range raw {
 		item, ok := v.(map[string]any)
 		if !ok {
-			continue
+			writeAPIError(w, 422, "validation_error", "each control count must be an object")
+			return true
 		}
-		item["id"] = uuidV7()
-		item["batchId"] = batchID
-		item["createdAt"] = time.Now().UTC().Format(time.RFC3339)
-		s.entities["control-arm-counts"][stringValue(item["id"])] = item
-		s.auditLocked(r, "INSERT", "control_arm_count", stringValue(item["id"]), nil, item)
+		arm := stringValue(item["armType"])
+		stage := stringValue(item["stageCode"])
+		if arm != "NATURAL_BREEDING" && arm != "IVF" {
+			writeAPIError(w, 422, "validation_error", "armType must be NATURAL_BREEDING or IVF")
+			return true
+		}
+		if stageNumber(stage) < 1 || stageNumber(stage) > 36 {
+			writeAPIError(w, 422, "validation_error", "stageCode is invalid")
+			return true
+		}
+		if !nonNegativeWhole(item["nNormal"]) || !nonNegativeWhole(item["nAbnormal"]) {
+			writeAPIError(w, 422, "validation_error", "counts must be non-negative integers")
+			return true
+		}
+		naturalKey := arm + "|" + stage
+		if seen[naturalKey] {
+			writeAPIError(w, 422, "validation_error", "duplicate armType and stageCode")
+			return true
+		}
+		seen[naturalKey] = true
+		var existing map[string]any
+		for _, candidate := range s.entities["control-arm-counts"] {
+			if candidate["deletedAt"] == nil && stringValue(candidate["batchId"]) == batchID && stringValue(candidate["armType"]) == arm && stringValue(candidate["stageCode"]) == stage {
+				existing = candidate
+				break
+			}
+		}
+		now := time.Now().UTC().Format(time.RFC3339)
+		if existing == nil {
+			item = cloneMap(item)
+			item["id"], item["batchId"], item["createdAt"], item["updatedAt"] = uuidV7(), batchID, now, now
+			s.entities["control-arm-counts"][stringValue(item["id"])] = item
+			s.auditLocked(r, "INSERT", "control_arm_count", stringValue(item["id"]), nil, item)
+		} else {
+			before := cloneMap(existing)
+			existing["nNormal"], existing["nAbnormal"], existing["updatedAt"] = intValue(item["nNormal"]), intValue(item["nAbnormal"]), now
+			s.auditLocked(r, "UPDATE", "control_arm_count", stringValue(existing["id"]), before, existing)
+			item = existing
+		}
+		result = append(result, cloneMap(item))
 	}
-	writeJSON(w, 200, map[string]any{"items": raw})
+	if r.Method == http.MethodPut {
+		now := time.Now().UTC().Format(time.RFC3339)
+		for _, existing := range s.entities["control-arm-counts"] {
+			if stringValue(existing["batchId"]) != batchID || existing["deletedAt"] != nil {
+				continue
+			}
+			if !seen[stringValue(existing["armType"])+"|"+stringValue(existing["stageCode"])] {
+				before := cloneMap(existing)
+				existing["deletedAt"], existing["updatedAt"] = now, now
+				s.auditLocked(r, "UPDATE", "control_arm_count", stringValue(existing["id"]), before, existing)
+			}
+		}
+	}
+	writeJSON(w, 200, map[string]any{"items": result})
 	return true
+}
+
+func nonNegativeWhole(value any) bool {
+	switch number := value.(type) {
+	case int:
+		return number >= 0
+	case float64:
+		return number >= 0 && number == float64(int(number))
+	case json.Number:
+		parsed, err := number.Int64()
+		return err == nil && parsed >= 0
+	default:
+		return false
+	}
 }

@@ -30,14 +30,13 @@ type State struct {
 
 // Delta is the request-scoped unit of work exchanged by HTTP and the SQL
 // repository. Before/After contain only aggregates touched by this request;
-// References points at the loaded canonical maps for FK validation and is not
-// persisted. This keeps writes proportional to the mutation rather than to
-// the total number of embryos/observations in the installation.
+// foreign keys are checked against the same SQL transaction, never against a
+// live in-memory map. This keeps writes proportional to the mutation rather
+// than to the total number of embryos/observations in the installation.
 type Delta struct {
-	Before     State
-	After      State
-	References *State
-	Audits     []map[string]any
+	Before State
+	After  State
+	Audits []map[string]any
 }
 
 type SQLRepository struct {
@@ -149,7 +148,7 @@ func (s *SQLRepository) Load(ctx context.Context, state *State) error {
 }
 
 func (s *SQLRepository) loadTable(ctx context.Context, state *State, table, resource string) error {
-	rows, err := s.db.QueryContext(ctx, "SELECT * FROM "+table)
+	rows, err := s.db.QueryContext(ctx, "SELECT * FROM "+table+" WHERE deleted_at IS NULL")
 	if err != nil {
 		return err
 	}
@@ -197,7 +196,9 @@ func (s *SQLRepository) loadStageCodes(ctx context.Context) (map[string]string, 
 
 func (s *SQLRepository) loadTimingEntries(ctx context.Context, state *State) error {
 	rows, err := s.db.QueryContext(ctx, `SELECT st.profile_id, st.id, st.stage_definition_id, st.expected_hpa, sd.stage_order, sd.label, sd.phase, sd.stage_scope, sd.code
-		FROM stage_timing st JOIN stage_definition sd ON sd.id = st.stage_definition_id`)
+		FROM stage_timing st JOIN stage_definition sd ON sd.id = st.stage_definition_id
+		JOIN stage_timing_profile p ON p.id = st.profile_id
+		WHERE st.deleted_at IS NULL AND p.deleted_at IS NULL`)
 	if err != nil {
 		return err
 	}
@@ -221,7 +222,7 @@ func (s *SQLRepository) loadTimingEntries(ctx context.Context, state *State) err
 }
 
 func (s *SQLRepository) loadObservationTable(ctx context.Context, state *State, table string, target map[string]map[string]any, stageCodes map[string]string) error {
-	rows, err := s.db.QueryContext(ctx, "SELECT * FROM "+table)
+	rows, err := s.db.QueryContext(ctx, "SELECT * FROM "+table+" WHERE deleted_at IS NULL")
 	if err != nil {
 		return err
 	}
@@ -254,7 +255,7 @@ func (s *SQLRepository) loadObservationTable(ctx context.Context, state *State, 
 }
 
 func (s *SQLRepository) loadAudits(ctx context.Context, state *State) error {
-	rows, err := s.db.QueryContext(ctx, "SELECT * FROM audit_log")
+	rows, err := s.db.QueryContext(ctx, "SELECT * FROM audit_log ORDER BY occurred_at DESC LIMIT 5000")
 	if err != nil {
 		return fmt.Errorf("load audit log: %w", err)
 	}
@@ -385,6 +386,7 @@ type Mutation struct {
 	OperatorID  string
 	DeviceID    string
 	LeaseUntil  time.Time
+	LeaseToken  string
 	LeaseOwner  bool
 }
 
@@ -406,7 +408,12 @@ func (s *SQLRepository) Commit(ctx context.Context, before, after *State, mutati
 	if mutation != nil {
 		body := string(mutation.Body)
 		query := "UPDATE request_idempotency SET status_code = " + s.placeholder(1) + ", content_type = " + s.placeholder(2) + ", response_body = " + s.placeholder(3) + ", completed_at = " + s.placeholder(4) + " WHERE scope = " + s.placeholder(5) + " AND idempotency_key = " + s.placeholder(6) + " AND request_hash = " + s.placeholder(7)
-		result, err := tx.ExecContext(ctx, query, mutation.Status, mutation.ContentType, body, time.Now().UTC(), mutation.Scope, mutation.Key, mutation.RequestHash)
+		args := []any{mutation.Status, mutation.ContentType, body, time.Now().UTC(), mutation.Scope, mutation.Key, mutation.RequestHash}
+		if mutation.LeaseToken != "" {
+			query += " AND lease_token = " + s.placeholder(8)
+			args = append(args, mutation.LeaseToken)
+		}
+		result, err := tx.ExecContext(ctx, query, args...)
 		if err != nil {
 			return rollback(err)
 		}
@@ -421,22 +428,21 @@ func (s *SQLRepository) CommitDelta(ctx context.Context, delta *Delta, mutation 
 	if delta == nil {
 		return errors.New("nil mutation delta")
 	}
-	state := delta.References
-	if state == nil {
-		state = &delta.After
-	}
 	delta.After.Audits = append([]map[string]any(nil), delta.Audits...)
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	rollback := func(cause error) error { _ = tx.Rollback(); return cause }
-	if err := s.syncCanonicalChanges(ctx, tx, delta.After, state); err != nil {
+	if err := s.verifyDeltaVersions(ctx, tx, delta); err != nil {
+		return rollback(err)
+	}
+	if err := s.syncCanonicalChanges(ctx, tx, delta.After, nil); err != nil {
 		return rollback(err)
 	}
 	if mutation != nil {
-		query := "UPDATE request_idempotency SET status_code = " + s.placeholder(1) + ", content_type = " + s.placeholder(2) + ", response_body = " + s.placeholder(3) + ", completed_at = " + s.placeholder(4) + " WHERE scope = " + s.placeholder(5) + " AND idempotency_key = " + s.placeholder(6) + " AND request_hash = " + s.placeholder(7) + " AND status_code = 102"
-		result, execErr := tx.ExecContext(ctx, query, mutation.Status, mutation.ContentType, string(mutation.Body), time.Now().UTC(), mutation.Scope, mutation.Key, mutation.RequestHash)
+		query := "UPDATE request_idempotency SET status_code = " + s.placeholder(1) + ", content_type = " + s.placeholder(2) + ", response_body = " + s.placeholder(3) + ", completed_at = " + s.placeholder(4) + " WHERE scope = " + s.placeholder(5) + " AND idempotency_key = " + s.placeholder(6) + " AND request_hash = " + s.placeholder(7) + " AND status_code = 102 AND lease_token = " + s.placeholder(8)
+		result, execErr := tx.ExecContext(ctx, query, mutation.Status, mutation.ContentType, string(mutation.Body), time.Now().UTC(), mutation.Scope, mutation.Key, mutation.RequestHash, mutation.LeaseToken)
 		if execErr != nil {
 			return rollback(execErr)
 		}
@@ -445,6 +451,72 @@ func (s *SQLRepository) CommitDelta(ctx context.Context, delta *Delta, mutation 
 		}
 	}
 	return tx.Commit()
+}
+
+// verifyDeltaVersions fences a request-scoped write set against changes made
+// by another API instance after this request read its aggregates. The check
+// happens inside the same transaction as the canonical upserts, so a stale
+// worker cannot overwrite a newer row and then publish an uncommitted cache
+// value. New rows are left to the canonical primary/FK/unique constraints.
+func (s *SQLRepository) verifyDeltaVersions(ctx context.Context, tx *sql.Tx, delta *Delta) error {
+	if delta == nil {
+		return nil
+	}
+	for resource, records := range delta.Before.Entities {
+		table := canonicalTable(resource)
+		if table == "" {
+			continue
+		}
+		for id, before := range records {
+			if err := s.verifyRecordVersion(ctx, tx, table, id, before); err != nil {
+				return err
+			}
+		}
+	}
+	for id, before := range delta.Before.Observations {
+		if err := s.verifyRecordVersion(ctx, tx, "embryo_observation", id, before); err != nil {
+			return err
+		}
+	}
+	for id, before := range delta.Before.FishObservations {
+		if err := s.verifyRecordVersion(ctx, tx, "fish_observation", id, before); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func canonicalTable(resource string) string {
+	return map[string]string{
+		"sites": "site", "operators": "operator", "donor-cell-lines": "donor_cell_line",
+		"recipient-egg-lots": "recipient_egg_lot", "csof-lots": "csof_lot",
+		"treatment-groups": "treatment_group", "fish-boxes": "fish_box", "protocols": "protocol",
+		"timing-profiles": "stage_timing_profile", "batches": "experiment_batch",
+		"injection-lots": "injection_lot", "embryos": "embryo", "fish": "clone_fish",
+		"specimens": "specimen", "control-arm-counts": "control_arm_count",
+	}[resource]
+}
+
+func (s *SQLRepository) verifyRecordVersion(ctx context.Context, tx *sql.Tx, table, id string, before map[string]any) error {
+	if id == "" || before == nil {
+		return nil
+	}
+	writtenAt := nullableTime(before["updatedAt"])
+	if writtenAt.IsZero() {
+		return nil
+	}
+	query := "SELECT updated_at FROM " + table + " WHERE id = " + s.placeholder(1)
+	var current any
+	if err := tx.QueryRowContext(ctx, query, id).Scan(&current); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("concurrent mutation conflict: %s/%s disappeared", table, id)
+		}
+		return err
+	}
+	if !nullableTime(current).Equal(writtenAt) {
+		return fmt.Errorf("concurrent mutation conflict: %s/%s changed", table, id)
+	}
+	return nil
 }
 
 // changedState is the persistence delta for one serialized mutation. The
@@ -517,22 +589,23 @@ func (s *SQLRepository) Reserve(ctx context.Context, mutation Mutation) (Mutatio
 	rollback := func(cause error) (Mutation, bool, error) { _ = tx.Rollback(); return Mutation{}, false, cause }
 	now := time.Now().UTC()
 	leaseUntil := now.Add(30 * time.Second)
-	insert := "INSERT INTO request_idempotency (scope, idempotency_key, request_hash, status_code, content_type, response_body, operator_id, device_id, created_at, lease_until) VALUES (" + s.placeholder(1) + "," + s.placeholder(2) + "," + s.placeholder(3) + ",102," + s.placeholder(4) + "," + s.placeholder(5) + "," + s.placeholder(6) + "," + s.placeholder(7) + "," + s.placeholder(8) + "," + s.placeholder(9) + ")"
+	leaseToken := newUUID()
+	insert := "INSERT INTO request_idempotency (scope, idempotency_key, request_hash, status_code, content_type, response_body, operator_id, device_id, created_at, lease_until, lease_token) VALUES (" + s.placeholder(1) + "," + s.placeholder(2) + "," + s.placeholder(3) + ",102," + s.placeholder(4) + "," + s.placeholder(5) + "," + s.placeholder(6) + "," + s.placeholder(7) + "," + s.placeholder(8) + "," + s.placeholder(9) + "," + s.placeholder(10) + ")"
 	if s.driver == "postgres" {
 		insert += " ON CONFLICT (scope, idempotency_key) DO NOTHING"
 	} else {
 		insert += " ON DUPLICATE KEY UPDATE idempotency_key = idempotency_key"
 	}
-	result, err := tx.ExecContext(ctx, insert, mutation.Scope, mutation.Key, mutation.RequestHash, "", "", mutation.OperatorID, mutation.DeviceID, now, leaseUntil)
+	result, err := tx.ExecContext(ctx, insert, mutation.Scope, mutation.Key, mutation.RequestHash, "", "", mutation.OperatorID, mutation.DeviceID, now, leaseUntil, leaseToken)
 	if err != nil {
 		return rollback(err)
 	}
 	inserted, _ := result.RowsAffected()
 	var found Mutation
 	var completedAt any
-	var leaseValue any
-	selectQuery := "SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until FROM request_idempotency WHERE scope = " + s.placeholder(1) + " AND idempotency_key = " + s.placeholder(2)
-	if err := tx.QueryRowContext(ctx, selectQuery, mutation.Scope, mutation.Key).Scan(&found.RequestHash, &found.Status, &found.ContentType, &found.Body, &completedAt, &leaseValue); err != nil {
+	var leaseValue, tokenValue any
+	selectQuery := "SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until, lease_token FROM request_idempotency WHERE scope = " + s.placeholder(1) + " AND idempotency_key = " + s.placeholder(2)
+	if err := tx.QueryRowContext(ctx, selectQuery, mutation.Scope, mutation.Key).Scan(&found.RequestHash, &found.Status, &found.ContentType, &found.Body, &completedAt, &leaseValue, &tokenValue); err != nil {
 		return rollback(err)
 	}
 	found.Scope, found.Key = mutation.Scope, mutation.Key
@@ -541,14 +614,16 @@ func (s *SQLRepository) Reserve(ctx context.Context, mutation Mutation) (Mutatio
 		return rollback(ErrIdempotencyConflict)
 	}
 	found.LeaseUntil = nullableTime(leaseValue)
+	found.LeaseToken = stringValue(tokenValue)
 	created := inserted == 1
 	if !created && found.Status == 102 && !found.LeaseUntil.IsZero() && !found.LeaseUntil.After(now) {
-		update := "UPDATE request_idempotency SET lease_until = " + s.placeholder(1) + " WHERE scope = " + s.placeholder(2) + " AND idempotency_key = " + s.placeholder(3) + " AND request_hash = " + s.placeholder(4) + " AND status_code = 102 AND lease_until <= " + s.placeholder(5)
-		if result, updateErr := tx.ExecContext(ctx, update, leaseUntil, mutation.Scope, mutation.Key, mutation.RequestHash, now); updateErr != nil {
+		update := "UPDATE request_idempotency SET lease_until = " + s.placeholder(1) + ", lease_token = " + s.placeholder(2) + " WHERE scope = " + s.placeholder(3) + " AND idempotency_key = " + s.placeholder(4) + " AND request_hash = " + s.placeholder(5) + " AND status_code = 102 AND lease_until <= " + s.placeholder(6)
+		if result, updateErr := tx.ExecContext(ctx, update, leaseUntil, leaseToken, mutation.Scope, mutation.Key, mutation.RequestHash, now); updateErr != nil {
 			return rollback(updateErr)
 		} else if affected, _ := result.RowsAffected(); affected == 1 {
 			created = true
 			found.LeaseUntil = leaseUntil
+			found.LeaseToken = leaseToken
 		}
 	}
 	found.Body = append([]byte(nil), found.Body...)
@@ -563,9 +638,9 @@ func (s *SQLRepository) WaitForCompletion(ctx context.Context, mutation Mutation
 	defer ticker.Stop()
 	for {
 		var found Mutation
-		var completedAt, leaseValue any
-		query := "SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until FROM request_idempotency WHERE scope = " + s.placeholder(1) + " AND idempotency_key = " + s.placeholder(2)
-		err := s.db.QueryRowContext(ctx, query, mutation.Scope, mutation.Key).Scan(&found.RequestHash, &found.Status, &found.ContentType, &found.Body, &completedAt, &leaseValue)
+		var completedAt, leaseValue, tokenValue any
+		query := "SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until, lease_token FROM request_idempotency WHERE scope = " + s.placeholder(1) + " AND idempotency_key = " + s.placeholder(2)
+		err := s.db.QueryRowContext(ctx, query, mutation.Scope, mutation.Key).Scan(&found.RequestHash, &found.Status, &found.ContentType, &found.Body, &completedAt, &leaseValue, &tokenValue)
 		if err != nil {
 			return Mutation{}, err
 		}
@@ -574,6 +649,7 @@ func (s *SQLRepository) WaitForCompletion(ctx context.Context, mutation Mutation
 		}
 		if found.Status != 102 || completedAt != nil {
 			found.Scope, found.Key = mutation.Scope, mutation.Key
+			found.LeaseToken = stringValue(tokenValue)
 			found.Body = append([]byte(nil), found.Body...)
 			return found, nil
 		}
@@ -596,9 +672,27 @@ func (s *SQLRepository) WaitForCompletion(ctx context.Context, mutation Mutation
 }
 
 func (s *SQLRepository) Abort(ctx context.Context, mutation Mutation) error {
-	query := "DELETE FROM request_idempotency WHERE scope = " + s.placeholder(1) + " AND idempotency_key = " + s.placeholder(2) + " AND request_hash = " + s.placeholder(3) + " AND status_code = 102"
-	_, err := s.db.ExecContext(ctx, query, mutation.Scope, mutation.Key, mutation.RequestHash)
-	return err
+	query := "DELETE FROM request_idempotency WHERE scope = " + s.placeholder(1) + " AND idempotency_key = " + s.placeholder(2) + " AND request_hash = " + s.placeholder(3) + " AND status_code = 102 AND lease_token = " + s.placeholder(4)
+	result, err := s.db.ExecContext(ctx, query, mutation.Scope, mutation.Key, mutation.RequestHash, mutation.LeaseToken)
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected != 1 {
+		return errors.New("idempotency lease is no longer owned")
+	}
+	return nil
+}
+
+func (s *SQLRepository) Renew(ctx context.Context, mutation Mutation) error {
+	query := "UPDATE request_idempotency SET lease_until = " + s.placeholder(1) + " WHERE scope = " + s.placeholder(2) + " AND idempotency_key = " + s.placeholder(3) + " AND request_hash = " + s.placeholder(4) + " AND status_code = 102 AND lease_token = " + s.placeholder(5)
+	result, err := s.db.ExecContext(ctx, query, time.Now().UTC().Add(30*time.Second), mutation.Scope, mutation.Key, mutation.RequestHash, mutation.LeaseToken)
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected != 1 {
+		return errors.New("idempotency lease is no longer owned")
+	}
+	return nil
 }
 
 func (s *SQLRepository) syncCanonical(ctx context.Context, tx *sql.Tx, before, state *State) error {
@@ -613,7 +707,7 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 		}
 	}
 	for id, item := range changes.Entities["operators"] {
-		siteID := nullableReference(item["siteId"], state.Entities["sites"])
+		siteID := nullableReference(item["siteId"])
 		if err := s.upsertCanonical(ctx, tx, "operator", []string{"id", "site_id", "name", "active", "created_at", "updated_at", "deleted_at"}, []any{id, siteID, stringValue(item["name"]), item["active"] != false, timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
 			return err
 		}
@@ -639,7 +733,7 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 		}
 	}
 	for id, item := range changes.Entities["fish-boxes"] {
-		if err := s.upsertCanonical(ctx, tx, "fish_box", []string{"id", "box_code", "site_id", "active", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["boxCode"]), nullableReference(item["siteId"], state.Entities["sites"]), item["active"] != false, timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
+		if err := s.upsertCanonical(ctx, tx, "fish_box", []string{"id", "box_code", "site_id", "active", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["boxCode"]), nullableReference(item["siteId"]), item["active"] != false, timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
 			return err
 		}
 	}
@@ -647,7 +741,7 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 		return err
 	}
 	for id, item := range changes.Entities["batches"] {
-		if !referencesAvailable(item, state, "siteId", "operatorId", "protocolId", "timingProfileId", "treatmentGroupId") {
+		if !s.referencesAvailableTx(ctx, tx, item, "siteId", "operatorId", "protocolId", "timingProfileId", "treatmentGroupId") {
 			return fmt.Errorf("batch %s has an invalid foreign-key reference", id)
 		}
 		profileID := stringValue(item["timingProfileId"])
@@ -658,12 +752,12 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 		if protocolID == "" {
 			return fmt.Errorf("batch %s has no protocol", id)
 		}
-		if err := s.upsertCanonical(ctx, tx, "experiment_batch", []string{"id", "batch_code", "experiment_date", "day_no", "site_id", "operator_id", "protocol_id", "timing_profile_id", "treatment_group_id", "recipient_egg_lot_id", "csof_lot_id", "clutch_code", "replicate_no", "incubation_temp_c", "notes", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["batchCode"]), stringValue(item["experimentDate"]), nullableInt(item["dayNo"]), stringValue(item["siteId"]), stringValue(item["operatorId"]), protocolID, profileID, stringValue(item["treatmentGroupId"]), nullableReference(item["recipientEggLotId"], state.Entities["recipient-egg-lots"]), nullableReference(item["csofLotId"], state.Entities["csof-lots"]), nullableString(item["clutchCode"]), nullableInt(item["replicateNo"]), nullableNumber(item["incubationTempC"]), nullableString(item["notes"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
+		if err := s.upsertCanonical(ctx, tx, "experiment_batch", []string{"id", "batch_code", "experiment_date", "day_no", "site_id", "operator_id", "protocol_id", "timing_profile_id", "treatment_group_id", "recipient_egg_lot_id", "csof_lot_id", "clutch_code", "replicate_no", "incubation_temp_c", "notes", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["batchCode"]), stringValue(item["experimentDate"]), nullableInt(item["dayNo"]), stringValue(item["siteId"]), stringValue(item["operatorId"]), protocolID, profileID, stringValue(item["treatmentGroupId"]), nullableReference(item["recipientEggLotId"]), nullableReference(item["csofLotId"]), nullableString(item["clutchCode"]), nullableInt(item["replicateNo"]), nullableNumber(item["incubationTempC"]), nullableString(item["notes"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
 			return err
 		}
 	}
 	for id, item := range changes.Entities["injection-lots"] {
-		if !referencesAvailable(item, state, "batchId", "donorCellLineId") {
+		if !s.referencesAvailableTx(ctx, tx, item, "batchId", "donorCellLineId") {
 			return fmt.Errorf("injection lot %s has an invalid foreign-key reference", id)
 		}
 		if err := s.upsertCanonical(ctx, tx, "injection_lot", []string{"id", "batch_id", "lot_no", "donor_cell_line_id", "enu_power_pct", "enu_pulse_us", "enu_led", "enu_start_at", "enu_finish_at", "activated_at", "n_eggs", "n_activated", "notes", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["batchId"]), stringValue(item["lotNo"]), stringValue(item["donorCellLineId"]), nullableInt(item["enuPowerPct"]), nullableInt(item["enuPulseUs"]), nullableInt(item["enuLed"]), item["enuStartAt"], item["enuFinishAt"], timestampValue(item["activatedAt"]), nullableInt(item["nEggs"]), intValue(item["nActivated"]), nullableString(item["notes"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
@@ -671,7 +765,7 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 		}
 	}
 	for id, item := range changes.Entities["embryos"] {
-		if !referencesAvailable(item, state, "injectionLotId") {
+		if !s.referencesAvailableTx(ctx, tx, item, "injectionLotId") {
 			return fmt.Errorf("embryo %s has an invalid foreign-key reference", id)
 		}
 		if err := s.upsertCanonical(ctx, tx, "embryo", []string{"id", "injection_lot_id", "seq_in_lot", "embryo_code", "well_position", "exit_stage_id", "exit_at", "exit_reason", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["injectionLotId"]), intValue(item["seqInLot"]), stringValue(item["embryoCode"]), nullableString(item["wellPosition"]), nullableString(item["exitStageId"]), item["exitAt"], nullableString(item["exitReason"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
@@ -679,16 +773,16 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 		}
 	}
 	for id, item := range changes.Entities["fish"] {
-		if !referencesAvailable(item, state, "donorCellLineId") {
+		if !s.referencesAvailableTx(ctx, tx, item, "donorCellLineId") {
 			return fmt.Errorf("fish %s has an invalid foreign-key reference", id)
 		}
-		if err := s.upsertCanonical(ctx, tx, "clone_fish", []string{"id", "embryo_id", "fish_code", "running_no", "dob", "donor_cell_line_id", "site_id", "fish_box_id", "status", "biological_condition", "first_abnormal_on", "first_abnormal_age_days", "first_abnormal_stage_id", "sex", "fin_clipped", "exit_date", "exit_reason", "remarks", "created_at", "updated_at", "deleted_at"}, []any{id, nullableReference(item["embryoId"], state.Entities["embryos"]), stringValue(item["fishCode"]), intValue(item["runningNo"]), stringValue(item["dob"]), stringValue(item["donorCellLineId"]), nullableReference(item["siteId"], state.Entities["sites"]), nullableReference(item["fishBoxId"], state.Entities["fish-boxes"]), stringValueOr(item["status"], "ALIVE"), stringValueOr(item["condition"], "NORMAL"), nullableString(item["firstAbnormalOn"]), nullableInt(item["firstAbnormalAgeDays"]), nullableString(item["firstAbnormalStageId"]), stringValueOr(item["sex"], "UNKNOWN"), item["finClipped"] == true, nullableString(item["exitDate"]), nullableFishExitReason(item["exitReason"]), nullableString(item["remarks"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
+		if err := s.upsertCanonical(ctx, tx, "clone_fish", []string{"id", "embryo_id", "fish_code", "running_no", "dob", "donor_cell_line_id", "site_id", "fish_box_id", "status", "biological_condition", "first_abnormal_on", "first_abnormal_age_days", "first_abnormal_stage_id", "sex", "fin_clipped", "exit_date", "exit_reason", "remarks", "created_at", "updated_at", "deleted_at"}, []any{id, nullableReference(item["embryoId"]), stringValue(item["fishCode"]), intValue(item["runningNo"]), stringValue(item["dob"]), stringValue(item["donorCellLineId"]), nullableReference(item["siteId"]), nullableReference(item["fishBoxId"]), stringValueOr(item["status"], "ALIVE"), stringValueOr(item["condition"], "NORMAL"), nullableString(item["firstAbnormalOn"]), nullableInt(item["firstAbnormalAgeDays"]), nullableString(item["firstAbnormalStageId"]), stringValueOr(item["sex"], "UNKNOWN"), item["finClipped"] == true, nullableString(item["exitDate"]), nullableFishExitReason(item["exitReason"]), nullableString(item["remarks"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
 			return err
 		}
 	}
 	for id, item := range changes.Observations {
 		stageID := stageDefinitionID(stringValue(item["stageCode"]))
-		if stageID == "" || !referencesAvailable(item, state, "embryoId", "operatorId") {
+		if stageID == "" || !s.referencesAvailableTx(ctx, tx, item, "embryoId", "operatorId") {
 			return fmt.Errorf("embryo observation %s has an invalid stage or foreign-key reference", id)
 		}
 		if err := s.upsertCanonical(ctx, tx, "embryo_observation", []string{"id", "client_uuid", "embryo_id", "stage_definition_id", "observed_at", "hpa_actual", "hpa_expected_snapshot", "deviation_h", "outcome", "biological_condition", "operator_id", "device_id", "is_backdated", "override_reason", "notes", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["clientUuid"]), stringValue(item["embryoId"]), stageID, timestampValue(item["observedAt"]), numberValue(item["hpaActual"]), numberValue(item["hpaExpectedSnapshot"]), numberValue(item["deviationH"]), stringValue(item["outcome"]), stringValue(item["condition"]), stringValue(item["operatorId"]), nullableString(item["deviceId"]), item["isBackdated"] == true, nullableString(item["overrideReason"]), nullableString(item["notes"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
@@ -703,7 +797,7 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 		}
 	}
 	for id, item := range changes.FishObservations {
-		if !referencesAvailable(item, state, "cloneFishId", "operatorId") {
+		if !s.referencesAvailableTx(ctx, tx, item, "cloneFishId", "operatorId") {
 			return fmt.Errorf("fish observation %s has an invalid foreign-key reference", id)
 		}
 		if err := s.upsertCanonical(ctx, tx, "fish_observation", []string{"id", "client_uuid", "clone_fish_id", "observed_on", "age_days", "outcome", "biological_condition", "operator_id", "device_id", "is_backdated", "notes", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["clientUuid"]), stringValue(item["cloneFishId"]), stringValue(item["observedOn"]), intValue(item["ageDays"]), stringValue(item["outcome"]), stringValue(item["condition"]), stringValue(item["operatorId"]), nullableString(item["deviceId"]), item["isBackdated"] == true, nullableString(item["notes"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
@@ -712,7 +806,7 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 	}
 	for id, item := range changes.Entities["control-arm-counts"] {
 		stageID := stageDefinitionID(stringValue(item["stageCode"]))
-		if stageID == "" || !referencesAvailable(item, state, "batchId") {
+		if stageID == "" || !s.referencesAvailableTx(ctx, tx, item, "batchId") {
 			return fmt.Errorf("control count %s has an invalid stage or foreign-key reference", id)
 		}
 		if err := s.upsertCanonical(ctx, tx, "control_arm_count", []string{"id", "batch_id", "arm_type", "stage_definition_id", "n_normal", "n_abnormal", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["batchId"]), stringValue(item["armType"]), stageID, intValue(item["nNormal"]), intValue(item["nAbnormal"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
@@ -720,7 +814,7 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 		}
 	}
 	for id, item := range changes.Entities["specimens"] {
-		if !referencesAvailable(item, state, "cloneFishId") || stringValue(item["specimenCode"]) == "" || stringValue(item["specimenKind"]) == "" || stringValue(item["specimenType"]) == "" {
+		if !s.referencesAvailableTx(ctx, tx, item, "cloneFishId") || stringValue(item["specimenCode"]) == "" || stringValue(item["specimenKind"]) == "" || stringValue(item["specimenType"]) == "" {
 			return fmt.Errorf("specimen %s has an invalid foreign-key or required field", id)
 		}
 		if err := s.upsertCanonical(ctx, tx, "specimen", []string{"id", "clone_fish_id", "specimen_code", "specimen_kind", "specimen_type", "collected_on", "frozen_on", "storage", "notes", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["cloneFishId"]), stringValue(item["specimenCode"]), stringValue(item["specimenKind"]), stringValue(item["specimenType"]), nullableString(item["collectedOn"]), nullableString(item["frozenOn"]), nullableString(item["storage"]), nullableString(item["notes"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
@@ -730,7 +824,7 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 	for _, item := range changes.Audits {
 		oldValues, _ := json.Marshal(item["oldValues"])
 		newValues, _ := json.Marshal(item["newValues"])
-		if err := s.upsertCanonical(ctx, tx, "audit_log", []string{"id", "table_name", "record_id", "action", "old_values", "new_values", "operator_id", "device_id", "occurred_at"}, []any{stringValue(item["id"]), stringValue(item["tableName"]), stringValue(item["recordId"]), stringValue(item["action"]), string(oldValues), string(newValues), nullableReference(item["operatorId"], state.Entities["operators"]), nullableString(item["deviceId"]), timestampValue(item["occurredAt"])}, []string{"id"}); err != nil {
+		if err := s.upsertCanonical(ctx, tx, "audit_log", []string{"id", "table_name", "record_id", "action", "old_values", "new_values", "operator_id", "device_id", "occurred_at"}, []any{stringValue(item["id"]), stringValue(item["tableName"]), stringValue(item["recordId"]), stringValue(item["action"]), string(oldValues), string(newValues), nullableReference(item["operatorId"]), nullableString(item["deviceId"]), timestampValue(item["occurredAt"])}, []string{"id"}); err != nil {
 			return err
 		}
 	}
@@ -753,7 +847,7 @@ func (s *SQLRepository) syncTimingProfiles(ctx context.Context, tx *sql.Tx, stat
 		if _, err := tx.ExecContext(ctx, clearCurrent, false, protocolID); err != nil {
 			return err
 		}
-		if err := s.upsertCanonical(ctx, tx, "stage_timing_profile", []string{"id", "protocol_id", "version", "name", "reference_temp_c", "auto_temp_adjust", "source_note", "is_current", "created_by_operator_id", "created_at", "updated_at", "deleted_at"}, []any{id, protocolID, intValue(profile["version"]), stringValueOr(profile["name"], "Timing profile"), nullableNumber(profile["referenceTempC"]), profile["autoTempAdjust"] == true, nullableString(profile["sourceNote"]), false, nullableReference(profile["createdByOperatorId"], state.Entities["operators"]), timestampValue(profile["createdAt"]), timestampValue(profile["updatedAt"]), profile["deletedAt"]}, []string{"id"}); err != nil {
+		if err := s.upsertCanonical(ctx, tx, "stage_timing_profile", []string{"id", "protocol_id", "version", "name", "reference_temp_c", "auto_temp_adjust", "source_note", "is_current", "created_by_operator_id", "created_at", "updated_at", "deleted_at"}, []any{id, protocolID, intValue(profile["version"]), stringValueOr(profile["name"], "Timing profile"), nullableNumber(profile["referenceTempC"]), profile["autoTempAdjust"] == true, nullableString(profile["sourceNote"]), false, nullableReference(profile["createdByOperatorId"]), timestampValue(profile["createdAt"]), timestampValue(profile["updatedAt"]), profile["deletedAt"]}, []string{"id"}); err != nil {
 			return err
 		}
 		entries, _ := profile["entries"].([]any)
@@ -775,8 +869,12 @@ func (s *SQLRepository) syncTimingProfiles(ctx context.Context, tx *sql.Tx, stat
 			}
 		}
 	}
+	profileState := state
+	if profileState == nil {
+		profileState = changes
+	}
 	for _, id := range ids {
-		profile := state.Entities["timing-profiles"][id]
+		profile := profileState.Entities["timing-profiles"][id]
 		if profile["isCurrent"] != true {
 			continue
 		}
@@ -819,46 +917,52 @@ func (s *SQLRepository) upsertCanonical(ctx context.Context, tx *sql.Tx, table s
 	return err
 }
 
-func referencesAvailable(item map[string]any, state *State, fields ...string) bool {
+func (s *SQLRepository) referencesAvailableTx(ctx context.Context, tx *sql.Tx, item map[string]any, fields ...string) bool {
 	for _, field := range fields {
 		id := stringValue(item[field])
 		if id == "" {
 			return false
 		}
-		var resource string
+		var table string
 		switch field {
 		case "siteId":
-			resource = "sites"
+			table = "site"
 		case "operatorId":
-			resource = "operators"
+			table = "operator"
 		case "treatmentGroupId":
-			resource = "treatment-groups"
+			table = "treatment_group"
 		case "protocolId":
-			resource = "protocols"
+			table = "protocol"
 		case "timingProfileId":
-			resource = "timing-profiles"
+			table = "stage_timing_profile"
 		case "batchId":
-			resource = "batches"
+			table = "experiment_batch"
 		case "donorCellLineId":
-			resource = "donor-cell-lines"
+			table = "donor_cell_line"
 		case "injectionLotId":
-			resource = "injection-lots"
+			table = "injection_lot"
 		case "cloneFishId":
-			resource = "fish"
+			table = "clone_fish"
 		default:
 			continue
 		}
-		ref := state.Entities[resource][id]
-		if ref == nil || ref["active"] == false || ref["deletedAt"] != nil {
+		query := "SELECT 1 FROM " + table + " WHERE id = " + s.placeholder(1) + " AND deleted_at IS NULL"
+		args := []any{id}
+		if table != "stage_timing_profile" {
+			query += " AND active = " + s.placeholder(2)
+			args = append(args, true)
+		}
+		var found int
+		if err := tx.QueryRowContext(ctx, query, args...).Scan(&found); err != nil {
 			return false
 		}
 	}
 	return true
 }
 
-func nullableReference(value any, records map[string]map[string]any) any {
+func nullableReference(value any) any {
 	id := stringValue(value)
-	if id == "" || records[id] == nil {
+	if id == "" {
 		return nil
 	}
 	return id

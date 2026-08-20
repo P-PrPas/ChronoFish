@@ -161,7 +161,7 @@ func timingCSVInput(body io.Reader, protocolID string) (map[string]any, error) {
 
 func (s *apiServer) createTiming(w http.ResponseWriter, r *http.Request, input map[string]any) bool {
 	entries, ok := input["entries"].([]any)
-	if !ok || len(entries) == 0 {
+	if !ok || len(entries) == 0 || strings.TrimSpace(stringValue(input["name"])) == "" {
 		writeAPIError(w, 422, "validation_error", "ต้องระบุ entries ของ timing profile")
 		return true
 	}
@@ -202,12 +202,20 @@ func (s *apiServer) createTiming(w http.ResponseWriter, r *http.Request, input m
 	}
 	for _, raw := range entries {
 		entry, ok := raw.(map[string]any)
-		if !ok || stringValue(entry["stageCode"]) == "" || stringValue(entry["stageLabel"]) == "" {
+		if !ok {
 			writeAPIError(w, 422, "validation_error", "timing entry ไม่ถูกต้อง")
 			return true
 		}
-		order := intValue(entry["stageOrder"])
-		if order < 1 || order > 36 || stageNumber(stringValue(entry["stageCode"])) != order {
+		stageCode := stringValue(entry["stageCode"])
+		if stageCode == "" {
+			stageCode = stringValue(entry["code"])
+		}
+		order := stageNumber(stageCode)
+		if requestedOrder := intValue(entry["stageOrder"]); requestedOrder > 0 && requestedOrder != order {
+			writeAPIError(w, 422, "validation_error", "stageOrder and stageCode must match")
+			return true
+		}
+		if order < 1 || order > 36 || stageCode == "" {
 			writeAPIError(w, 422, "validation_error", "stageOrder และ stageCode ไม่สอดคล้องกัน")
 			return true
 		}
@@ -224,12 +232,14 @@ func (s *apiServer) createTiming(w http.ResponseWriter, r *http.Request, input m
 		if stringValue(entry["id"]) == "" {
 			entry["id"] = uuidV7()
 		}
-		if stringValue(entry["stageCode"]) == "" {
-			entry["stageCode"] = entry["code"]
-		}
+		entry["stageCode"], entry["stageOrder"] = stageCode, order
 		if stringValue(entry["stageLabel"]) == "" {
 			entry["stageLabel"] = entry["label"]
 		}
+		if stringValue(entry["stageLabel"]) == "" {
+			entry["stageLabel"] = stageLabel(order)
+		}
+		entry["code"], entry["label"] = entry["stageCode"], entry["stageLabel"]
 		baseEntries[order] = cloneMap(entry)
 	}
 	merged := make([]any, 0, len(baseEntries))

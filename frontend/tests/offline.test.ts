@@ -11,6 +11,7 @@ describe('offline retry policy', () => {
 
   it('calculates the next attempt from a supplied clock', () => {
     expect(nextAttemptAt(2, 10_000)).toBe(14_000)
+    expect(nextAttemptAt(2, 10_000, () => 1)).toBe(14_400)
   })
 
   it('replays the original operator, device, and idempotency key', () => {

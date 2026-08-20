@@ -3,6 +3,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 
 	storepkg "github.com/P-PrPas/ChronoFish/backend/internal/store"
 )
@@ -64,17 +65,15 @@ func stateFromServer(server *apiServer) storepkg.State {
 	return cloneState(storepkg.State{Entities: server.entities, Audits: server.audits, Observations: server.observations, FishObservations: server.fishObs, Idempotency: server.idempotency, IdempotencyStatus: server.idempotencyStatus, IdempotencyBinary: server.idempotencyBinary, IdempotencyHash: server.idempotencyHash, FishNo: server.fishNo})
 }
 
-func stateReferences(server *apiServer) *storepkg.State {
-	server.mu.RLock()
-	defer server.mu.RUnlock()
-	return &storepkg.State{Entities: server.entities, Audits: server.audits, Observations: server.observations, FishObservations: server.fishObs}
-}
-
 func restoreDelta(server *apiServer, delta *storepkg.Delta) {
 	server.mu.Lock()
 	defer server.mu.Unlock()
 	for resource, records := range delta.After.Entities {
 		for id := range records {
+			current := server.entities[resource][id]
+			if !reflect.DeepEqual(current, records[id]) {
+				continue
+			}
 			if before := delta.Before.Entities[resource][id]; before != nil {
 				server.entities[resource][id] = cloneMap(before)
 			} else {
@@ -83,6 +82,9 @@ func restoreDelta(server *apiServer, delta *storepkg.Delta) {
 		}
 	}
 	for id := range delta.After.Observations {
+		if !reflect.DeepEqual(server.observations[id], delta.After.Observations[id]) {
+			continue
+		}
 		if before := delta.Before.Observations[id]; before != nil {
 			server.observations[id] = cloneMap(before)
 		} else {
@@ -90,6 +92,9 @@ func restoreDelta(server *apiServer, delta *storepkg.Delta) {
 		}
 	}
 	for id := range delta.After.FishObservations {
+		if !reflect.DeepEqual(server.fishObs[id], delta.After.FishObservations[id]) {
+			continue
+		}
 		if before := delta.Before.FishObservations[id]; before != nil {
 			server.fishObs[id] = cloneMap(before)
 		} else {

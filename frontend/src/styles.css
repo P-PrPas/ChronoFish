@@ -25,6 +25,8 @@ button { cursor: pointer; }
 .report-bar > div { height: .65rem; overflow: hidden; border-radius: 999px; background: #e5edf4; }
 .report-bar i { display: block; height: 100%; border-radius: inherit; background: #1769aa; }
 .report-bar strong { text-align: right; }
+.chart { width: 100%; min-height: 10rem; margin: .25rem 0 1rem; color: #1769aa; }
+.chart text { fill: #58718d; font-size: 11px; }
 @media print {
   .export-controls { display: none !important; }
   .print-report { display: block; color: #132238; }

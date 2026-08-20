@@ -142,8 +142,10 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	idempotencyKey := r.Header.Get("X-Idempotency-Key")
-	requestScope := "request:" + r.Method + ":" + r.URL.Path + ":" + idempotencyKey
+	canonicalQuery := r.URL.Query().Encode()
+	requestScope := "request:" + r.Method + ":" + r.URL.Path + "?" + canonicalQuery + ":" + idempotencyKey
 	fingerprint := ""
+	mutationLeaseToken := ""
 	if mutation && r.Body != nil {
 		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, 2<<20))
 		if err != nil {
@@ -151,7 +153,8 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		r.Body = io.NopCloser(bytes.NewReader(body))
-		digest := sha256.Sum256(body)
+		fingerprintInput := r.Method + "\x00" + r.URL.Path + "?" + canonicalQuery + "\x00" + string(body)
+		digest := sha256.Sum256([]byte(fingerprintInput))
 		fingerprint = hex.EncodeToString(digest[:])
 	}
 	if mutation {
@@ -174,11 +177,13 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				}
 				return
 			}
+			mutationLeaseToken = reserved.LeaseToken
 			if !created {
 				if reserved.Status == 102 {
 					waitContext, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 					reserved, err = atomicStore.WaitForCompletion(waitContext, reservation)
 					cancel()
+					mutationLeaseToken = reserved.LeaseToken
 					if err != nil {
 						writeAPIError(w, http.StatusServiceUnavailable, "idempotency_in_progress", "request เดิมกำลังถูกประมวลผล")
 						return
@@ -233,6 +238,7 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var cacheBefore *mutationCacheJournal
 	var before storepkg.State
 	var reservation *storepkg.Mutation
+	stopLeaseHeartbeat := func() {}
 	if mutation {
 		atomicStore, _ = s.store.(atomicStateStore)
 		if atomicStore != nil {
@@ -247,6 +253,11 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				before = stateFromServer(s)
 			}
 			reservation = &storepkg.Mutation{Scope: requestScope, Key: idempotencyKey, RequestHash: fingerprint, OperatorID: r.Header.Get("X-Operator-Id"), DeviceID: r.Header.Get("X-Device-Id")}
+			reservation.LeaseToken = mutationLeaseToken
+			if persistence != nil {
+				stopLeaseHeartbeat = service.StartLeaseHeartbeat(r.Context(), persistence, *reservation)
+				defer stopLeaseHeartbeat()
+			}
 		}
 	}
 	recorded := &responseRecorder{ResponseWriter: w}
@@ -271,7 +282,6 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		mutationResult.Status, mutationResult.ContentType, mutationResult.Body = recorded.status, contentType, storedBody
 		var commitErr error
 		if deltaStore != nil {
-			work.Delta().References = stateReferences(s)
 			commitErr = service.Commit(r.Context(), persistence, &service.Mutation{Request: mutationResult, Work: work})
 		} else {
 			after := stateFromServer(s)

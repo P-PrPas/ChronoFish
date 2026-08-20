@@ -1,4 +1,5 @@
 import type { components } from './schema'
+import { uuidv7 } from '../uuidv7'
 
 export type ApiRecord = Partial<components['schemas']['Site'] & components['schemas']['Operator'] & components['schemas']['Batch'] & components['schemas']['DueCheckpoint'] & components['schemas']['CloneFish'] & components['schemas']['PromotionCandidate'] & components['schemas']['ControlArmCount'] & {
   id: string
@@ -69,7 +70,7 @@ export function deviceId(): string {
   const key = 'chronofish.device_id'
   let id = localStorage.getItem(key)
   if (!id) {
-    id = crypto.randomUUID()
+    id = uuidv7()
     localStorage.setItem(key, id)
   }
   return id
@@ -85,7 +86,7 @@ export function operatorId(): string {
   return ''
 }
 
-export function mutationHeaders(key = crypto.randomUUID()): Record<string, string> {
+export function mutationHeaders(key = uuidv7()): Record<string, string> {
   return { 'X-Operator-Id': operatorId(), 'X-Device-Id': deviceId(), 'X-Idempotency-Key': key }
 }
 
