@@ -24,7 +24,7 @@ func (s *apiServer) dueCheckpoints(w http.ResponseWriter, r *http.Request) bool 
 		}
 		for stage := 1; stage <= 26; stage++ {
 			code := stageCode(stage)
-			due := activated.Add(time.Duration(expectedHPA(code) * float64(time.Hour)))
+			due := activated.Add(time.Duration(s.expectedHPAForLotLocked(lot, code) * float64(time.Hour)))
 			observed := false
 			for _, o := range s.observations {
 				if stringValue(o["injectionLotId"]) == stringValue(lot["id"]) && stringValue(o["stageCode"]) == code && o["deletedAt"] == nil {
@@ -67,7 +67,7 @@ func (s *apiServer) checkpoint(w http.ResponseWriter, r *http.Request, lotID, st
 		}
 	}
 	activated := stringValue(lot["activatedAt"])
-	expected := expectedHPA(stageCode)
+	expected := s.expectedHPAForLotLocked(lot, stageCode)
 	writeJSON(w, 200, map[string]any{"injectionLotId": lotID, "batchCode": batch["batchCode"], "lotNo": lot["lotNo"], "stage": map[string]any{"code": stageCode, "label": stageLabel(stageNumber(stageCode)), "stageOrder": stageNumber(stageCode)}, "activatedAt": activated, "expectedHpa": expected, "dueAt": activated, "totalEmbryos": len(embryos), "embryos": embryos})
 	return true
 }
@@ -140,7 +140,7 @@ func (s *apiServer) createEmbryoObservations(w http.ResponseWriter, r *http.Requ
 		observedAt, _ := time.Parse(time.RFC3339, stringValue(item["observedAt"]))
 		activated, _ := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
 		actual := observedAt.Sub(activated).Hours()
-		expected := expectedHPA(stringValue(item["stageCode"]))
+		expected := s.expectedHPAForEmbryoLocked(map[string]any{"embryoId": embryo["id"], "stageCode": item["stageCode"]})
 		id := uuidV7()
 		result := map[string]any{"clientUuid": client, "id": id, "status": "created", "hpaActual": actual, "hpaExpected": expected, "deviationH": actual - expected, "deviationLabel": deviationLabel(actual - expected)}
 		obs := cloneMap(item)
@@ -245,7 +245,8 @@ func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Req
 	if r.Method == http.MethodDelete {
 		reason := strings.TrimSpace(r.URL.Query().Get("reason"))
 		if reason == "" {
-			reason = "soft-delete"
+			writeAPIError(w, http.StatusUnprocessableEntity, "validation_error", "reason is required")
+			return true
 		}
 		old["deletedAt"] = time.Now().UTC().Format(time.RFC3339)
 		old["overrideReason"] = reason
@@ -325,6 +326,11 @@ func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Req
 			old[k] = v
 		}
 	}
+	if !fish {
+		if _, observedAtChanged := input["observedAt"]; observedAtChanged {
+			old["hpaExpectedSnapshot"] = s.expectedHPAForEmbryoLocked(old)
+		}
+	}
 	if fish {
 		if observedOn := stringValue(old["observedOn"]); observedOn != "" {
 			old["ageDays"] = ageDaysOn(stringValue(s.entities["fish"][stringValue(old["cloneFishId"])]["dob"]), observedOn)
@@ -349,6 +355,26 @@ func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Req
 	s.auditLocked(r, "UPDATE", table, id, before, old)
 	writeJSON(w, 200, old)
 	return true
+}
+
+func (s *apiServer) expectedHPAForEmbryoLocked(observation map[string]any) float64 {
+	embryo := s.entities["embryos"][stringValue(observation["embryoId"])]
+	lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+	return s.expectedHPAForLotLocked(lot, stringValue(observation["stageCode"]))
+}
+
+func (s *apiServer) expectedHPAForLotLocked(lot map[string]any, stageCode string) float64 {
+	batch := s.entities["batches"][stringValue(lot["batchId"])]
+	profile := s.entities["timing-profiles"][stringValue(batch["timingProfileId"])]
+	if entries, ok := profile["entries"].([]any); ok {
+		for _, value := range entries {
+			entry, ok := value.(map[string]any)
+			if ok && stringValue(entry["stageCode"]) == stageCode {
+				return numberValue(entry["expectedHpa"])
+			}
+		}
+	}
+	return expectedHPA(stageCode)
 }
 
 func (s *apiServer) recomputeFishLocked(fishID string) {

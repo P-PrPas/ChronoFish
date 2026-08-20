@@ -35,6 +35,16 @@ func PromotionEligible(hasExit, latestAlive bool, ageDays, threshold int) bool {
 	return !hasExit && latestAlive && ageDays >= threshold
 }
 
+// PromotionEligibleAt uses the protocol's elapsed-time boundary. An embryo
+// becomes eligible strictly after the threshold instant, so exactly 120h is
+// still pending for the default five-day threshold.
+func PromotionEligibleAt(hasExit, latestAlive bool, activatedAt, now time.Time, thresholdDays int) bool {
+	if hasExit || !latestAlive || thresholdDays < 1 {
+		return false
+	}
+	return now.After(activatedAt.Add(time.Duration(thresholdDays) * 24 * time.Hour))
+}
+
 func FishOutcomeValid(value string) bool {
 	return value == "ALIVE" || value == "DEAD" || value == "FROZEN" || value == "DISCARDED"
 }

@@ -199,41 +199,105 @@ func (s *apiServer) reachedStageCountLocked(embryos []map[string]any, stage int)
 }
 func (s *apiServer) funnelLocked(embryos []map[string]any) []map[string]any {
 	items := make([]map[string]any, 0, 26)
-	for stage := 1; stage <= 26; stage++ {
-		alive := 0
-		for _, embryo := range embryos {
-			observation := s.observationAtStageLocked(stringValue(embryo["id"]), stage)
-			if observation == nil || stringValue(observation["outcome"]) == "ALIVE" {
-				alive++
-			}
-		}
-		items = append(items, map[string]any{"stageOrder": stage, "stageCode": stageCode(stage), "stageLabel": stageLabel(stage), "alive": alive, "riskSet": len(embryos), "pctOfActivated": percentage(alive, len(embryos))})
+	for _, point := range s.stageSurvivalLocked(embryos) {
+		stage := intValue(point["stageOrder"])
+		items = append(items, map[string]any{"stageOrder": stage, "stageCode": stageCode(stage), "stageLabel": stageLabel(stage), "alive": point["alive"], "riskSet": point["riskSet"], "pctOfActivated": percentage(intValue(point["alive"]), len(embryos))})
 	}
 	return items
 }
 func (s *apiServer) survivalLocked(embryos []map[string]any) []map[string]any {
+	return s.stageSurvivalLocked(embryos)
+}
+
+func (s *apiServer) stageSurvivalLocked(embryos []map[string]any) []map[string]any {
 	items := make([]map[string]any, 0, 26)
+	previousAlive := 0
+	surv := 1.0
 	for stage := 1; stage <= 26; stage++ {
-		alive, dead := 0, 0
+		risk, alive := 0, 0
 		for _, embryo := range embryos {
-			observation := s.observationAtStageLocked(stringValue(embryo["id"]), stage)
-			if observation == nil || stringValue(observation["outcome"]) == "ALIVE" {
+			if !s.checkpointDueLocked(embryo, stage) {
+				continue
+			}
+			risk++
+			if s.checkpointStatusLocked(embryo, stage) == "alive" {
 				alive++
-			} else if stringValue(observation["outcome"]) == "DEAD" || stringValue(observation["outcome"]) == "DEGENERATED" {
-				dead++
 			}
 		}
-		risk := len(embryos)
-		items = append(items, map[string]any{"stageOrder": stage, "stageLabel": stageLabel(stage), "riskSet": risk, "alive": alive, "nPrev": risk, "nDead": dead, "surv": percentage(alive, risk) / 100, "pctOfDevelopment": percentage(alive, len(embryos))})
+		nPrev := alive
+		if stage > 1 {
+			nPrev = previousAlive
+			if nPrev > 0 {
+				surv *= float64(alive) / float64(nPrev)
+			}
+		}
+		nDead := nPrev - alive
+		if nDead < 0 {
+			nDead = 0
+		}
+		items = append(items, map[string]any{"stageOrder": stage, "stageLabel": stageLabel(stage), "riskSet": risk, "alive": alive, "nPrev": nPrev, "nDead": nDead, "surv": surv, "pctOfDevelopment": percentage(alive, firstAlive(items, alive))})
+		previousAlive = alive
 	}
 	return items
 }
+
+func firstAlive(items []map[string]any, current int) int {
+	if len(items) == 0 {
+		return current
+	}
+	return intValue(items[0]["alive"])
+}
+
+func (s *apiServer) checkpointDueLocked(embryo map[string]any, stage int) bool {
+	lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+	activated, err := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
+	if err != nil {
+		return false
+	}
+	return !time.Now().UTC().Before(activated.Add(time.Duration(s.expectedHPAForEmbryoLocked(map[string]any{"embryoId": embryo["id"], "stageCode": stageCode(stage)}) * float64(time.Hour))))
+}
+
+func (s *apiServer) checkpointStatusLocked(embryo map[string]any, stage int) string {
+	embryoID := stringValue(embryo["id"])
+	if observation := s.observationAtStageLocked(embryoID, stage); observation != nil {
+		switch stringValue(observation["outcome"]) {
+		case "ALIVE":
+			return "alive"
+		case "DEAD", "DEGENERATED":
+			return "dead"
+		}
+	}
+	if stringValue(embryo["exitReason"]) == "PROMOTED" && stage <= 26 {
+		return "alive"
+	}
+	if exitStage := stageNumber(stringValue(embryo["exitStageCode"])); exitStage > 0 {
+		if stage < exitStage {
+			return "alive"
+		}
+		return "dead"
+	}
+	highestAlive := 0
+	for _, observation := range s.observations {
+		if observation["deletedAt"] == nil && stringValue(observation["embryoId"]) == embryoID && stringValue(observation["outcome"]) == "ALIVE" {
+			if order := stageNumber(stringValue(observation["stageCode"])); order > highestAlive {
+				highestAlive = order
+			}
+		}
+	}
+	if stage <= highestAlive {
+		return "alive"
+	}
+	return "blank"
+}
 func (s *apiServer) deviationLocked(embryos []map[string]any) []map[string]any {
 	groups := map[int][]float64{}
+	expected := map[int]float64{}
 	for _, embryo := range embryos {
 		for _, observation := range s.observations {
 			if observation["deletedAt"] == nil && stringValue(observation["embryoId"]) == stringValue(embryo["id"]) {
-				groups[stageNumber(stringValue(observation["stageCode"]))] = append(groups[stageNumber(stringValue(observation["stageCode"]))], floatValue(observation["deviationH"]))
+				stage := stageNumber(stringValue(observation["stageCode"]))
+				groups[stage] = append(groups[stage], floatValue(observation["deviationH"]))
+				expected[stage] = s.expectedHPAForEmbryoLocked(observation)
 			}
 		}
 	}
@@ -257,7 +321,7 @@ func (s *apiServer) deviationLocked(embryos []map[string]any) []map[string]any {
 		if len(values) > 1 {
 			sd = math.Sqrt(variance / float64(len(values)-1))
 		}
-		items = append(items, map[string]any{"stageOrder": stage, "stageLabel": stageLabel(stage), "expectedHpa": expectedHPA(stageCode(stage)), "n": len(values), "meanDeviationH": mean, "medianDeviationH": median, "sdDeviationH": sd, "minDeviationH": values[0], "maxDeviationH": values[len(values)-1]})
+		items = append(items, map[string]any{"stageOrder": stage, "stageLabel": stageLabel(stage), "expectedHpa": expected[stage], "n": len(values), "meanDeviationH": mean, "medianDeviationH": median, "sdDeviationH": sd, "minDeviationH": values[0], "maxDeviationH": values[len(values)-1]})
 	}
 	sort.Slice(items, func(i, j int) bool { return intValue(items[i]["stageOrder"]) < intValue(items[j]["stageOrder"]) })
 	return items

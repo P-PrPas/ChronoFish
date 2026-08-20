@@ -26,3 +26,13 @@ func TestPromotionDecision(t *testing.T) {
 		t.Fatal("ineligible embryo accepted")
 	}
 }
+
+func TestPromotionElapsedBoundaryIsStrict(t *testing.T) {
+	activated := time.Date(2026, 8, 20, 10, 0, 0, 0, time.UTC)
+	if PromotionEligibleAt(false, true, activated, activated.Add(120*time.Hour), 5) {
+		t.Fatal("exactly five days must remain pending")
+	}
+	if !PromotionEligibleAt(false, true, activated, activated.Add(120*time.Hour+time.Nanosecond), 5) {
+		t.Fatal("promotion should become eligible after five full days")
+	}
+}

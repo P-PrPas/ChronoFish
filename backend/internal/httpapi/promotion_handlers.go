@@ -26,7 +26,7 @@ func (s *apiServer) promotions(w http.ResponseWriter, r *http.Request, p []strin
 				continue
 			}
 			activated, err := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
-			if err == nil && domain.PromotionEligible(e["exitReason"] != nil, true, calendarAge(activated, now), s.promotionThresholdLocked(batch)) {
+			if err == nil && domain.PromotionEligibleAt(e["exitReason"] != nil, true, activated, now, s.promotionThresholdLocked(batch)) {
 				items = append(items, map[string]any{"embryoId": e["id"], "embryoCode": e["embryoCode"], "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "ageDays": calendarAge(activated, now), "suggestedFishCode": "No." + strconv.Itoa(s.fishNo), "suggestedRunningNo": s.fishNo})
 			}
 		}
@@ -83,7 +83,7 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
 		batch := s.entities["batches"][stringValue(lot["batchId"])]
 		activated, activatedErr := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
-		eligible := ok && lot != nil && batch != nil && activatedErr == nil && domain.PromotionEligible(embryo["exitReason"] != nil, latest != nil && stringValue(latest["outcome"]) == "ALIVE", calendarAge(activated, time.Now().UTC()), s.promotionThresholdLocked(batch))
+		eligible := ok && lot != nil && batch != nil && activatedErr == nil && domain.PromotionEligibleAt(embryo["exitReason"] != nil, latest != nil && stringValue(latest["outcome"]) == "ALIVE", activated, time.Now().UTC(), s.promotionThresholdLocked(batch))
 		if !eligible {
 			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "embryo ยังไม่เข้าเกณฑ์เลื่อนขั้น"}}
 			body, _ := json.Marshal(result)
@@ -128,12 +128,14 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 		}
 		s.fishNo++
 		s.entities["fish"][id] = fish
+		beforeEmbryo := cloneMap(embryo)
 		embryo["exitReason"], embryo["exitAt"] = "PROMOTED", time.Now().UTC().Format(time.RFC3339)
 		result := map[string]any{"clientUuid": client, "id": id, "status": "created", "fish": fish}
 		body, _ := json.Marshal(result)
 		s.idempotency["promotion:"+client] = body
 		results = append(results, result)
 		s.auditLocked(r, "INSERT", "clone_fish", id, nil, fish)
+		s.auditLocked(r, "UPDATE", "embryo", stringValue(embryo["id"]), beforeEmbryo, embryo)
 	}
 	writeJSON(w, 201, map[string]any{"items": results})
 	return true
