@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"time"
@@ -40,7 +41,7 @@ type Store interface {
 	Reserve(context.Context, Mutation) (Mutation, bool, error)
 	WaitForCompletion(context.Context, Mutation) (Mutation, error)
 	Abort(context.Context, Mutation) error
-	Commit(context.Context, *State, *Mutation) error
+	Commit(context.Context, *State, *State, *Mutation) error
 	Close() error
 }
 
@@ -370,16 +371,16 @@ type Mutation struct {
 var ErrIdempotencyConflict = errors.New("idempotency key was already used with a different request")
 
 func (s *SQLRepository) Save(ctx context.Context, state *State) error {
-	return s.Commit(ctx, state, nil)
+	return s.Commit(ctx, &State{}, state, nil)
 }
 
-func (s *SQLRepository) Commit(ctx context.Context, state *State, mutation *Mutation) error {
+func (s *SQLRepository) Commit(ctx context.Context, before, after *State, mutation *Mutation) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	rollback := func(cause error) error { _ = tx.Rollback(); return cause }
-	if err := s.syncCanonical(ctx, tx, state); err != nil {
+	if err := s.syncCanonical(ctx, tx, before, after); err != nil {
 		return rollback(err)
 	}
 	if mutation != nil {
@@ -394,6 +395,50 @@ func (s *SQLRepository) Commit(ctx context.Context, state *State, mutation *Muta
 		}
 	}
 	return tx.Commit()
+}
+
+// changedState is the persistence delta for one serialized mutation. The
+// complete after-state is retained separately for foreign-key checks, while
+// only records that differ from the immutable before snapshot reach SQL.
+func changedState(before, after *State) State {
+	changes := State{Entities: make(map[string]map[string]map[string]any)}
+	if after == nil {
+		return changes
+	}
+	if before == nil {
+		before = &State{}
+	}
+	for resource, records := range after.Entities {
+		previous := before.Entities[resource]
+		for id, item := range records {
+			if old, ok := previous[id]; ok && reflect.DeepEqual(old, item) {
+				continue
+			}
+			if changes.Entities[resource] == nil {
+				changes.Entities[resource] = make(map[string]map[string]any)
+			}
+			changes.Entities[resource][id] = item
+		}
+	}
+	changes.Observations = changedRecords(before.Observations, after.Observations)
+	changes.FishObservations = changedRecords(before.FishObservations, after.FishObservations)
+	if len(after.Audits) > len(before.Audits) {
+		changes.Audits = append([]map[string]any(nil), after.Audits[len(before.Audits):]...)
+	} else if !reflect.DeepEqual(before.Audits, after.Audits) {
+		changes.Audits = append([]map[string]any(nil), after.Audits...)
+	}
+	return changes
+}
+
+func changedRecords(before, after map[string]map[string]any) map[string]map[string]any {
+	changes := make(map[string]map[string]any)
+	for id, item := range after {
+		if old, ok := before[id]; ok && reflect.DeepEqual(old, item) {
+			continue
+		}
+		changes[id] = item
+	}
+	return changes
 }
 
 func (s *SQLRepository) Reserve(ctx context.Context, mutation Mutation) (Mutation, bool, error) {
@@ -463,47 +508,48 @@ func (s *SQLRepository) Abort(ctx context.Context, mutation Mutation) error {
 	return err
 }
 
-func (s *SQLRepository) syncCanonical(ctx context.Context, tx *sql.Tx, state *State) error {
-	for id, item := range state.Entities["sites"] {
+func (s *SQLRepository) syncCanonical(ctx context.Context, tx *sql.Tx, before, state *State) error {
+	changes := changedState(before, state)
+	for id, item := range changes.Entities["sites"] {
 		if err := s.upsertCanonical(ctx, tx, "site", []string{"id", "code", "name", "active", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["code"]), stringValue(item["name"]), item["active"] != false, timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
 			return err
 		}
 	}
-	for id, item := range state.Entities["operators"] {
+	for id, item := range changes.Entities["operators"] {
 		siteID := nullableReference(item["siteId"], state.Entities["sites"])
 		if err := s.upsertCanonical(ctx, tx, "operator", []string{"id", "site_id", "name", "active", "created_at", "updated_at", "deleted_at"}, []any{id, siteID, stringValue(item["name"]), item["active"] != false, timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
 			return err
 		}
 	}
-	for id, item := range state.Entities["donor-cell-lines"] {
+	for id, item := range changes.Entities["donor-cell-lines"] {
 		if err := s.upsertCanonical(ctx, tx, "donor_cell_line", []string{"id", "strain", "preparation", "batch_code", "active", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["strain"]), stringValue(item["preparation"]), nullableString(item["batchCode"]), item["active"] != false, timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
 			return err
 		}
 	}
-	for id, item := range state.Entities["recipient-egg-lots"] {
+	for id, item := range changes.Entities["recipient-egg-lots"] {
 		if err := s.upsertCanonical(ctx, tx, "recipient_egg_lot", []string{"id", "breed", "lot_date", "label", "active", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["breed"]), nullableString(item["lotDate"]), stringValue(item["label"]), item["active"] != false, timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
 			return err
 		}
 	}
-	for id, item := range state.Entities["csof-lots"] {
+	for id, item := range changes.Entities["csof-lots"] {
 		if err := s.upsertCanonical(ctx, tx, "csof_lot", []string{"id", "lot_code", "active", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["lotCode"]), item["active"] != false, timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
 			return err
 		}
 	}
-	for id, item := range state.Entities["treatment-groups"] {
+	for id, item := range changes.Entities["treatment-groups"] {
 		if err := s.upsertCanonical(ctx, tx, "treatment_group", []string{"id", "code", "name", "arm_type", "active", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["code"]), nullableString(item["name"]), stringValue(item["armType"]), item["active"] != false, timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
 			return err
 		}
 	}
-	for id, item := range state.Entities["fish-boxes"] {
+	for id, item := range changes.Entities["fish-boxes"] {
 		if err := s.upsertCanonical(ctx, tx, "fish_box", []string{"id", "box_code", "site_id", "active", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["boxCode"]), nullableReference(item["siteId"], state.Entities["sites"]), item["active"] != false, timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
 			return err
 		}
 	}
-	if err := s.syncTimingProfiles(ctx, tx, state); err != nil {
+	if err := s.syncTimingProfiles(ctx, tx, state, &changes); err != nil {
 		return err
 	}
-	for id, item := range state.Entities["batches"] {
+	for id, item := range changes.Entities["batches"] {
 		if !referencesAvailable(item, state, "siteId", "operatorId", "protocolId", "timingProfileId", "treatmentGroupId") {
 			continue
 		}
@@ -515,7 +561,7 @@ func (s *SQLRepository) syncCanonical(ctx context.Context, tx *sql.Tx, state *St
 			return err
 		}
 	}
-	for id, item := range state.Entities["injection-lots"] {
+	for id, item := range changes.Entities["injection-lots"] {
 		if !referencesAvailable(item, state, "batchId", "donorCellLineId") {
 			continue
 		}
@@ -523,7 +569,7 @@ func (s *SQLRepository) syncCanonical(ctx context.Context, tx *sql.Tx, state *St
 			return err
 		}
 	}
-	for id, item := range state.Entities["embryos"] {
+	for id, item := range changes.Entities["embryos"] {
 		if !referencesAvailable(item, state, "injectionLotId") {
 			continue
 		}
@@ -531,7 +577,7 @@ func (s *SQLRepository) syncCanonical(ctx context.Context, tx *sql.Tx, state *St
 			return err
 		}
 	}
-	for id, item := range state.Entities["fish"] {
+	for id, item := range changes.Entities["fish"] {
 		if !referencesAvailable(item, state, "donorCellLineId") {
 			continue
 		}
@@ -539,7 +585,7 @@ func (s *SQLRepository) syncCanonical(ctx context.Context, tx *sql.Tx, state *St
 			return err
 		}
 	}
-	for id, item := range state.Observations {
+	for id, item := range changes.Observations {
 		stageID := stageDefinitionID(stringValue(item["stageCode"]))
 		if stageID == "" || !referencesAvailable(item, state, "embryoId", "operatorId") {
 			continue
@@ -548,14 +594,14 @@ func (s *SQLRepository) syncCanonical(ctx context.Context, tx *sql.Tx, state *St
 			return err
 		}
 	}
-	for id, item := range state.Entities["embryos"] {
+	for id, item := range changes.Entities["embryos"] {
 		observationID := nullableString(item["firstAbnormalObservationId"])
 		query := "UPDATE embryo SET first_abnormal_observation_id = " + s.placeholder(1) + " WHERE id = " + s.placeholder(2)
 		if _, err := tx.ExecContext(ctx, query, observationID, id); err != nil {
 			return err
 		}
 	}
-	for id, item := range state.FishObservations {
+	for id, item := range changes.FishObservations {
 		if !referencesAvailable(item, state, "cloneFishId", "operatorId") {
 			continue
 		}
@@ -563,7 +609,7 @@ func (s *SQLRepository) syncCanonical(ctx context.Context, tx *sql.Tx, state *St
 			return err
 		}
 	}
-	for id, item := range state.Entities["control-arm-counts"] {
+	for id, item := range changes.Entities["control-arm-counts"] {
 		stageID := stageDefinitionID(stringValue(item["stageCode"]))
 		if stageID == "" || !referencesAvailable(item, state, "batchId") {
 			continue
@@ -572,7 +618,7 @@ func (s *SQLRepository) syncCanonical(ctx context.Context, tx *sql.Tx, state *St
 			return err
 		}
 	}
-	for id, item := range state.Entities["specimens"] {
+	for id, item := range changes.Entities["specimens"] {
 		if !referencesAvailable(item, state, "cloneFishId") || stringValue(item["specimenCode"]) == "" || stringValue(item["specimenKind"]) == "" || stringValue(item["specimenType"]) == "" {
 			continue
 		}
@@ -580,7 +626,7 @@ func (s *SQLRepository) syncCanonical(ctx context.Context, tx *sql.Tx, state *St
 			return err
 		}
 	}
-	for _, item := range state.Audits {
+	for _, item := range changes.Audits {
 		oldValues, _ := json.Marshal(item["oldValues"])
 		newValues, _ := json.Marshal(item["newValues"])
 		if err := s.upsertCanonical(ctx, tx, "audit_log", []string{"id", "table_name", "record_id", "action", "old_values", "new_values", "operator_id", "device_id", "occurred_at"}, []any{stringValue(item["id"]), stringValue(item["tableName"]), stringValue(item["recordId"]), stringValue(item["action"]), string(oldValues), string(newValues), nullableReference(item["operatorId"], state.Entities["operators"]), nullableString(item["deviceId"]), timestampValue(item["occurredAt"])}, []string{"id"}); err != nil {
@@ -590,14 +636,14 @@ func (s *SQLRepository) syncCanonical(ctx context.Context, tx *sql.Tx, state *St
 	return nil
 }
 
-func (s *SQLRepository) syncTimingProfiles(ctx context.Context, tx *sql.Tx, state *State) error {
-	ids := make([]string, 0, len(state.Entities["timing-profiles"]))
-	for id := range state.Entities["timing-profiles"] {
+func (s *SQLRepository) syncTimingProfiles(ctx context.Context, tx *sql.Tx, state, changes *State) error {
+	ids := make([]string, 0, len(changes.Entities["timing-profiles"]))
+	for id := range changes.Entities["timing-profiles"] {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
 	for _, id := range ids {
-		profile := state.Entities["timing-profiles"][id]
+		profile := changes.Entities["timing-profiles"][id]
 		protocolID := stringValueOr(profile["protocolId"], "01900000-0000-7000-8000-000000000001")
 		clearCurrent := "UPDATE stage_timing_profile SET is_current = " + s.placeholder(1) + " WHERE protocol_id = " + s.placeholder(2)
 		if _, err := tx.ExecContext(ctx, clearCurrent, false, protocolID); err != nil {

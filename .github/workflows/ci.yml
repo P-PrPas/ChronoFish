@@ -19,6 +19,9 @@ jobs:
       - name: Test backend
         working-directory: backend
         run: go test ./...
+      - name: Race-test backend (Linux)
+        working-directory: backend
+        run: go test -race ./...
       - name: Check source encoding
         run: python scripts/check_source_encoding.py
       - uses: actions/setup-node@v4
@@ -83,12 +86,53 @@ jobs:
           MIGRATIONS_DIR: ${{ github.workspace }}/backend/db/migrations/postgres
           APP_ENV: production
         run: |
-          go run ./cmd/api >/tmp/chronofish-postgres.log 2>&1 &
+          go build -o /tmp/chronofish-postgres-api ./cmd/api
+          /tmp/chronofish-postgres-api >/tmp/chronofish-postgres.log 2>&1 &
           api_pid=$!
-          trap 'kill $api_pid' EXIT
+          echo "$api_pid" >/tmp/chronofish-postgres.pid
           for i in {1..30}; do curl --fail --silent http://127.0.0.1:8080/api/v1/health && exit 0 || sleep 2; done
           cat /tmp/chronofish-postgres.log
           exit 1
+      - name: Smoke PostgreSQL durable idempotency
+        env:
+          DB_DRIVER: postgres
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/chronofish?sslmode=disable
+          MIGRATIONS_DIR: ${{ github.workspace }}/backend/db/migrations/postgres
+          APP_ENV: production
+        run: |
+          set -euo pipefail
+          operator=00000000-0000-7000-8000-000000000001
+          key=01900000-0000-7000-8000-000000000201
+          headers=(-H "X-Operator-Id: $operator" -H "X-Device-Id: ci-postgres" -H "X-Idempotency-Key: $key" -H 'Content-Type: application/json')
+          status=$(curl --silent --show-error -o /tmp/postgres-create.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-postgres-site","name":"CI PostgreSQL"}')
+          test "$status" = 201
+          retry=$(curl --silent --show-error -o /tmp/postgres-retry.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-postgres-site","name":"CI PostgreSQL"}')
+          test "$retry" = 201
+          conflict=$(curl --silent --show-error -o /tmp/postgres-conflict.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-postgres-site-other","name":"Conflict"}')
+          test "$conflict" = 409
+          cmp -s /tmp/postgres-create.json /tmp/postgres-retry.json
+      - name: Restart PostgreSQL API and verify durable row and audit
+        env:
+          DB_DRIVER: postgres
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/chronofish?sslmode=disable
+          MIGRATIONS_DIR: ${{ github.workspace }}/backend/db/migrations/postgres
+          APP_ENV: production
+        run: |
+          set -euo pipefail
+          kill "$(cat /tmp/chronofish-postgres.pid)"
+          for i in {1..15}; do ! curl --silent http://127.0.0.1:8080/api/v1/health >/dev/null && break || sleep 1; done
+          /tmp/chronofish-postgres-api >/tmp/chronofish-postgres-restart.log 2>&1 &
+          echo "$!" >/tmp/chronofish-postgres.pid
+          for i in {1..30}; do curl --fail --silent http://127.0.0.1:8080/api/v1/health && break || sleep 2; done
+          curl --fail --silent http://127.0.0.1:8080/api/v1/sites >/tmp/postgres-sites.json
+          curl --fail --silent http://127.0.0.1:8080/api/v1/audit-log >/tmp/postgres-audit.json
+          python - <<'PY'
+          import json
+          sites = json.load(open('/tmp/postgres-sites.json'))['items']
+          assert sum(item.get('code') == 'ci-postgres-site' for item in sites) == 1
+          audits = json.load(open('/tmp/postgres-audit.json'))['items']
+          assert any(item.get('recordId') and item.get('action') == 'INSERT' for item in audits)
+          PY
       - name: Test PostgreSQL constraints
         run: psql "$DATABASE_URL" -f backend/db/tests/postgres/constraint_checks.sql
       - name: Verify PostgreSQL master seed is idempotent
@@ -126,12 +170,53 @@ jobs:
           MIGRATIONS_DIR: ${{ github.workspace }}/backend/db/migrations/mysql
           APP_ENV: production
         run: |
-          go run ./cmd/api >/tmp/chronofish-mysql.log 2>&1 &
+          go build -o /tmp/chronofish-mysql-api ./cmd/api
+          /tmp/chronofish-mysql-api >/tmp/chronofish-mysql.log 2>&1 &
           api_pid=$!
-          trap 'kill $api_pid' EXIT
+          echo "$api_pid" >/tmp/chronofish-mysql.pid
           for i in {1..45}; do curl --fail --silent http://127.0.0.1:8080/api/v1/health && exit 0 || sleep 2; done
           cat /tmp/chronofish-mysql.log
           exit 1
+      - name: Smoke MySQL durable idempotency
+        env:
+          DB_DRIVER: mysql
+          DATABASE_URL: 'root:root@tcp(127.0.0.1:3306)/chronofish?parseTime=true&multiStatements=true'
+          MIGRATIONS_DIR: ${{ github.workspace }}/backend/db/migrations/mysql
+          APP_ENV: production
+        run: |
+          set -euo pipefail
+          operator=00000000-0000-7000-8000-000000000001
+          key=01900000-0000-7000-8000-000000000202
+          headers=(-H "X-Operator-Id: $operator" -H "X-Device-Id: ci-mysql" -H "X-Idempotency-Key: $key" -H 'Content-Type: application/json')
+          status=$(curl --silent --show-error -o /tmp/mysql-create.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-mysql-site","name":"CI MySQL"}')
+          test "$status" = 201
+          retry=$(curl --silent --show-error -o /tmp/mysql-retry.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-mysql-site","name":"CI MySQL"}')
+          test "$retry" = 201
+          conflict=$(curl --silent --show-error -o /tmp/mysql-conflict.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-mysql-site-other","name":"Conflict"}')
+          test "$conflict" = 409
+          cmp -s /tmp/mysql-create.json /tmp/mysql-retry.json
+      - name: Restart MySQL API and verify durable row and audit
+        env:
+          DB_DRIVER: mysql
+          DATABASE_URL: 'root:root@tcp(127.0.0.1:3306)/chronofish?parseTime=true&multiStatements=true'
+          MIGRATIONS_DIR: ${{ github.workspace }}/backend/db/migrations/mysql
+          APP_ENV: production
+        run: |
+          set -euo pipefail
+          kill "$(cat /tmp/chronofish-mysql.pid)"
+          for i in {1..15}; do ! curl --silent http://127.0.0.1:8080/api/v1/health >/dev/null && break || sleep 1; done
+          /tmp/chronofish-mysql-api >/tmp/chronofish-mysql-restart.log 2>&1 &
+          echo "$!" >/tmp/chronofish-mysql.pid
+          for i in {1..45}; do curl --fail --silent http://127.0.0.1:8080/api/v1/health && break || sleep 2; done
+          curl --fail --silent http://127.0.0.1:8080/api/v1/sites >/tmp/mysql-sites.json
+          curl --fail --silent http://127.0.0.1:8080/api/v1/audit-log >/tmp/mysql-audit.json
+          python - <<'PY'
+          import json
+          sites = json.load(open('/tmp/mysql-sites.json'))['items']
+          assert sum(item.get('code') == 'ci-mysql-site' for item in sites) == 1
+          audits = json.load(open('/tmp/mysql-audit.json'))['items']
+          assert any(item.get('recordId') and item.get('action') == 'INSERT' for item in audits)
+          PY
       - name: Test MySQL constraints
         run: mysql -h 127.0.0.1 -uroot -proot chronofish < backend/db/tests/mysql/constraint_checks.sql
       - name: Verify MySQL master seed is idempotent

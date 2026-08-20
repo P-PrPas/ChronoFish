@@ -24,7 +24,7 @@ type atomicStateStore interface {
 	Reserve(context.Context, storepkg.Mutation) (storepkg.Mutation, bool, error)
 	WaitForCompletion(context.Context, storepkg.Mutation) (storepkg.Mutation, error)
 	Abort(context.Context, storepkg.Mutation) error
-	Commit(context.Context, *storepkg.State, *storepkg.Mutation) error
+	Commit(context.Context, *storepkg.State, *storepkg.State, *storepkg.Mutation) error
 }
 
 type memoryStateStore struct{}
@@ -75,7 +75,7 @@ func openStateStore(ctx context.Context, cfg config) (stateStore, error) {
 func stateFromServer(server *apiServer) storepkg.State {
 	server.mu.RLock()
 	defer server.mu.RUnlock()
-	return storepkg.State{Entities: server.entities, Audits: server.audits, Observations: server.observations, FishObservations: server.fishObs, Idempotency: server.idempotency, IdempotencyStatus: server.idempotencyStatus, IdempotencyBinary: server.idempotencyBinary, IdempotencyHash: server.idempotencyHash, FishNo: server.fishNo}
+	return cloneState(storepkg.State{Entities: server.entities, Audits: server.audits, Observations: server.observations, FishObservations: server.fishObs, Idempotency: server.idempotency, IdempotencyStatus: server.idempotencyStatus, IdempotencyBinary: server.idempotencyBinary, IdempotencyHash: server.idempotencyHash, FishNo: server.fishNo})
 }
 
 func cloneState(state storepkg.State) storepkg.State {
@@ -171,8 +171,8 @@ func (s *sqlStateStore) Abort(ctx context.Context, mutation storepkg.Mutation) e
 	return s.repository.Abort(ctx, mutation)
 }
 
-func (s *sqlStateStore) Commit(ctx context.Context, state *storepkg.State, mutation *storepkg.Mutation) error {
-	return s.repository.Commit(ctx, state, mutation)
+func (s *sqlStateStore) Commit(ctx context.Context, before, after *storepkg.State, mutation *storepkg.Mutation) error {
+	return s.repository.Commit(ctx, before, after, mutation)
 }
 
 func (s *sqlStateStore) Close() error { return s.repository.Close() }

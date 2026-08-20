@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"unicode/utf8"
 
@@ -32,7 +33,7 @@ func (failingCommitStore) WaitForCompletion(context.Context, storepkg.Mutation) 
 	return storepkg.Mutation{}, errors.New("not expected")
 }
 func (failingCommitStore) Abort(context.Context, storepkg.Mutation) error { return nil }
-func (failingCommitStore) Commit(context.Context, *storepkg.State, *storepkg.Mutation) error {
+func (failingCommitStore) Commit(context.Context, *storepkg.State, *storepkg.State, *storepkg.Mutation) error {
 	return errors.New("transaction failed")
 }
 
@@ -72,5 +73,49 @@ func TestDatabaseCommitFailureDoesNotPublishMemoryMutation(t *testing.T) {
 	handler.ServeHTTP(readback, httptest.NewRequest(http.MethodGet, "/api/v1/sites", nil))
 	if strings.Contains(readback.Body.String(), "rollback") {
 		t.Fatalf("failed mutation remained in memory: %s", readback.Body.String())
+	}
+}
+
+func TestConcurrentDifferentMutationsPublishBothRecords(t *testing.T) {
+	handler := newHandler("test", "")
+	requests := []struct {
+		code string
+		key  string
+	}{
+		{"concurrent-a", "01900000-0000-7000-8000-000000000101"},
+		{"concurrent-b", "01900000-0000-7000-8000-000000000102"},
+	}
+	results := make(chan int, len(requests))
+	start := make(chan struct{})
+	var wait sync.WaitGroup
+	for _, input := range requests {
+		input := input
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			<-start
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/sites", strings.NewReader(`{"code":"`+input.code+`","name":"`+input.code+`"}`))
+			request.Header.Set("X-Operator-Id", "00000000-0000-7000-8000-000000000001")
+			request.Header.Set("X-Device-Id", "test-device")
+			request.Header.Set("X-Idempotency-Key", input.key)
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+			results <- recorder.Code
+		}()
+	}
+	close(start)
+	wait.Wait()
+	close(results)
+	for status := range results {
+		if status != http.StatusCreated {
+			t.Fatalf("concurrent mutation status = %d, want %d", status, http.StatusCreated)
+		}
+	}
+	readback := httptest.NewRecorder()
+	handler.ServeHTTP(readback, httptest.NewRequest(http.MethodGet, "/api/v1/sites", nil))
+	for _, input := range requests {
+		if !strings.Contains(readback.Body.String(), input.code) {
+			t.Fatalf("site %q missing after concurrent mutations: %s", input.code, readback.Body.String())
+		}
 	}
 }

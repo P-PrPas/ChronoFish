@@ -42,6 +42,7 @@ type apiServer struct {
 	startupErr        error
 	store             stateStore
 	mu                sync.RWMutex
+	mutationMu        sync.Mutex
 	entities          map[string]map[string]map[string]any
 	audits            []map[string]any
 	observations      map[string]map[string]any
@@ -133,13 +134,21 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+	mutation := r.Method != http.MethodGet && r.Method != http.MethodHead
+	if mutation {
+		// A mutation owns the complete reserve/check -> handler -> commit/publish
+		// sequence. This prevents two requests from taking snapshots of one
+		// another's partially-applied state and makes memory idempotency match the
+		// database reservation winner.
+		s.mutationMu.Lock()
+		defer s.mutationMu.Unlock()
+	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		if err := s.validateWriteContext(r, partsForContext(r.URL.Path)); err != nil {
 			writeAPIError(w, http.StatusBadRequest, "invalid_context", err.Error())
 			return
 		}
 	}
-	mutation := r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions
 	idempotencyKey := r.Header.Get("X-Idempotency-Key")
 	requestScope := "request:" + r.Method + ":" + r.URL.Path + ":" + idempotencyKey
 	fingerprint := ""
@@ -218,7 +227,7 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if mutation {
 		atomicStore, _ = s.store.(atomicStateStore)
 		if atomicStore != nil {
-			before = cloneState(stateFromServer(s))
+			before = stateFromServer(s)
 			reservation = &storepkg.Mutation{Scope: requestScope, Key: idempotencyKey, RequestHash: fingerprint, OperatorID: r.Header.Get("X-Operator-Id"), DeviceID: r.Header.Get("X-Device-Id")}
 		}
 	}
@@ -242,8 +251,8 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			storedBody = []byte(base64.StdEncoding.EncodeToString(recorded.body))
 		}
 		mutationResult.Status, mutationResult.ContentType, mutationResult.Body = recorded.status, contentType, storedBody
-		state := stateFromServer(s)
-		if err := atomicStore.Commit(r.Context(), &state, &mutationResult); err != nil {
+		after := stateFromServer(s)
+		if err := atomicStore.Commit(r.Context(), &before, &after, &mutationResult); err != nil {
 			_ = atomicStore.Abort(context.Background(), mutationResult)
 			applyState(s, before)
 			log.Printf("persist mutation: %v", err)

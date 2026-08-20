@@ -85,12 +85,68 @@ func TestCommitRollsBackWhenResponseCompletionFails(t *testing.T) {
 		WithArgs(201, "application/json", `{"ok":true}`, sqlmock.AnyArg(), "scope", "key", "hash").
 		WillReturnError(errors.New("connection dropped"))
 	mock.ExpectRollback()
-	err = repo.Commit(context.Background(), &State{}, &Mutation{
+	err = repo.Commit(context.Background(), &State{}, &State{}, &Mutation{
 		Scope: "scope", Key: "key", RequestHash: "hash", Status: 201,
 		ContentType: "application/json", Body: []byte(`{"ok":true}`),
 	})
 	if err == nil || !regexp.MustCompile("connection dropped").MatchString(err.Error()) {
 		t.Fatalf("error = %v, want commit failure", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestChangedStateOnlyContainsMutationDelta(t *testing.T) {
+	before := &State{
+		Entities: map[string]map[string]map[string]any{
+			"sites": {
+				"site-1": {"id": "site-1", "code": "unchanged"},
+				"site-2": {"id": "site-2", "code": "old"},
+			},
+		},
+	}
+	after := &State{
+		Entities: map[string]map[string]map[string]any{
+			"sites": {
+				"site-1": {"id": "site-1", "code": "unchanged"},
+				"site-2": {"id": "site-2", "code": "new"},
+				"site-3": {"id": "site-3", "code": "created"},
+			},
+		},
+	}
+	delta := changedState(before, after)
+	if len(delta.Entities["sites"]) != 2 || delta.Entities["sites"]["site-2"]["code"] != "new" || delta.Entities["sites"]["site-3"]["code"] != "created" {
+		t.Fatalf("delta = %#v, want only updated and created sites", delta.Entities)
+	}
+}
+
+func TestCommitPersistsOnlyChangedCanonicalRows(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := NewSQLRepository(db, "postgres")
+	before := &State{Entities: map[string]map[string]map[string]any{
+		"sites": {
+			"site-1": {"id": "site-1", "code": "old", "name": "Old", "active": true, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+			"site-2": {"id": "site-2", "code": "untouched", "name": "Untouched", "active": true, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+		},
+	},
+	}
+	after := &State{Entities: map[string]map[string]map[string]any{
+		"sites": {
+			"site-1": {"id": "site-1", "code": "new", "name": "New", "active": true, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+			"site-2": {"id": "site-2", "code": "untouched", "name": "Untouched", "active": true, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"},
+		},
+	},
+	}
+	mock.ExpectBegin()
+	mock.ExpectExec("INSERT INTO site").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	if err := repo.Commit(context.Background(), before, after, nil); err != nil {
+		t.Fatal(err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
