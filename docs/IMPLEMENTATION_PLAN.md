@@ -180,7 +180,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [ ] ขอไฟล์ตัวอย่าง Excel/PDF ที่ลูกค้าถือว่าถูกต้องและตัวอย่างที่ R อ่านจริง
 - [ ] ยืนยัน hosting, reverse proxy/TLS, ฐานข้อมูลที่จะใช้จริง, IP allowlist/VPN และผู้รับผิดชอบ backup
 - [ ] ยืนยันข้อมูลตั้งต้นจริงของ site/operator/master data; seed ตัวอย่างต้องไม่ปะปนกับ production seed
-- [ ] ยืนยันขอบเขต FR-1001 คำว่า “ทุกการบันทึก”: หากรวม master/batch mutations ต้องเพิ่ม idempotency key ให้ contract ของ mutation เหล่านั้นก่อนทำ offline queue
+- [x] ยืนยันขอบเขต FR-1001 ตาม SRS: “ทุกการบันทึก” ครอบคลุมทุก mutation; non-bulk writes ที่ยังไม่มี stable idempotency key ต้องแก้ OpenAPI ใน Phase 1 ก่อนเข้า offline queue
 
 **Exit criteria:** ไม่มีคำถามที่เปลี่ยน schema หรือ main workflow ค้างอยู่; deployment owner และ export reference files ถูกระบุแล้ว
 
@@ -341,7 +341,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 #### Contract/Backend
 
-- [ ] ปิดข้อสรุป scope “ทุกการบันทึก” จาก Phase 0 และเติม idempotency field/header ใน OpenAPI ให้ mutation ที่ต้องเข้า queue
+- [ ] ใช้ scope “ทุกการบันทึก” ตาม SRS และเติม stable idempotency field/header ใน OpenAPI ให้ทุก mutation ก่อนนำเข้า queue
 - [ ] ให้ idempotency check และ mutation อยู่ transaction เดียวกัน
 - [ ] duplicate request ต้องคืน HTTP 200 พร้อม record เดิม ไม่ตอบ conflict
 - [ ] แยก retriable errors (network/5xx/429) จาก rejected business errors (4xx) ให้ frontend จัดการได้
@@ -576,7 +576,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 ให้เริ่มจาก slice เล็กและพิสูจน์ architecture ด้วยของจริง:
 
-1. **Runtime DB + Docker + code generation** — config, connection, migration mode, backend Dockerfile, Compose, sqlc/oapi generation และ CI
+1. **Runtime DB + Docker + write-idempotency contract + code generation** — config, connection, migration mode, OpenAPI สำหรับ non-bulk write retries, backend Dockerfile, Compose, sqlc/oapi generation และ CI
 2. **Site + Operator end-to-end** — สอง master types แรก, audit, headers, operator/device UI
 3. **Remaining Master Data** — ขยาย pattern ที่พิสูจน์แล้วไปอีกห้าประเภท
 4. **Timing Profile read** — protocol/stages/current/history

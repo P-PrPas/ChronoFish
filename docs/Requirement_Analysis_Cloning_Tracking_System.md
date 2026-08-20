@@ -3,10 +3,47 @@
 | | |
 |---|---|
 | **เอกสาร** | Requirement Analysis / Solution Design |
-| **เวอร์ชัน** | **v0.3** (ปรับตามคำตอบ Open Questions รอบที่ 2 — ล็อก tech stack) |
+| **เวอร์ชัน** | **v0.3.2** (ปิดความขัดแย้ง RA ↔ SRS ↔ OpenAPI ↔ schema ก่อนเริ่ม implementation) |
 | **วันที่** | 2026-08-20 |
 | **ลูกค้า** | ห้องปฏิบัติการ Cloning โรงพยาบาลสัตว์ |
-| **สถานะ** | **พร้อมเริ่ม implement** — Open Questions ปิดครบทุกข้อ · tech stack ล็อกแล้ว · ไม่มีอะไรบล็อก |
+| **สถานะ** | **พร้อมเริ่ม implement** — Open Questions ปิดครบ ยกเว้น Q-N3 (hosting) ที่ยังรอแต่ไม่บล็อก · stack หลักล็อกแล้ว ส่วน feature libraries เลือกเมื่อเริ่ม slice จริง |
+
+### ลำดับแหล่งความจริง
+
+เอกสารนี้ใช้บันทึกบริบท เหตุผล และแนวทาง solution design แต่ไม่ทำสำเนาสัญญาระบบขึ้นมาแข่งกัน หากรายละเอียดต่างกันให้ตัดสินตามลำดับนี้:
+
+1. **SRS v1.0** — พฤติกรรม, priority, business rule และ acceptance criteria
+2. **`api/openapi.yaml`** — HTTP path, request/response, header และ error contract
+3. **SQL migrations** — ชื่อคอลัมน์และชนิดข้อมูลจริงของ PostgreSQL/MySQL
+4. **RA ฉบับนี้** — บริบท, rationale, UX concept, risk และ roadmap
+
+การเปลี่ยน MUST requirement ต้องแก้ SRS ก่อน การเปลี่ยน HTTP contract ต้องแก้ OpenAPI ก่อน และการเปลี่ยน schema ต้องแก้ PostgreSQL canonical migration แล้ว regenerate/test MySQL ในงานเดียวกัน
+
+### สิ่งที่แก้ในรอบตรวจทาน v0.3.2
+
+| กลุ่ม | จุดที่แก้ |
+|---|---|
+| **Scope** | Protocol/Stage Definition ใน v1 เป็น seeded/read-only ตาม SRS/OpenAPI · dashboard/HTML ideas ที่เกิน SRS ย้ายเป็น Could/v2 |
+| **Data entry** | เพิ่ม `UNDETERMINED` ให้ condition · เกณฑ์ promotion ไม่บังคับว่าต้องบันทึก Day 5 · กำหนด contract task ของ offline/idempotency ให้ครอบคลุมทุก write ตาม SRS |
+| **Physical schema** | ใช้ชื่อ `biological_condition`, `old_values`, `new_values`, `first_abnormal_observation_id` · ระบุ `audit_log` เป็น append-only exception · แยก logical datetime จากชนิดจริงของแต่ละฐานข้อมูล |
+| **Portability** | รับรองเฉพาะ PostgreSQL 16 ↔ MySQL 8 ที่ CI ทดสอบจริง ไม่รับรอง MariaDB/SQLite |
+| **Architecture** | แยก dependency บังคับออกจาก candidate · อธิบาย Vercel Function/Fluid semantics ให้ตรงกับการรันจริง · แก้ API path เป็น `/api/v1/...` |
+| **Delivery/UX** | เพิ่ม Dockerfile + Compose ใน P1 · outcome/status ใช้ icon/text ร่วมกับสี · interaction ต้องใช้ tap/focus ได้ ไม่พึ่ง hover |
+
+### สิ่งที่แก้ในรอบตรวจทาน v0.3.1
+
+> รอบนี้ไม่ได้เพิ่มขอบเขตใหม่ — เป็นการ **ตรวจทานย้อนกลับ** เทียบ RA กับ SRS v1.0, schema SQL จริง และ OpenAPI spec แล้วแก้จุดที่ไม่ตรงกัน จุดส่วนใหญ่เกิดจากการแก้ v0.2 → v0.3 ที่ลบฟีเจอร์ออกแต่ตกค้างบางส่วนไว้
+
+| กลุ่ม | จุดที่แก้ |
+|---|---|
+| **ฟีเจอร์ที่ตัดออกแล้วแต่ยังตกค้าง** | ลบช่อง tolerance `±` ออกจาก mockup 5.6 · ลบชิปสีเขียว/เหลือง/แดงออกจาก 5.6, 7.3, 7.6 (Q-N5 ตัดไปแล้ว) · ทำเครื่องหมายหัวข้อการปรับตามอุณหภูมิใน 5.6 ให้ชัดว่าเป็น **v2 เท่านั้น** และ `auto_temp_adjust` = `false` เสมอใน v1 (Q-N2) |
+| **ขัดกับ SRS/schema จริง** | `lot_no` เป็น **string** ไม่ใช่ int (ข้อมูลจริงมี `June_2`) · FR-2.5 สร้าง embryo ตาม **`n_activated`** ไม่ใช่ `n_eggs` · `age_days` = **วันตามปฏิทินจาก `dob`** ไม่ใช่ ชม./24 (BR-11) · `clone_fish.biological_condition` มี **3 ค่า** (เพิ่ม `UNDETERMINED`) · `03_Embryo_Matrix` เป็น **`1`/`0`/ว่าง** ไม่ใช่ 0/1 ล้วน (BR-08) · S-15 เป็น **กึ่ง**อัตโนมัติ ผู้ใช้ต้องยืนยัน (FR-504) · FR-3.7 (ย้าย box) และการแชร์ filter ผ่าน URL เลื่อนขึ้นเป็น **Should** ตาม SRS |
+| **ผิดสัญญาความพกพาของตัวเอง** | เปลี่ยน `timestamptz` ทุกจุด (ERD, P2, 11.7) เป็น logical datetime ที่เก็บ UTC · R-09 เดิมแนะนำ **materialized view** ซึ่งกฎข้อ 3 ห้ามไว้ → เปลี่ยนเป็น index + ตารางสรุปที่ refresh ด้วย job |
+| **ERD** | เพิ่มตาราง `AUDIT_LOG` ที่ขาดไป · แก้ชื่อฟิลด์ `first_abnormal_obs_id` → `first_abnormal_observation_id`, `created_by` → `created_by_operator_id` ให้ตรง schema · เพิ่มหมายเหตุเรื่องชนิดข้อมูลเชิงตรรกะ, soft delete (ยกเว้น audit log), และค่า snapshot |
+| **หลักการออกแบบข้อ 4** | เดิมเขียนว่า "derived data ไม่เก็บลงฐาน" ซึ่งขัดกับ ERD ของตัวเองที่เก็บ `hpa_actual`/`deviation_h`/`age_days` → เขียนใหม่ให้แยกชัดระหว่าง *คำนวณสด* กับ *snapshot ที่ต้องแช่แข็ง* |
+| **เลข/การอ้างอิงผิด** | I2 seed timing = **36 stage** ไม่ใช่ 26 · Appendix D อ้าง `FR-1.7–1.10` ทั้งที่ FR-1.10 ถูกลบแล้ว → `FR-1.7–1.9` · 11.1 อ้าง "หัวข้อ 11.3" ควรเป็น 11.4 · R-10 เรียงสลับที่ · roadmap รวม **~10.5 สัปดาห์** (เดิม 9.5 ลืมบวก P0 + P3) · หัวข้อ 14 เดิมบอก "ปิดครบทุกข้อ" ทั้งที่ Q-N3 ยังค้าง · กราฟ survival Stage 2 เริ่มที่วัน **6** ไม่ใช่ 5 · การ์ดใน 7.4 บอก 3 ตัวแต่รายการมี 2 |
+
+> **ยังตรวจไม่ได้ในรอบนี้:** ตัวเลขที่อ้างอิงจากไฟล์ Excel ต้นฉบับ (P1–P15, ภาคผนวก B, funnel ใน 8.3) — ไฟล์ต้นฉบับไม่อยู่ใน session แล้ว ตัวเลขทั้งหมดยกมาจากการวิเคราะห์รอบแรก ควรสุ่มตรวจซ้ำ 2–3 จุดก่อนส่งให้ลูกค้า
 
 ### สิ่งที่เปลี่ยนจาก v0.2
 
@@ -62,14 +99,16 @@ T0 = Activation ─────────────────────�
 
 **③ ลูกค้ากำลังเปลี่ยนวิธีเก็บข้อมูลอยู่แล้วด้วยตัวเอง**
 
-ไฟล์ v2 (เม.ย. 2026 →) เปลี่ยนจากการนับรวมต่อ lot มาเป็นรายฟองพร้อม `Embryo_ID`, matrix 0/1 ต่อ stage, และ stage dictionary แยก sheet — คือกำลังพยายามทำสิ่งที่ระบบเราควรทำ แต่ทำใน Excel ไม่ไหว
+ไฟล์ v2 (เม.ย. 2026 →) เปลี่ยนจากการนับรวมต่อ lot มาเป็นรายฟองพร้อม `Embryo_ID`, matrix 1/0/ว่างต่อ stage, และ stage dictionary แยก sheet — คือกำลังพยายามทำสิ่งที่ระบบเราควรทำ แต่ทำใน Excel ไม่ไหว
 
 ### หลักการออกแบบ 6 ข้อ
 
 1. **หนึ่งแถวคือหนึ่ง observation** — เลิกใช้คอลัมน์ต่อเวลา (ปัจจุบันมี `d1`…`d220` และจะทะลุ 365 คอลัมน์เมื่อครบปี)
 2. **Survival เป็น monotonic** — ตายแล้วไม่ฟื้น ⇒ UI บันทึกเฉพาะ *การเปลี่ยนแปลง* นี่คือกุญแจของ "กรอกให้เร็วที่สุด"
 3. **เวลาคำนวณให้ ไม่ให้คนกรอก** — ระบบรู้ `activated_at` อยู่แล้ว จึงคำนวณ hpa, อายุ, checkpoint ที่ถึงกำหนด และ **ส่วนต่างจากเวลามาตรฐาน** ให้เอง
-4. **Derived data ไม่เก็บลงฐาน** — `% of development`, `AGE of clone` คำนวณตอน query ทุกครั้ง
+4. **แยก "ค่าที่คำนวณสด" ออกจาก "snapshot ที่ต้องแช่แข็ง"**
+   - **คำนวณสดทุกครั้ง** (ห้ามเก็บ): `% of development`, อายุปลา ณ ปัจจุบัน, ยอดรวมทุกชนิดบน dashboard — เพราะขึ้นกับ "วันนี้" หรือขึ้นกับข้อมูลอื่นที่ยังเปลี่ยนได้
+   - **เก็บเป็น snapshot ติดกับแถว** (ต้องเก็บ): `hpa_actual`, `hpa_expected_snapshot`, `deviation_h`, `age_days` ณ วันที่สังเกต — เพราะเป็น *ข้อเท็จจริง ณ เวลานั้น* ที่ต้องไม่เปลี่ยนย้อนหลังเมื่อมีคนแก้เวลามาตรฐาน (เหตุผลเต็มใน 5.3(ข) · NFR-08)
 5. **ค่าอ้างอิงเป็น config ที่แก้ได้ ไม่ใช่โค้ด** — เวลามาตรฐานต่อ stage แก้ได้จากหน้าเว็บภายในไม่กี่วินาที โดยไม่กระทบข้อมูลเก่า
 6. **ไม่มี migration** — ระบบเริ่มจากศูนย์ ไฟล์เก่าเป็นเอกสารอ้างอิงเท่านั้น (แต่ schema ต้องรองรับทุกข้อมูลที่เขาเคยเก็บ — พิสูจน์ในภาคผนวก A)
 
@@ -191,12 +230,12 @@ ggplot(df, aes(x = time, y = surv, color = strain)) +
 | # | ปัญหา | หลักฐาน | ระบบใหม่แก้อย่างไร |
 |---|---|---|---|
 | **P1** | **Double entry** — จดกระดาษแล้วคีย์ Excel | ลูกค้าแจ้งเอง + sheet ชื่อ `work sheet_Cloning` คือแบบฟอร์มสำหรับพิมพ์ไปกรอก | กรอกบน iPad ที่โต๊ะกล้อง จบในครั้งเดียว |
-| **P2** | **เวลาถูกเก็บเป็นทศนิยม ตีความไม่ได้แน่นอน** | คอลัมน์ `Activated time` (410 แถว): **402 ค่าเป็น float** (`10.41` = 10:41), 4 ค่าเป็น int, 4 ค่าเป็นข้อความ (`"10.36/10.37"`, `"11..08"`, `"na"`, `"-"`) · คอลัมน์ `Start` มี 332 float, 10 int, 67 ข้อความ และมี **ค่าที่เป็น time จริงเพียง 1 ค่า** (`11:52:00`) | เก็บเป็น `timestamptz` เสมอ + time picker — **สำคัญเป็นพิเศษเพราะฟีเจอร์ deviation ต้องใช้เวลาที่แม่นยำ** |
+| **P2** | **เวลาถูกเก็บเป็นทศนิยม ตีความไม่ได้แน่นอน** | คอลัมน์ `Activated time` (410 แถว): **402 ค่าเป็น float** (`10.41` = 10:41), 4 ค่าเป็น int, 4 ค่าเป็นข้อความ (`"10.36/10.37"`, `"11..08"`, `"na"`, `"-"`) · คอลัมน์ `Start` มี 332 float, 10 int, 67 ข้อความ และมี **ค่าที่เป็น time จริงเพียง 1 ค่า** (`11:52:00`) | เก็บ logical datetime เป็น UTC (`TIMESTAMP WITHOUT TIME ZONE` บน PostgreSQL / `DATETIME` บน MySQL) + time picker — **สำคัญเป็นพิเศษเพราะฟีเจอร์ deviation ต้องใช้เวลาที่แม่นยำ** |
 | **P3** | **คอลัมน์บานตามเวลา** | `Cloned fish status` มี **220 คอลัมน์ `d1`–`d220`**; `Master` มี **243 คอลัมน์** | ตาราง observation แนวยาว ไม่จำกัดเวลา |
 | **P4** | **ข้อมูลชุดเดียวกันอยู่ 3 ที่ ไม่ตรงกัน** | `Cloned fish status` / `Master` / `Summary!A10:K41` เก็บปลาชุดเดียวกัน · `Summary` นับ clone embryo ได้ **31** แต่ทะเบียนปลามี **46** ตัว | Single source of truth ในฐานข้อมูล |
 | **P5** | **คีย์ผิดตอนย้ายข้อมูลข้ามไฟล์ (พิสูจน์ได้)** | `NHGRI_10` @ stage `256-cell` = **23** ใน `KU_clean` แต่ = **24** ใน `Clean table v4` | Export จาก DB โดยตรง ไม่มีการคัดลอกด้วยมือ |
-| **P6** | **ค่าคำนวณเองก็เพี้ยน** | `DOB + AGE of clone` ควรเท่ากับวันแช่แข็ง — ตรวจ 15 ตัวที่มีข้อมูลครบ **ตรง 11 · ไม่ตรง 4** (คลาดเคลื่อน 1–4 วัน) | ห้ามเก็บค่าคำนวณ — คำนวณสดจาก `dob` ทุกครั้ง |
-| **P7** | **Stage vocabulary drift** | `KU_clean` 23 stage · `v4` 26 stage (ตัด `128-cell`,`Day2` เพิ่ม `Fry`,`Juvenile`,`Adult`) · v2 36 stage | `stage_definition` + `stage_timing_profile` แบบ versioned |
+| **P6** | **ค่าคำนวณเองก็เพี้ยน** | `DOB + AGE of clone` ควรเท่ากับวันแช่แข็ง — ตรวจ 15 ตัวที่มีข้อมูลครบ **ตรง 11 · ไม่ตรง 4** (คลาดเคลื่อน 1–4 วัน) | ไม่ให้คนกรอกค่าคำนวณอีกต่อไป — *อายุปัจจุบัน* คำนวณสดจาก `dob` · *อายุ ณ วันที่สังเกต* ระบบคำนวณและเก็บเป็น snapshot ให้เอง (หลักการข้อ 4) |
+| **P7** | **Stage vocabulary drift** | `KU_clean` 23 stage · `v4` 26 stage (ชุด stage ไม่ตรงกัน — `v4` ไม่มี `128-cell`/`Day2` แต่เพิ่ม `Fry`/`Juvenile`/`Adult`) · v2 36 stage | `stage_definition` + `stage_timing_profile` แบบ versioned |
 | **P8** | **ธงจบชีวิตไม่น่าเชื่อถือ** | `Cloned fish status` 46 แถว: **42 แถวจบด้วย `1`**, 3 แถวจบด้วย `0`, 1 แถวจบด้วยช่องว่าง — ทั้งที่ 32 ตัวมีสถานะ Frozen/Discarded ไปแล้ว | บันทึก **exit event** เป็นแถวเดี่ยว (วันที่ + เหตุผล) |
 | **P9** | **Normal/Abnormal เก็บเป็น 2 คอลัมน์ 0/1** | `Normal` และ `Abnormal` เป็นคนละคอลัมน์ | enum เดียว + NOT NULL |
 | **P10** | **ค่าว่างมีหลายความหมายปนกัน** | `-`, `NA`, `na`, `" "`, cell ว่าง ใช้ปนกัน (คอลัมน์ `Start` มี 67 ค่า) | `NULL` = ไม่ได้สังเกต + enum `outcome` แยกชัด |
@@ -252,7 +291,7 @@ ggplot(df, aes(x = time, y = surv, color = strain)) +
 | S-02 | ลงทะเบียนปลาโคลนรายตัว (DOB, สายพันธุ์ ฯลฯ) | Req #1 |
 | S-03 | บันทึกผลติดตาม Stage 1 (embryo, **26 checkpoints, 0–5 วัน**) | Req #2 · Q3 |
 | S-04 | บันทึกผลติดตาม Stage 2 (fish, รายวัน d6 → ~1 ปี) | Req #2 · Q7 |
-| S-05 | Dropdown `Normal / Abnormal` ในการบันทึกทุกจุด | Req #2 |
+| S-05 | ตัวเลือก `Normal / Abnormal / Undetermined` ในการบันทึกทุกจุด | Req #2 · SRS FR-409 |
 | S-06 | Dashboard แยกตาม stage | Req #3 |
 | S-07 | Export Excel + สรุป Dashboard เป็นไฟล์ | Req #4 |
 | S-08 | ไม่มีระบบ login (แต่มีการเลือก operator) | Req #5 |
@@ -262,7 +301,7 @@ ggplot(df, aes(x = time, y = surv, color = strain)) +
 | S-12 | Multi-site (KU, MSU) + Operator | ยืนยันแล้ว |
 | S-13 | Treatment / Experiment arm (Control · RK701 · Natural breeding · IVF) | ยืนยันแล้ว |
 | **S-14** | **⭐ เวลามาตรฐานต่อ stage แบบ config ได้ + คำนวณส่วนต่างเร็ว/ช้าอัตโนมัติ** | **Q1 (ใหม่)** |
-| **S-15** | **⭐ เลื่อนขั้น Stage 1 → Stage 2 อัตโนมัติเมื่ออายุเกิน 5 วันและยังรอด** | **Q3 (ใหม่)** |
+| **S-15** | **⭐ เลื่อนขั้น Stage 1 → Stage 2 แบบ*กึ่ง*อัตโนมัติ** — ระบบตรวจจับตัวอ่อนที่อายุเกิน 5 วันและยังรอดแล้วเสนอให้ (ผู้ใช้ต้องยืนยันเสมอ ระบบไม่เลื่อนเงียบ ๆ) | **Q3 (ใหม่)** |
 | **S-16** | **⭐ ติดตาม Abnormal ต่อจนตาย + mark จุดที่พบความผิดปกติครั้งแรก** | **Q4 (ใหม่)** |
 | S-17 | บันทึกกลุ่ม Natural breeding / IVF แบบนับรวม | Q6 |
 | S-18 | บันทึกย้อนหลังได้ทุกจุด (backdating) | Q7 |
@@ -312,7 +351,8 @@ Subject (Embryo)  ──[อายุ > 5 วัน + รอด]──▶  Subje
                     ╲                                  ╱
                      ╲   T0 เดียวกัน = activated_at   ╱
                       ▼                              ▼
-              age_days = (observed_at − activated_at) / 24
+        Stage 1: hpa = (observed_at − activated_at) ชม.
+        Stage 2: age_days = จำนวนวันตามปฏิทินจาก dob (วันเกิด = 0)
 ```
 
 **สิ่งที่ระบบคำนวณให้ (ตอบ Req #7 + Q1 พร้อมกัน):**
@@ -320,12 +360,12 @@ Subject (Embryo)  ──[อายุ > 5 วัน + รอด]──▶  Subje
 | ค่า | สูตร | ใช้ทำอะไร |
 |---|---|---|
 | `hpa_actual` | `observed_at − injection_lot.activated_at` | เวลาจริงที่ใช้ไปถึง stage นี้ |
-| `hpa_expected` | จาก `stage_timing_profile` (ปรับตามอุณหภูมิถ้าตั้งค่าไว้) | **เวลามาตรฐาน** |
+| `hpa_expected` | จาก `stage_timing_profile` ที่ batch pin ไว้ (v1 ใช้ค่าดิบ · การปรับตามอุณหภูมิเป็น v2) | **เวลามาตรฐาน** |
 | `deviation_h` | `hpa_actual − hpa_expected` | **บวก = ช้ากว่ามาตรฐาน · ลบ = เร็วกว่า** |
 | `deviation_pct` | `deviation_h / hpa_expected × 100` | เทียบข้าม stage ได้ (ช้า 15 นาทีที่ 2-cell ≠ ช้า 15 นาทีที่ Day 5) |
 | `interval_actual` | `hpa_actual − hpa_actual(stage ก่อนหน้า)` | ช่วงไหนที่ช้าลงจริง ๆ |
 | `interval_deviation_h` | `interval_actual − interval_expected` | ระบุ transition ที่มีปัญหา |
-| `age_days` | `(now − activated_at) / 24` | อายุปลา (Stage 2) |
+| `age_days` | จำนวน**วันตามปฏิทิน** ระหว่าง `clone_fish.dob` กับวันที่สังเกต (วันเกิด = 0) | อายุปลา (Stage 2) — ตรงกับคอลัมน์ `d1`,`d2`… เดิม |
 
 ### 5.2 ERD
 
@@ -361,6 +401,8 @@ erDiagram
     CLONE_FISH ||--o{ SPECIMEN : yields
     FISH_BOX ||--o{ CLONE_FISH : houses
 
+    OPERATOR ||--o{ AUDIT_LOG : "acted"
+
     PROTOCOL {
         uuid id PK
         string name "SCNT standard"
@@ -382,10 +424,10 @@ erDiagram
         int version "auto increment"
         string name "ZFIN 28.5C (default)"
         numeric reference_temp_c "28.5"
-        bool auto_temp_adjust "false (v1)"
+        bool auto_temp_adjust "v1 = false เสมอ (v2 feature)"
         string source_note "Kimmel 1995 / ZFIN"
-        uuid created_by FK
-        timestamptz created_at
+        uuid created_by_operator_id FK
+        datetime_utc created_at
         bool is_current
     }
     STAGE_TIMING {
@@ -414,14 +456,14 @@ erDiagram
     INJECTION_LOT {
         uuid id PK
         uuid batch_id FK
-        int lot_no "Ex_lot"
+        string lot_no "Ex_lot — เป็นข้อความ เพราะข้อมูลจริงมีทั้ง 1 และ June_2"
         uuid donor_cell_line_id FK
         int enu_power_pct "100"
         int enu_pulse_us "500"
         int enu_led "80/85/90"
-        timestamptz enu_start_at
-        timestamptz enu_finish_at
-        timestamptz activated_at "T0 = DOB"
+        datetime_utc enu_start_at
+        datetime_utc enu_finish_at
+        datetime_utc activated_at "T0 = DOB"
         int n_eggs
         int n_activated
     }
@@ -432,25 +474,27 @@ erDiagram
         string embryo_code "1_Jan_Control_1_1"
         string well_position "B3"
         uuid exit_stage_id FK
-        timestamptz exit_at
+        datetime_utc exit_at
         string exit_reason "DEAD|DEGENERATED|PROMOTED|LOST"
-        uuid first_abnormal_obs_id FK
+        uuid first_abnormal_observation_id FK
     }
     EMBRYO_OBSERVATION {
         uuid id PK
         uuid embryo_id FK
         uuid stage_definition_id FK
-        timestamptz observed_at
+        datetime_utc observed_at
         numeric hpa_actual "computed"
         numeric hpa_expected_snapshot "frozen at write"
         numeric deviation_h "computed"
         string outcome "ALIVE|DEAD|DEGENERATED|NOT_OBSERVED"
-        string condition "NORMAL|ABNORMAL|UNDETERMINED"
+        string biological_condition "NORMAL|ABNORMAL|UNDETERMINED"
         uuid operator_id FK
+        string device_id
         bool is_backdated
+        text override_reason
         text notes
         uuid client_uuid UK
-        timestamptz created_at
+        datetime_utc created_at
     }
     CLONE_FISH {
         uuid id PK
@@ -461,9 +505,10 @@ erDiagram
         uuid donor_cell_line_id FK
         uuid site_id FK
         string status "ALIVE|DEAD|FROZEN|DISCARDED"
-        string condition "NORMAL|ABNORMAL"
+        string biological_condition "NORMAL|ABNORMAL|UNDETERMINED"
         date first_abnormal_on
         int first_abnormal_age_days
+        uuid first_abnormal_stage_id FK
         string sex "M|F|UNKNOWN"
         bool fin_clipped
         uuid fish_box_id FK
@@ -477,8 +522,9 @@ erDiagram
         date observed_on
         int age_days "computed"
         string outcome "ALIVE|DEAD|FROZEN|DISCARDED|NOT_OBSERVED"
-        string condition "NORMAL|ABNORMAL|UNDETERMINED"
+        string biological_condition "NORMAL|ABNORMAL|UNDETERMINED"
         uuid operator_id FK
+        string device_id
         bool is_backdated
         text notes
         uuid client_uuid UK
@@ -538,12 +584,28 @@ erDiagram
         uuid id PK
         string lot_code "CSOF 2024-19"
     }
+    AUDIT_LOG {
+        uuid id PK
+        string table_name
+        uuid record_id
+        string action "INSERT|UPDATE|DELETE"
+        uuid operator_id FK
+        string device_id
+        datetime_utc occurred_at
+        text old_values "JSON text"
+        text new_values "JSON text"
+    }
 ```
+
+> **หมายเหตุการอ่าน ERD (สำคัญ):**
+> - ชนิดข้อมูลใน ERD เขียนแบบ*เชิงตรรกะ* — `uuid` ใช้ `CHAR(36)` จริง ส่วน `datetime_utc` ใช้ PostgreSQL `TIMESTAMP WITHOUT TIME ZONE` และ MySQL `DATETIME` โดย application แปลงเป็น UTC ก่อนเขียนเสมอ · **ห้ามใช้ `timestamptz` หรือ native UUID type ของ Postgres**
+> - ตารางข้อมูลธุรกิจมี `created_at`, `updated_at` และ `deleted_at` (soft delete ตาม NFR-14) แต่ไม่ได้เขียนซ้ำในแต่ละ entity เพื่อไม่ให้แผนภาพรก · `audit_log` เป็นข้อยกเว้นแบบ append-only ใช้ `occurred_at` และห้ามแก้หรือลบผ่าน application
+> - `hpa_actual`, `hpa_expected_snapshot`, `deviation_h`, `age_days` เก็บเป็น **snapshot ณ เวลาที่บันทึก** โดยตั้งใจ — ดูหลักการออกแบบข้อ 4 และ 5.3(ข)
 
 ### 5.3 หมายเหตุการออกแบบที่สำคัญ
 
 **(ก) `EMBRYO_OBSERVATION` เก็บแบบ sparse**
-เพราะการรอดเป็น monotonic — ถ้าตัวอ่อนผ่าน stage 5 มาแล้วและยังไม่มี exit event แปลว่ารอดถึง stage 5 ระบบจึงบันทึกเฉพาะ observation ที่ส่องจริง + exit event หนึ่งครั้ง การ reconstruct matrix 0/1 แบบ `QControl_1` ทำผ่าน SQL window function ตอน export
+ระบบบันทึกเฉพาะ checkpoint ที่สังเกตจริง ถ้ามี observation `ALIVE` ที่ stage ลำดับ 5 และยังไม่มี exit event จึงอนุมานย้อนหลังได้ว่ารอดถึงลำดับ 1–5; stage หลัง observation `ALIVE` ล่าสุดยังเป็นค่าว่างจนกว่าจะสังเกตจริงหรือเกิด exit event ตาม BR-08 การ reconstruct matrix 1/0/ว่างทำใน query/export และต้องได้ผลเหมือนกันบน PostgreSQL/MySQL
 
 **(ข) `hpa_expected_snapshot` — ทำไมต้องแช่ค่าไว้กับ observation**
 ลูกค้าจะแก้เวลามาตรฐานภายหลังแน่นอน (Q1 บอกว่ายังไม่รู้ค่าจริง) ถ้าคำนวณ `deviation` สดจาก config ปัจจุบันทุกครั้ง **ตัวเลข deviation ของข้อมูลเก่าจะเปลี่ยนไปเงียบ ๆ ทุกครั้งที่มีคนแก้ config** ซึ่งอันตรายมากสำหรับงานวิจัย
@@ -552,8 +614,8 @@ erDiagram
 **(ค) `EMBRYO → CLONE_FISH` เป็น 0..1 พร้อม `exit_reason = PROMOTED`**
 ทำให้ traceable ตั้งแต่ไข่ใบไหน ล็อตไหน donor ตัวไหน จนถึงปลาโตเต็มวัย — ปัจจุบันเชื่อมด้วยข้อความในคอลัมน์ `Zebrafish normal in` (`"No.39 normal"`) ซึ่ง query ไม่ได้
 
-**(ง) `condition` เก็บ *ต่อ observation* — และมี `first_abnormal_*` เป็นค่าสรุป (ตอบ Q4)**
-template v2 มีแถว `Nor/Ab` ที่ทุก checkpoint ⇒ ความผิดปกติเกิดขึ้นได้ตอนไหนก็ได้ ระบบจึงเก็บ condition ทุก observation แล้ว derive `first_abnormal_obs_id` / `first_abnormal_age_days` ไว้เพื่อ:
+**(ง) `biological_condition` เก็บ *ต่อ observation* — และมี `first_abnormal_*` เป็นค่าสรุป (ตอบ Q4)**
+template v2 มีแถว `Nor/Ab` ที่ทุก checkpoint ⇒ ความผิดปกติเกิดขึ้นได้ตอนไหนก็ได้ ระบบจึงเก็บ `biological_condition` ทุก observation แล้ว derive `first_abnormal_observation_id` / `first_abnormal_age_days` ไว้เพื่อ:
 - **แสดงจุดที่พบความผิดปกติบนเส้นเวลา** (ตามที่ Q4 ต้องการ)
 - ไม่ตัดตัวอ่อน/ปลาที่ผิดปกติออกจากการติดตาม — ยังนับใน survival curve ต่อจนกว่าจะมี exit event จริง
 
@@ -564,10 +626,10 @@ template v2 มีแถว `Nor/Ab` ที่ทุก checkpoint ⇒ ควา
 
 ### 5.4 การเลื่อนขั้น Stage 1 → Stage 2 (ตอบ Q3)
 
-**กฎ:** ตัวอ่อนที่ **อายุเกิน 5 วัน (120 ชั่วโมงหลัง activation) และยังมีชีวิตอยู่** จะถูกเลื่อนเป็นปลาโคลน
+**กฎ:** ตัวอ่อนเข้าเกณฑ์เมื่อเวลาปัจจุบันเกิน `activated_at + protocol.stage1_max_age_days × 24 ชั่วโมง`, ยังไม่มี exit event และ observation ล่าสุดเป็น `ALIVE` ตาม BR-09 โดย **ไม่บังคับว่าต้องมี observation ที่ Day 5**; ระบบเพียงเสนอรายการและรอผู้ใช้ยืนยัน
 
 ```
-stage_26_5D ผ่านไปแล้ว + outcome = ALIVE
+now > activated_at + stage1_max_age_days + ไม่มี exit + latest outcome = ALIVE
         │
         ▼
 ระบบขึ้นการ์ด "มีตัวอ่อน 3 ตัวพร้อมเลื่อนเป็นปลา"  ◀── ไม่ทำอัตโนมัติเงียบ ๆ
@@ -577,7 +639,7 @@ stage_26_5D ผ่านไปแล้ว + outcome = ALIVE
    dob            = injection_lot.activated_at (วันเดียวกัน)
    running_no     = ต่อจากเลขล่าสุด
    donor_cell_line, site = สืบทอดจาก lot
-   condition      = สืบทอดจาก observation ล่าสุด
+   biological_condition = สืบทอดจาก observation ล่าสุด
    embryo_id      = FK กลับไปหาตัวอ่อน
    fish_code      = ผู้ใช้กรอก/ระบบเสนอ  ← จุดเดียวที่ต้องพิมพ์
    fish_box       = ผู้ใช้เลือก
@@ -616,14 +678,14 @@ EMBRYO.exit_reason = PROMOTED  (ไม่ใช่ DEAD — สำคัญต�
 ┌──────────────────────────────────┐
 │ Profile: ZFIN 28.5°C  (ใช้อยู่)   │        กด "บันทึก" ทีไร
 │ อุณหภูมิอ้างอิง: [28.5] °C        │            │
-│ ปรับตามอุณหภูมิจริงอัตโนมัติ: [✓] │            ▼
-├──────────────────────────────────┤   snapshot ทั้ง profile เป็น
-│ 2-cell      [0.75] ชม.  ±[0.25]  │   version ใหม่ (v1 → v2 → v3)
-│ 4-cell      [1.00] ชม.  ±[0.25]  │            │
-│ 8-cell      [1.25] ชม.  ±[0.25]  │            ▼
-│ ...                              │   batch เก่า pin อยู่ที่ version เดิม
-│ Shield      [6.00] ชม.  ±[0.50]  │   ⇒ ตัวเลข deviation ย้อนหลังไม่เปลี่ยน
-│ 5D        [120.0] ชม.  ±[6.00]   │   batch ใหม่ใช้ version ล่าสุด
+├──────────────────────────────────┤            ▼
+│ 2-cell      [  0.75 ] ชม.        │   snapshot ทั้ง profile เป็น
+│ 4-cell      [  1.00 ] ชม.        │   version ใหม่ (v1 → v2 → v3)
+│ 8-cell      [  1.25 ] ชม.        │            │
+│ ...                              │            ▼
+│ Shield      [  6.00 ] ชม.        │   batch เก่า pin อยู่ที่ version เดิม
+│ 5D          [120.00 ] ชม.        │   ⇒ ตัวเลข deviation ย้อนหลังไม่เปลี่ยน
+│                                  │   batch ใหม่ใช้ version ล่าสุด
 ├──────────────────────────────────┤
 │ [นำเข้าจาก CSV] [บันทึก]          │
 └──────────────────────────────────┘
@@ -635,16 +697,18 @@ EMBRYO.exit_reason = PROMOTED  (ไม่ใช่ DEAD — สำคัญต�
 
 seed จาก **ZFIN / Kimmel et al. 1995** ซึ่งตรงกับที่ลูกค้าใช้อยู่แล้วทุกค่า (ดู 2.5 และภาคผนวก C) ⇒ ระบบใช้งานได้ตั้งแต่วันแรก แล้วค่อยแก้เมื่อลูกค้ายืนยัน
 
-#### การปรับตามอุณหภูมิ (เตรียมโครงสร้างไว้สำหรับ v2)
+#### การปรับตามอุณหภูมิ — **ไม่ทำใน v1** (FR-1.8 → v2 ตาม Q-N2)
 
-ใน v1 ระบบเก็บ `reference_temp_c` และ `incubation_temp_c` เพื่ออ้างอิงเท่านั้น และกำหนด `auto_temp_adjust = false` เสมอ หากเปิดใช้ใน v2 จึงค่อยปรับด้วยสูตรของ Kimmel:
+> ⛔ หัวข้อย่อยนี้เก็บไว้เป็น **เอกสารอ้างอิงสำหรับ v2 เท่านั้น** — v1 ใช้ค่าดิบจากตารางตรง ๆ เสมอ และคอลัมน์ `auto_temp_adjust` ต้องเป็น `false` ตลอด (ตรงกับ SRS §5 `stage_timing_profile`)
+
+ถ้าเปิดฟีเจอร์นี้ใน v2 (`auto_temp_adjust = true`) และ batch ระบุ `incubation_temp_c` ระบบจะปรับด้วยสูตรของ Kimmel:
 
 ```
 hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้ช่วง 25–33°C
 ```
 
 ตัวอย่าง: Shield ที่มาตรฐาน 6.00 ชม. @28.5°C → ถ้าเลี้ยงที่ 26°C จะเป็น 6 / (0.055×26 − 0.57) = 6 / 0.86 = **6.98 ชม.**
-ถ้าไม่เปิดฟีเจอร์นี้ ระบบใช้ค่าดิบตามตารางตรง ๆ
+**ใน v1 ระบบใช้ค่าดิบตามตารางตรง ๆ เสมอ**
 
 > **ทำไมเรื่องนี้สำคัญ:** ถ้าแลปเลี้ยงที่ 26°C แต่เทียบกับตาราง 28.5°C ตัวอ่อน**ทุกตัว**จะดู "ช้ากว่ามาตรฐาน" ทั้งที่จริงพัฒนาปกติ — เป็นกับดักที่ทำให้ข้อสรุปผิดทั้งชุด ผมแนะนำให้ถามลูกค้าว่าตู้ incubator ตั้งที่กี่องศา (Q-N2)
 
@@ -652,7 +716,7 @@ hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้�
 
 | ที่ | แสดงอะไร | ตัวอย่าง |
 |---|---|---|
-| หน้ากรอกข้อมูล | ส่วนต่างสด ๆ ตอนกด | `256-cell · จริง 2:38 · มาตรฐาน 2:30 · ช้ากว่า 8 นาที` 🟡 |
+| หน้ากรอกข้อมูล | ส่วนต่างสด ๆ ตอนกด | `256-cell · จริง 2:38 · มาตรฐาน 2:30 · ช้ากว่ามาตรฐาน 8 นาที` *(ตัวเลขล้วน ไม่มีสีตัดสิน — Q-N5)* |
 | Dashboard | กราฟ deviation ต่อ stage เทียบระหว่างกลุ่ม | ดูหัวข้อ 8.1 |
 | Export | คอลัมน์ `hpa_actual`, `hpa_expected`, `deviation_h`, `deviation_pct` | ดูหัวข้อ 9.1 |
 
@@ -670,7 +734,7 @@ hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้�
 | FR-1.2 | จัดการ Donor cell line (strain × preparation × batch code) | M |
 | FR-1.3 | จัดการ Recipient egg lot และ CSOF lot | M |
 | FR-1.4 | จัดการ Treatment group / experiment arm | M |
-| FR-1.5 | จัดการ Protocol + Stage definition (เพิ่ม/แก้/เรียงลำดับ stage, กำหนด `stage_scope`) | M |
+| FR-1.5 | ติดตั้งและแสดง Protocol + Stage Definition 36 รายการตามลำดับและ `stage_scope` ที่ seed ไว้ — **v1 เป็น read-only**; การเพิ่ม/แก้/reorder ต้องเป็น change request หรือ v2 | M |
 | FR-1.6 | จัดการ Fish box | S |
 | **FR-1.7** ⭐ | **หน้าตั้งค่าเวลามาตรฐานต่อ stage** — แก้ตัวเลขในตารางแล้วกดบันทึก, ทุกการบันทึกสร้าง version ใหม่อัตโนมัติ, batch ที่สร้างไปแล้วยังใช้ version เดิม | **M** |
 | FR-1.8 | ~~ปรับเวลามาตรฐานตามอุณหภูมิ~~ — **ยกไป v2 ตาม Q-N2** (คงคอลัมน์ `incubation_temp_c` ไว้ในตารางแล้ว จึงเพิ่มทีหลังได้โดยไม่ต้อง migrate) | C |
@@ -684,7 +748,7 @@ hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้�
 | FR-2.2 | ระบบสร้าง `batch_code` อัตโนมัติตามรูปแบบเดิม `{day}_{operator}_{group}` (แก้ไขได้) | M |
 | FR-2.3 | ระบบ **pin timing profile version** ที่ใช้อยู่ ณ วันสร้าง batch ให้อัตโนมัติ | M |
 | FR-2.4 | เพิ่ม Injection Lot: `lot_no`, donor cell line, Power %, Pulse µs, LED, enucleation start/finish, **activated_at**, `N in lot` | M |
-| FR-2.5 | ระบุจำนวน N แล้วระบบ **generate embryo record N ตัวทันที** พร้อม `embryo_code` = `{batch_code}_{lot_no}_{seq}` | M |
+| FR-2.5 | ระบุ **`n_activated` = N** (จำนวนที่ activate สำเร็จ ไม่ใช่ `n_eggs`) แล้วระบบ **generate embryo record N ตัวทันที** พร้อม `embryo_code` = `{batch_code}_{lot_no}_{seq}` · เพิ่ม/นำออกด้วย soft delete ภายหลังได้ถ้าจำนวนจริงไม่ตรง | M |
 | FR-2.6 | ระบุ well position ในถาด 96-well | S |
 | FR-2.7 | Clone batch ก่อนหน้าเป็น template (ค่า enucleation ซ้ำกันเกือบทุกครั้ง) | S |
 | FR-2.8 | บันทึกกลุ่ม Natural breeding / IVF แบบนับรวม Normal/Abnormal ที่ checkpoint `4-cell`, `Shield–75%epi`, `Day-1/2/3` | M |
@@ -699,7 +763,7 @@ hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้�
 | FR-3.4 | running number อัตโนมัติต่อเนื่อง (`No.1` … `No.46` …) | M |
 | FR-3.5 | บันทึก SEX เมื่อระบุเพศได้ (มักหลังหลายสิบวัน) | M |
 | FR-3.6 | บันทึก fin clip (`cut tail`) + สร้าง Specimen record (`CL`/`RT`/`DC`, whole embryo / caudal fin clip, วันแช่แข็ง, -20/-80) | S |
-| FR-3.7 | ย้ายปลาระหว่าง box | C |
+| FR-3.7 | ย้ายปลาระหว่าง box (ตัวการย้ายอยู่ใน v1 · *ประวัติ*การย้ายเป็น v2) | S |
 
 ### 6.4 Data Entry — หัวใจของระบบ (Req #2)
 
@@ -710,7 +774,7 @@ hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้�
 | FR-4.3 | **แตะครั้งเดียวต่อ 1 ตัวอ่อน** — ปุ่มขนาดใหญ่ (≥44×44 pt) วน `รอด → ตาย → สลาย` | M |
 | FR-4.4 | **Default = รอดทั้งหมด** — ผู้ใช้แตะเฉพาะตัวที่เปลี่ยนสถานะ แล้วกดบันทึกครั้งเดียว | M |
 | FR-4.5 | ปุ่มลัด **"รอดทั้งหมด" / "ตายทั้งหมดที่เหลือ"** | M |
-| FR-4.6 | **Dropdown `Normal / Abnormal`** ต่อ observation (ค่าเริ่มต้น = สืบทอดจาก observation ก่อนหน้า) | M |
+| FR-4.6 | ตัวเลือก **`Normal / Abnormal / Undetermined`** ต่อ observation (ค่าเริ่มต้น = สืบทอดจาก observation ก่อนหน้า; ถ้าไม่มีใช้ `Normal`) | M |
 | FR-4.7 | **บันทึกเวลาสังเกตอัตโนมัติ** = เวลาปัจจุบัน แก้ได้ | M |
 | FR-4.8 | **แสดง elapsed time สด ๆ** — `T+2:34 หลัง activation` และ `อายุ 47 วัน` (Req #7) | M |
 | **FR-4.9** ⭐ | **แสดงส่วนต่างจากเวลามาตรฐานทันทีที่กรอก** — `จริง 2:38 · สากล 2:30 · ช้ากว่าสากล 8 นาที` เป็นตัวเลขตรง ๆ **ไม่มีเกณฑ์ตัดสินว่าปกติ/ผิดปกติ** (Q-N5) | **M** |
@@ -727,9 +791,9 @@ hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้�
 
 | ID | Requirement | Priority |
 |---|---|---|
-| FR-5.1 | **Optimistic UI** — แตะแล้วเห็นผลทันที ไม่รอ server ตอบ | M |
-| FR-5.2 | **Local write queue** — การกรอกที่ยังส่งไม่สำเร็จเก็บไว้ในเครื่อง (IndexedDB) และ retry อัตโนมัติ ไม่หายแม้ refresh หน้า/ปิดแท็บ | M |
-| FR-5.3 | **Idempotency** — ทุก observation มี `client_uuid`; ส่งซ้ำไม่เกิดข้อมูลซ้ำ | M |
+| FR-5.1 | **Optimistic UI** — ทุก mutation ที่ผู้ใช้กดบันทึกต้องสะท้อนบนหน้าจอทันที ไม่รอ server ตอบ | M |
+| FR-5.2 | **Local write queue** — mutation ที่ยังส่งไม่สำเร็จเก็บไว้ใน IndexedDB และ retry อัตโนมัติ ไม่หายแม้ refresh หน้า/ปิดแท็บ | M |
+| FR-5.3 | **Idempotency** — observation/promotion ใช้ `client_uuid`; mutation อื่นที่เข้า queue ต้องมี stable idempotency key ตาม contract ที่เพิ่มก่อนทำ Phase 5 · ส่งซ้ำต้องไม่เกิดข้อมูลซ้ำ | M |
 | FR-5.4 | **ตัวบ่งชี้สถานะ** — `บันทึกแล้ว` / `กำลังส่ง…` / `ค้าง N รายการ` ตำแหน่งคงที่ | M |
 | FR-5.5 | เตือนก่อนปิดแท็บถ้ายังมีรายการค้างส่ง | M |
 | FR-5.6 | **PWA + app shell cache** — เปิดหน้าเว็บได้แม้เน็ตหลุดชั่วคราว | S |
@@ -745,7 +809,8 @@ hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้�
 | **FR-6.4** ⭐ | **แสดงจุดที่พบความผิดปกติครั้งแรก** บนเส้นเวลา/กราฟ (Q4) | **M** |
 | FR-6.5 | ตัวเลข KPI + กราฟตามหัวข้อ 8 | M |
 | FR-6.6 | Drill-down: คลิกที่แท่ง/จุดในกราฟ → ไปยังรายการ batch/embryo/fish | S |
-| FR-6.7 | บันทึก filter เป็น preset / แชร์ผ่าน URL | C |
+| FR-6.7a | ตัวกรองสะท้อนใน URL — คัดลอกลิงก์แชร์ได้ | S |
+| FR-6.7b | บันทึก filter เป็น preset ที่ตั้งชื่อได้ | C |
 
 ### 6.7 Export (Req #4)
 
@@ -787,14 +852,14 @@ hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้�
 ```
 เปิดแอป
   └─▶ [หน้า Due Now]
-        ● 1_Jan_Control · lot 2 · 256-cell · ครบกำหนดเมื่อ 3 นาทีที่แล้ว   ⟵ แดง
-        ● 1_June_RK701 · lot 1 · Dome · อีก 12 นาที
+        ⚠ [เกินกำหนด] 1_Jan_Control · lot 2 · 256-cell · ครบกำหนดเมื่อ 3 นาทีที่แล้ว
+        ◷ [ใกล้ถึง]    1_June_RK701 · lot 1 · Dome · อีก 12 นาที
               │ แตะ
               ▼
       [หน้าบันทึก Checkpoint]
       ┌──────────────────────────────────────────────────────┐
       │ 1_Jan_Control · lot 2 · 256-cell                      │
-      │ ⏱ T+2:38  ·  มาตรฐาน 2:30  ·  🟡 ช้ากว่า 8 นาที       │ ⟵ FR-4.9
+      │ ⏱ T+2:38  ·  มาตรฐาน 2:30  ·  ช้ากว่ามาตรฐาน 8 นาที    │ ⟵ FR-4.9
       │ เวลาสังเกต [ 13:24 ▾]    ผู้บันทึก [ Jan ▾]           │
       ├──────────────────────────────────────────────────────┤
       │  ผัง 96-well              │  ยังรอด 18 / 45           │
@@ -803,8 +868,8 @@ hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้�
       │  ├──┼──┼──┼──┤            │  ├─────────────────────┤  │
       │  │C1│C2│C3│C4│            │  │ ✕ ตายทั้งหมดที่เหลือ  │  │
       │  └──┴──┴──┴──┘            │  └─────────────────────┘  │
-      │  เขียว=รอด แดง=ตาย         │  สภาพ [ Normal ▾ ]        │
-      │  เทา=สลาย  จาง=จบแล้ว      │  หมายเหตุ [           ]   │
+      │  ✓+เขียว=รอด ✕+แดง=ตาย     │  สภาพ [ Normal ▾ ]        │
+      │  —+เทา=สลาย ⏹+จาง=จบแล้ว  │  หมายเหตุ [           ]   │
       ├──────────────────────────────────────────────────────┤
       │              [  บันทึก checkpoint  ]                  │
       └──────────────────────────────────────────────────────┘
@@ -817,7 +882,7 @@ hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้�
 ```
 [หน้า Due Now]
 ┌────────────────────────────────────────────────────────┐
-│ 🐟 มีตัวอ่อน 3 ตัวอายุครบ 5 วันและยังมีชีวิต             │
+│ 🐟 มีตัวอ่อน 2 ตัวอายุครบ 5 วันและยังมีชีวิต             │
 │    พร้อมขึ้นทะเบียนเป็นปลาโคลน                            │
 │                                    [ ดูรายการ ]        │
 └────────────────────────────────────────────────────────┘
@@ -855,10 +920,10 @@ No.30_Clone2-AB ⚠    อายุ 286 วัน  Box-7  [ยังอยู่
 ### 7.6 องค์ประกอบ UI ที่ต้องมี
 
 - **Time-elapsed chip** — `T+HH:MM` (Stage 1) หรือ `อายุ N วัน` (Stage 2)
-- **Deviation chip** — `🟢 ตรงมาตรฐาน` / `🟡 ช้ากว่า 8 นาที` / `🔴 ช้ากว่า 45 นาที`
+- **Deviation chip** — ตัวเลขส่วนต่างล้วน ๆ: `ตรงมาตรฐาน` / `ช้ากว่ามาตรฐาน 8 นาที` / `เร็วกว่ามาตรฐาน 12 นาที` — **ไม่มีสีเขียว/เหลือง/แดงและไม่มีเกณฑ์ตัดสิน** (Q-N5)
 - **Sync badge** — `บันทึกแล้ว` / `ค้าง 3 รายการ`
 - **Stage progress bar** — 26 ช่อง ระบายสีตามที่บันทึกแล้ว
-- **Abnormality flag** — ⚠ พร้อม tooltip บอกว่าพบตั้งแต่ stage/อายุเท่าไหร่
+- **Abnormality flag** — ⚠ พร้อมข้อความสั้น และเปิดรายละเอียดด้วย tap/focus ได้; tooltip จาก hover เป็นเพียงส่วนเสริม
 - **Operator picker** — เลือกครั้งเดียวจำไว้ทั้ง session (ทดแทน login ตาม Req #5)
 - **Undo toast** — 10 วินาทีหลังบันทึก
 
@@ -876,7 +941,7 @@ No.30_Clone2-AB ⚠    อายุ 286 วัน  Box-7  [ยังอยู่
 | **Stage attrition** | stage ไหนสูญเสียมากที่สุด เรียงจากมากไปน้อย | คำนวณจาก `n_dead / n_prev` |
 | **⭐ Timing deviation — ภาพรวม** | Box plot ของ `deviation_h` ต่อ stage — เห็นทันทีว่า stage ไหนที่ตัวอ่อนมักช้า/เร็วกว่ามาตรฐาน | **ใหม่ (Q1)** |
 | **⭐ Timing deviation — เทียบกลุ่ม** | เส้น deviation สะสมตาม stage แยกตาม treatment group / donor line — ตอบว่า "RK701 ทำให้พัฒนาการเร็วขึ้นไหม" | **ใหม่ (Q1)** |
-| **⭐ Interval heatmap** | แถว = batch, คอลัมน์ = ช่วงเปลี่ยน stage, สี = ช้า/เร็วกว่ามาตรฐาน — หา transition ที่มีปัญหา | **ใหม่ (Q1)** |
+| **Interval heatmap — Could/v2** | แถว = batch, คอลัมน์ = ช่วงเปลี่ยน stage, แสดงค่า+สีของความช้า/เร็ว — ทำเมื่อ dashboard MUST ครบและมี change request | **ไม่อยู่ใน SRS v1** |
 | **⭐ จุดเริ่มผิดปกติ** | Histogram ว่าความผิดปกติมักถูกพบครั้งแรกที่ stage ไหน | **ใหม่ (Q4)** |
 | **Normal vs Abnormal** | สัดส่วนแยกตาม checkpoint และ treatment group | แถว `Nor/Ab` |
 | **เปรียบเทียบกลุ่ม** | SCNT Control vs RK701 vs Natural breeding vs IVF ที่ checkpoint หลัก | `CONTROL_ARM_COUNT` |
@@ -888,14 +953,14 @@ No.30_Clone2-AB ⚠    อายุ 286 วัน  Box-7  [ยังอยู่
 | องค์ประกอบ | รายละเอียด | ที่มา |
 |---|---|---|
 | **KPI cards** | ปลาทั้งหมด · ยังมีชีวิต · แช่แข็ง · คัดออก · อายุเฉลี่ยที่รอด | `STATUS` |
-| **Survival curve รายวัน** | KM แกน X = อายุ (วัน) 5→365, สีตาม strain / treatment | `d1`…`d220` |
+| **Survival curve รายวัน** | KM แกน X = อายุ (วัน) 6→365, สีตาม strain / treatment | `d1`…`d220` |
 | **⭐ Overlay จุดผิดปกติ** | ทำเครื่องหมายบนเส้นว่าปลาแต่ละตัวเริ่มผิดปกติที่อายุเท่าไหร่ + เทียบเส้นรอดของกลุ่ม Normal vs Abnormal | **ใหม่ (Q4)** |
 | **Status composition** | stacked area ตามเวลา — สัดส่วน Alive/Dead/Frozen/Discarded | — |
-| **Cohort heatmap** | แถว = cohort (เดือนที่ activate), คอลัมน์ = อายุ, สี = % รอด | — |
+| **Cohort heatmap — Could/v2** | แถว = cohort (เดือนที่ activate), คอลัมน์ = อายุ, แสดงค่า+สีของ % รอด | **ไม่อยู่ใน SRS v1** |
 | **Age distribution** | histogram อายุปลาที่ยังมีชีวิต | `AGE of clone` |
 | **Sex ratio** | M / F / ยังไม่ระบุ | `SEX` |
 | **Box census** | ปลาที่ยังมีชีวิตต่อ box | `Zebrafish box` |
-| **Specimen tracker** | ปลาที่เก็บตัวอย่าง DNA แล้ว/ยังไม่เก็บ | `Specimen Code…` |
+| **Specimen tracker — Could/v2** | ปลาที่เก็บตัวอย่าง DNA แล้ว/ยังไม่เก็บ | **ไม่อยู่ใน Dashboard SRS v1** |
 | **⭐ ช่องว่างการบันทึก** | ปลาตัวไหนขาดการเช็คชื่อไปกี่วัน — เตือนให้กรอกย้อนหลัง | **ใหม่ (Q7)** |
 
 ### 8.3 แท็บภาพรวม (End-to-end)
@@ -925,7 +990,7 @@ Pipeline funnel เต็มเส้นทางที่เชื่อม 2 s
 | `00_Metadata` | ช่วงข้อมูล, filter ที่ใช้, วันที่ export, **timing profile version ที่ใช้**, จำนวนแถว | *(ใหม่ — เพื่อ reproducibility)* |
 | `01_Batches` | 1 แถว = 1 injection lot พร้อม metadata ครบ (site, operator, donor, enucleation params, `activated_at`, อุณหภูมิ) | `raw data` คอลัมน์ A–R |
 | `02_Embryo_Observations` | **Long format** — `embryo_code, stage_code, stage_order, observed_at, hpa_actual, hpa_expected, deviation_h, deviation_pct, outcome, condition, operator, is_backdated, notes` | *(ใหม่)* |
-| `03_Embryo_Matrix` | **Wide 0/1** — 1 แถว = 1 embryo × 26 คอลัมน์ stage | `Control1`, `QControl_1` |
+| `03_Embryo_Matrix` | **Wide `1`/`0`/ว่าง** — 1 แถว = 1 embryo × 26 คอลัมน์ stage · **ช่องว่าง = ยังไม่ถึง checkpoint นั้น ไม่ใช่ตาย** (ต่างจาก Excel เดิมที่เติม 0 ทำให้ survival ต่ำกว่าจริง) | `Control1`, `QControl_1` |
 | `04_Stage_Counts` | นับรวมต่อ (batch × stage) + `n_prev`, `n_dead`, `surv` | `KU_clean`, `% of development` |
 | `05_Timing_Deviation` ⭐ | สรุป deviation ต่อ (กลุ่ม × stage): mean, median, SD, n | *(ใหม่ — Q1)* |
 | `06_Fish_Register` | ทะเบียนปลา: code, DOB, strain, status, condition, **first_abnormal_age_days**, sex, fin clip, box, exit date/reason, remarks | `Cloned fish status`, `Summary!A10:K41` |
@@ -943,7 +1008,7 @@ Pipeline funnel เต็มเส้นทางที่เชื่อม 2 s
 
 PDF ประกอบด้วย: หน้าปก (ช่วงข้อมูล + filter + timing profile version) · KPI · funnel · survival curves · **แผง timing deviation** · ตารางเปรียบเทียบกลุ่ม · footer ระบุเวลา generate
 
-> **แนะนำ:** ออกไฟล์ HTML แบบ interactive ควบคู่ด้วย เพื่อให้ส่งต่อทางอีเมลแล้วยัง zoom/hover ดูค่าได้ ต้นทุนเพิ่มน้อยเพราะใช้ component เดียวกับหน้า dashboard
+> **Could/v2:** interactive HTML export ไม่อยู่ใน SRS v1 และไม่รวมในประมาณการปัจจุบัน; เพิ่มได้เฉพาะหลัง Excel/PDF/R export ระดับ MUST ผ่านแล้วและมี change request
 
 ---
 
@@ -957,14 +1022,14 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 | NFR-04 | Concurrency | รองรับผู้ใช้พร้อมกัน 5 คน (Q8) — ไม่ต้องออกแบบเพื่อ scale |
 | NFR-05 | Resilience | การกรอกที่ค้างส่งต้องไม่หายแม้ปิดแท็บ/refresh/เน็ตหลุดชั่วคราว |
 | NFR-06 | Data integrity | ทุก observation มี `client_uuid` unique → ส่งซ้ำไม่เกิดข้อมูลซ้ำ |
-| NFR-07 | Auditability | ทุก INSERT/UPDATE/DELETE บันทึก actor + timestamp + ค่าเดิม |
+| NFR-07 | Auditability | ทุก INSERT/UPDATE/DELETE ผ่าน application บันทึกค่าเดิม/ใหม่, operator, device และเวลาใน transaction เดียวกับ mutation |
 | NFR-08 | Reproducibility | ตัวเลข deviation ของข้อมูลเก่าต้องไม่เปลี่ยนเมื่อมีคนแก้เวลามาตรฐาน |
 | NFR-09 | Backup | สำรองอัตโนมัติรายวัน เก็บ 30 วัน + ทดสอบ restore |
 | NFR-10 | i18n | UI ไทย/อังกฤษ; ศัพท์วิทยาศาสตร์ (stage name) คงภาษาอังกฤษเสมอ |
 | NFR-11 | Timezone | เก็บเป็น UTC ใน DB, แสดงผลเป็น `Asia/Bangkok` |
 | NFR-12 | Browser | Safari บน iPadOS (สำคัญสุด), Chrome, Edge — 2 เวอร์ชันล่าสุด |
 | NFR-13 | Accessibility | contrast ≥ 4.5:1, เป้าแตะ ≥ 44×44 pt, ไม่สื่อความหมายด้วยสีอย่างเดียว |
-| NFR-14 | Data retention | ไม่มีการลบถาวร — soft delete ทั้งหมด |
+| NFR-14 | Data retention | ไม่มีการลบถาวร — ตารางธุรกิจใช้ soft delete; `audit_log` เป็น append-only และห้ามลบผ่าน application |
 | NFR-15 | Portability | ต้องผ่าน "สัญญาความพกพา" 8 ข้อในหัวข้อ 11.5 — frontend เป็น static, backend เป็น binary เดียว, ไม่ใช้ฟีเจอร์เฉพาะ DB/แพลตฟอร์มใด |
 | NFR-16 | Statelessness | backend ต้องไม่พึ่ง local filesystem สำหรับ state ถาวร (ไฟล์ export สร้างสด ๆ ต่อ request) — ทำให้รันได้ทั้งบน serverless และ VPS |
 
@@ -984,7 +1049,7 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 │  ไฟล์ HTML/JS/CSS ล้วน ๆ      │◀─JSON─▶│  ต้องมี runtime               │
 │                              │  API   │                              │
 │  ⇒ วางที่ไหนก็ได้:            │        │  ⇒ ต้องมีที่ที่รัน process ได้:│
-│    shared hosting, S3,       │        │    VPS, Render, Fly, container│
+│    shared hosting, S3,       │        │    VPS, Render, Fly, Vercel,  │
 │    Vercel, Cloudflare Pages, │        │    Docker, เครื่องในโรงพยาบาล  │
 │    หรือแม้แต่ USB            │        │                              │
 │  ความเสี่ยง = ศูนย์           │        │  ความเสี่ยงทั้งหมดอยู่ตรงนี้     │
@@ -993,28 +1058,28 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 
 **ทำไมนี่คือประกันที่ดีที่สุด:** ถ้าปรากฏว่า hosting ที่แลปยืมมาเป็น shared hosting ที่รันได้แค่ PHP — เราก็ยังเอา **frontend ไปวางบนโดเมนของเขาได้ตามที่เขาต้องการ** (มันคือไฟล์ static ธรรมดา) แล้วเอา Go API ไปไว้ VPS เดือนละไม่กี่ร้อยบาทแยกต่างหาก ลูกค้าได้เว็บบนโดเมนตัวเอง เราไม่ต้องรื้ออะไรเลย
 
-การไม่ใช้ SSR ไม่ใช่การยอมเสีย — แอปนี้เป็นเครื่องมือภายในสำหรับ 5 คน ไม่มี SEO ไม่มีหน้าสาธารณะ **SSR ไม่ให้ประโยชน์อะไรเลย** และ SPA + service worker ยังเข้ากับ Tier-1 resilience (หัวข้อ 11.3) ได้ดีกว่าด้วย
+การไม่ใช้ SSR ไม่ใช่การยอมเสีย — แอปนี้เป็นเครื่องมือภายในสำหรับ 5 คน ไม่มี SEO ไม่มีหน้าสาธารณะ **SSR ไม่ให้ประโยชน์อะไรเลย** และ SPA + service worker ยังเข้ากับ Tier-1 resilience (หัวข้อ 11.4) ได้ดีกว่าด้วย
 
 ### 11.2 Stack ที่เลือก
 
 ```
 ┌──────────────── iPad / Desktop / Phone ────────────────┐
 │  Vite + React 19 + TypeScript  →  build เป็น static     │
-│  ├─ UI: Tailwind + shadcn/ui                           │
-│  ├─ Routing: TanStack Router (client-side)             │
-│  ├─ Data: TanStack Query (optimistic mutation)         │
-│  ├─ Write queue: IndexedDB (Dexie) + retry             │
-│  ├─ Charts: Recharts                                   │
+│  ├─ UI: semantic HTML + CSS; UI kit เป็น candidate      │
+│  ├─ Routing: client-side router เมื่อมีหลายหน้าจอจริง    │
+│  ├─ Data: generated types + fetch; cache lib เมื่อจำเป็น │
+│  ├─ Write queue: native IndexedDB + retry              │
+│  ├─ Charts: เลือก library ใน Phase Dashboard จาก prototype│
 │  ├─ PDF: print stylesheet + window.print()             │
 │  └─ PWA: Service Worker (app shell cache)              │
 └────────────────────────┬───────────────────────────────┘
                          │ HTTPS · REST/JSON (สัญญาใน OpenAPI)
 ┌────────────────────────▼───────────────────────────────┐
 │  Go 1.2x — binary เดียว ไม่มี runtime dependency        │
-│  ├─ Router: chi (net/http มาตรฐาน)                     │
+│  ├─ Router: net/http; เพิ่ม chi เมื่อ route จริงต้องใช้  │
 │  ├─ Query: sqlc (สร้าง type-safe code จาก SQL จริง)     │
 │  ├─ Migration: golang-migrate (ไฟล์ .sql ธรรมดา)        │
-│  ├─ Validation: go-playground/validator                │
+│  ├─ Validation: Go code ตรง ๆ; library เมื่อ rule ซ้ำจริง│
 │  ├─ Timing engine: คำนวณ hpa / expected / deviation     │
 │  ├─ Excel: excelize                                    │
 │  └─ Ingest: idempotent upsert ด้วย client_uuid          │
@@ -1023,8 +1088,8 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
                          │ database/sql (dialect-agnostic)
 ┌────────────────────────▼───────────────────────────────┐
 │  PostgreSQL 16 (ค่าเริ่มต้น)                            │
-│  แต่เขียนแบบ ANSI ⇒ ย้ายไป MySQL 8 / MariaDB / SQLite   │
-│  ได้ด้วยการเปลี่ยน driver + DSN                          │
+│  รองรับ MySQL 8 ผ่าน driver + SQL implementation/migration│
+│  แยกที่ผ่าน test suite เดียวกันใน CI                     │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -1038,7 +1103,7 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 | **ถ้า hosting เป็นกล่องเล็ก ๆ** | RAM ~25 MB | ~150 MB+ |
 | **ถ้าไม่มีใครแตะโค้ด 3 ปีแล้วต้องแก้** | Go 1.x compatibility promise — build ผ่านแน่ | `npm install` มีโอกาสพังจาก dependency drift |
 | **cross-compile จากเครื่อง dev** | `GOOS=linux go build` จบ | ต้องระวัง native module |
-| **สลับ Postgres ↔ MySQL ↔ SQLite** | เปลี่ยน driver import + DSN | ได้เหมือนกันถ้าใช้ Drizzle |
+| **สลับ PostgreSQL ↔ MySQL 8** | เปลี่ยน driver/DSN + เลือก sqlc store และ migration ของ engine นั้น | รองรับและทดสอบใน CI; MariaDB/SQLite ต้องประเมินแยกก่อนรับรอง |
 | **แชร์ type กับ frontend** | ❌ ต้องผ่าน OpenAPI + codegen | ✅ แชร์ตรง ๆ |
 | **สร้าง PDF ฝั่ง server** | ❌ อ่อน (ไม่มีตัวเทียบ Playwright ที่เบา) | ✅ Playwright |
 
@@ -1052,15 +1117,17 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 ลูกค้าตอบว่า **"หลุดบ้าง แต่ไม่บ่อยมาก"** ⇒ ตรงกับสมมติฐานที่ประเมินไว้พอดี **ทำ Tier 1 (~3 วัน) ไม่ต้องทำ Tier 2**
 
 ```
-1. ผู้ใช้แตะ → เขียนลง IndexedDB พร้อม client_uuid + timestamp → UI อัปเดตทันที
-2. Background: POST /api/observations ส่งรายการที่ยัง pending
+1. ผู้ใช้กดบันทึก → สร้าง stable idempotency key → เขียน mutation ลง IndexedDB → UI อัปเดตทันที
+2. Background ส่งไปยัง endpoint จริงใต้ `/api/v1` เช่น `POST /api/v1/observations/embryo`
 3. สำเร็จ → ลบออกจาก queue, badge เปลี่ยนเป็น "บันทึกแล้ว"
-4. ล้มเหลว → retry แบบ exponential backoff, badge แสดง "ค้าง N รายการ"
-5. Server upsert ด้วย client_uuid เป็น unique key → ส่งซ้ำกี่ครั้งก็ได้ผลเดียว
+4. network/5xx/429 → retry แบบ exponential backoff; business 4xx → หยุด retry และบอกวิธีแก้
+5. Server ทำ insert-or-return-existing ด้วย idempotency key ใน transaction เดียวกับ mutation → ส่งซ้ำกี่ครั้งก็ได้ผลเดียวและไม่แก้ record เดิมเงียบ ๆ
 6. ผู้ใช้จะปิดแท็บทั้งที่ยังค้าง → เตือนก่อน
 ```
 
 **ทำไม `client_uuid` สำคัญมาก:** ถ้า request ถึง server แล้วแต่ response หายกลางทาง (คือสิ่งที่เกิดตอน "หลุดบ้าง") client จะ retry — ถ้าไม่มี idempotency key จะได้ observation ซ้ำ 2 แถว ซึ่ง**ทำให้ตัวเลข survival ผิดทันที** นี่คือ constraint บรรทัดเดียวที่กันความเสียหายระดับงานวิจัย
+
+> **Contract task ก่อน Phase 5:** SRS FR-1001/1002 เป็นแหล่งความจริงและกำหนด “ทุกการบันทึก” ดังนั้น OpenAPI ต้องเพิ่ม stable idempotency key ให้ non-bulk mutation ที่ยังไม่มี (bulk observation/promotion ใช้ `clientUuid` ต่อรายการต่อไป) และ backend ต้องจำผลของ key เดิมอย่าง atomic; ห้ามนำ mutation ใดเข้า shared queue จนกว่า retry แล้วรับประกันว่าไม่สร้างผลซ้ำ
 
 > เราจะทำ PWA app shell cache (FR-5.6) ด้วย เพราะแทบไม่มีต้นทุนเพิ่มเมื่อเป็น SPA อยู่แล้ว — ช่วยให้หน้าเว็บเปิดได้ตอนสัญญาณวูบ
 
@@ -1072,7 +1139,7 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 |---|---|---|
 | 1 | **Frontend build เป็น static เท่านั้น** — ห้ามใช้ SSR, server action, server-side middleware | ผูกกับแพลตฟอร์ม · ทำให้ frontend วางที่ไหนก็ได้แม้ shared hosting |
 | 2 | **คุยกันผ่าน HTTP/JSON ที่มี OpenAPI spec เท่านั้น** — ไม่มีการเรียกฟังก์ชันข้ามฝั่ง | ทำให้เปลี่ยนภาษา backend ได้โดย frontend ไม่ต้องแก้แม้บรรทัดเดียว |
-| 3 | **ห้ามใช้ฟีเจอร์เฉพาะ DB** — ไม่มี materialized view, ไม่มี stored procedure, ไม่มี Postgres array/JSONB operator เฉพาะทาง | ทำให้ Postgres ↔ MySQL ↔ SQLite สลับได้ |
+| 3 | **ห้ามใช้ฟีเจอร์เฉพาะ DB** — ไม่มี materialized view, ไม่มี stored procedure, ไม่มี Postgres array/JSONB operator เฉพาะทาง | ทำให้ PostgreSQL 16 ↔ MySQL 8 ใช้ business behavior เดียวกันได้ |
 | 4 | **UUID เก็บเป็น `CHAR(36)` · เวลาเก็บเป็น UTC** | MySQL ไม่มี `uuid` type และ `TIMESTAMP` ของ MySQL ตันปี 2038 |
 | 5 | **Migration เป็นไฟล์ `.sql` ธรรมดา** ไม่ใช่ฟอร์แมตเฉพาะของ ORM | ย้าย ORM/ภาษาได้โดยไม่ต้องแปลง schema |
 | 6 | **Config ผ่าน environment variable ทั้งหมด** ไม่มีค่าฝังในโค้ด | ย้ายสภาพแวดล้อมได้โดยไม่ต้อง build ใหม่ |
@@ -1085,11 +1152,13 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 
 ### 11.6 แผน Deploy ตัวอย่างให้ลูกค้าดู
 
-P วางแผนเปิดระบบ demo บน iPad — ใช้ Vercel สำหรับ static frontend และ process host แยกสำหรับ Go API ได้ แต่มี 2 กับดักที่ต้องรู้ก่อน
+P วางแผนใช้ Vercel/Render เพื่อเปิดบน iPad ให้ลูกค้าดู — ทำได้ แต่ต้องแยกคำว่า “รับ source ของ Go server ได้” ออกจาก “เป็น process แบบ always-on”
 
-**ข้อจำกัดที่ต้องยึด:** Vercel รองรับ Go ในรูปแบบ Function handler ภายใต้ `/api` ไม่ใช่ Go binary แบบ long-running ที่ฟัง `$PORT` ตามโครงสร้างของระบบนี้ ดังนั้น frontend ใช้ Vercel ได้ แต่ backend ควรอยู่บน Render, Fly.io, VPS หรือ container host เพื่อให้ artifact เดียวกันย้ายที่ได้จริง
+**✅ ข่าวดี:** ตั้งแต่เมษายน 2026 Vercel รองรับ Go server มาตรฐาน (`net/http`, `chi`, `gin`) ที่ฟัง `$PORT` และรองรับ container image บน Fluid Compute ด้วย ([ประกาศ Go backend](https://vercel.com/changelog/zero-configuration-go-backend-support), [Dockerfile support](https://vercel.com/changelog/bring-your-dockerfile-to-vercel-functions)) สำหรับ monorepo นี้ต้องตั้ง project/service root เป็น `backend/` หรือกำหนด service routing ให้ชัด ไม่ใช่สมมติว่า root repository มี `go.mod`
 
-**⚠️ กับดัก 1 — Render free tier ไม่เหมาะกับ demo สด:** free web service ของ Render จะ **spin down หลังไม่มี traffic 15 นาที** และใช้เวลาปลุกราว **1 นาที** (โชว์หน้า loading ระหว่างนั้น) ⇒ ลูกค้าหยิบ iPad ขึ้นมาแตะแล้วนั่งรอ 1 นาที — บรรยากาศเสียทันที นอกจากนี้ **free Postgres ของ Render หมดอายุใน 30 วัน** (มี grace period 14 วัน) ซึ่งอาจตายกลางช่วงที่ลูกค้ากำลังลองใช้
+**ข้อจำกัดที่ต้องยึด:** Vercel แปลง backend ไปทำงานภายใต้ Vercel Function/Fluid Compute semantics — process อาจ scale ลงและไม่มี server ที่รับประกันว่าจะรัน background loop ค้างตลอดเวลา ([ข้อจำกัด backend](https://vercel.com/docs/frameworks/backend)) จึงเหมาะกับ stateless HTTP API ของเรา แต่ migration, scheduled refresh หรือ maintenance job ต้องรันเป็นคำสั่ง/งานแยกที่เรียกอย่างชัดเจน
+
+**⚠️ กับดัก 1 — Render free tier ไม่เหมาะกับ demo สด:** free web service ของ Render จะ **spin down หลังไม่มี traffic 15 นาที** และใช้เวลาปลุกราว **1 นาที** (โชว์หน้า loading ระหว่างนั้น) ⇒ ลูกค้าหยิบ iPad ขึ้นมาแตะแล้วนั่งรอ 1 นาที — บรรยากาศเสียทันที นอกจากนี้ **free Postgres ของ Render หมดอายุใน 30 วัน** (มี grace period 14 วัน) ซึ่งอาจตายกลางช่วงที่ลูกค้ากำลังลองใช้ ([ข้อจำกัด free tier](https://render.com/docs/free), ตรวจล่าสุด 2026-08-20)
 
 **⚠️ กับดัก 2 — อย่าเก็บอะไรลง local disk:** ทั้ง Vercel และ Render (free) ล้างไฟล์บนเครื่องเมื่อ redeploy/spin-down ⇒ ต้องยึดกฎข้อ 7 ของสัญญาความพกพาอย่างเคร่งครัด (ซึ่งเราจะทำอยู่แล้ว)
 
@@ -1098,7 +1167,7 @@ P วางแผนเปิดระบบ demo บน iPad — ใช้ Verc
 | ส่วน | ที่วาง | เหตุผล |
 |---|---|---|
 | Frontend (static) | **Vercel** หรือ Cloudflare Pages | ฟรี · ไม่มี cold start · CDN · ได้ URL สวยแชร์ให้ลูกค้าเปิดบน iPad ได้เลย |
-| Go API | **Fly.io**, Render แบบเสียเงิน หรือ VPS/container host | รัน Go binary เดิมได้ตรง ๆ; ไม่ต้องดัดโครงสร้างเป็น Vercel Functions |
+| Go API | **Vercel Go/Container บน Fluid Compute** หรือ **Fly.io** | ใช้ได้เพราะ API เป็น stateless; ถ้าเลือก Render ให้ข้าม free tier ไปใช้ตัวเสียเงินขั้นต่ำเฉพาะช่วง demo เพื่อเลี่ยง spin-down |
 | PostgreSQL | **Neon** หรือ **Supabase** free tier | ไม่หมดอายุใน 30 วันแบบ Render free · ปลุกจาก idle เร็ว |
 
 > **ทริกก่อนนัด demo:** ยิง request เข้าระบบสัก 2–3 ครั้งล่วงหน้า 5 นาทีเพื่อปลุกทุกอย่างให้อุ่น แล้วเปิดค้างไว้ · และเตรียมข้อมูลตัวอย่าง (batch ที่กรอกไปครึ่งทาง + ปลาที่ติดตามมาหลายสิบวัน) ไว้ก่อน เพราะ **ระบบไม่ได้ migrate ข้อมูลเก่า ถ้าเปิดมาว่างเปล่าลูกค้าจะนึกภาพไม่ออก**
@@ -1109,12 +1178,12 @@ P วางแผนเปิดระบบ demo บน iPad — ใช้ Verc
 
 | ประเด็น | ทางเลือก | ข้อเสนอ |
 |---|---|---|
-| Sparse vs dense observation | เก็บทุก checkpoint × ทุก embryo (26 × N แถว) หรือเก็บเฉพาะที่เปลี่ยน | **Sparse** — 50,000 embryo × 26 = 1.3M แถวถ้า dense; sparse เหลือ ~10% แล้ว reconstruct ด้วย window function (MySQL 8 / MariaDB 10.2+ รองรับ) |
+| Sparse vs dense observation | เก็บทุก checkpoint × ทุก embryo (26 × N แถว) หรือเก็บเฉพาะที่สังเกตจริง/exit | **Sparse ตาม BR-08** — reconstruct ด้วย query ที่มี integration test เดียวกันบน PostgreSQL 16 และ MySQL 8; ไม่รับรอง engine อื่น |
 | เก็บ `deviation` หรือคำนวณสด | คำนวณสดจาก config ปัจจุบัน vs เก็บ snapshot | **เก็บ `hpa_expected_snapshot`** — ดูเหตุผลใน 5.3(ข) |
 | สรุปยอดสำหรับ dashboard | materialized view vs ตารางสรุป vs คำนวณสด | **คำนวณสด + index ให้ดี** — ที่ขนาด 5 ผู้ใช้/500k แถว เพียงพอ และไม่ผูกกับ Postgres (กฎข้อ 3) · ถ้าช้าจริงค่อยเพิ่มตารางสรุปที่ refresh ด้วย job |
 | ORM / query layer | GORM vs `sqlc` vs `database/sql` ดิบ | **`sqlc`** — เขียน SQL จริง ได้ Go struct ที่ type-safe อัตโนมัติ · SQL ที่เขียนเองทำให้คุม portability ได้ตรง ๆ ต่างจาก ORM ที่ซ่อน dialect ไว้ |
 | ID scheme | auto-increment vs UUID | **UUID v7 เก็บเป็น `CHAR(36)`** — client generate ได้ตอน queue · เรียงตามเวลาได้ · ข้ามฐานข้อมูลได้ |
-| Time storage | `TIMESTAMP` vs `DATETIME` UTC | **`DATETIME`/`timestamptz` เก็บ UTC เสมอ** — แก้ P2 ที่ต้นเหตุ · เลี่ยงข้อจำกัดปี 2038 ของ MySQL `TIMESTAMP` |
+| Time storage | `TIMESTAMP` vs `DATETIME` vs `timestamptz` | ใช้ logical datetime แบบ UTC: PostgreSQL = **`TIMESTAMP WITHOUT TIME ZONE`**, MySQL = **`DATETIME`** · ห้ามใช้ `timestamptz`/MySQL `TIMESTAMP` · แปลงเป็น `Asia/Bangkok` ที่ชั้นแสดงผลเท่านั้น (NFR-11) |
 | แพ็กเกจตอนส่งมอบ | binary + static files vs Docker image | **ทั้งคู่** — Dockerfile สำหรับที่ที่รัน container ได้ · binary + โฟลเดอร์ static สำหรับที่ที่รันไม่ได้ |
 
 ## 12. Initial Setup (แทนหัวข้อ Data Migration เดิม)
@@ -1124,10 +1193,10 @@ P วางแผนเปิดระบบ demo บน iPad — ใช้ Verc
 | ขั้น | งาน | วิธีทำ |
 |---|---|---|
 | **I1** | Seed `stage_definition` 36 stage + `stage_scope` (1–26 = STAGE_1, 27–36 = STAGE_2) | Seed script จาก sheet `Stage` ของ v2 |
-| **I2** | Seed `stage_timing_profile` v1 = "ZFIN 28.5°C" พร้อมค่าทั้ง 26 stage | Seed script จากภาคผนวก C |
+| **I2** | Seed `stage_timing_profile` v1 = "ZFIN 28.5°C" พร้อมค่า `stage_timing` **ครบทั้ง 36 stage** (26 ของ Stage 1 + 10 ของ Stage 2) | Seed script จากภาคผนวก C |
 | **I3** | Seed master data จากค่า distinct ในไฟล์เดิม — site (KU, MSU), operator (Jan, June, Bee, Toon), strain (AB, TU, NHGRI), CSOF lot, recipient egg lot, treatment group (Control, RK701) พร้อม **normalize ชื่อ** (ตัด space ท้าย, แก้ `Disscard`) | Seed script + ให้ลูกค้าตรวจ 1 รอบ |
 | **I4** | Seed `fish_box` ตามที่ลูกค้ามีจริง | ลูกค้ากรอกเอง |
-| **I5** | ให้ลูกค้าลองสร้าง batch ทดสอบ 1 รอบแล้วลบทิ้ง | UAT เบื้องต้น |
+| **I5** | ให้ลูกค้าลองสร้าง batch ทดสอบ 1 รอบใน UAT/demo database แล้ว reset ฐานข้อมูลทดสอบก่อน go-live; ห้ามปะปน test record ใน production | UAT เบื้องต้น |
 
 > ไฟล์ Excel เดิมทั้ง 4 ไฟล์ยังคงเก็บไว้เป็นเอกสารอ้างอิง — ถ้าภายหลังลูกค้าเปลี่ยนใจอยากนำเข้า schema รองรับได้ทันทีเพราะ mapping ครบแล้ว (ภาคผนวก A) ประเมินงานเพิ่ม ~1 สัปดาห์
 
@@ -1144,22 +1213,22 @@ P วางแผนเปิดระบบ demo บน iPad — ใช้ Verc
 | **R-04** 🟡 | **ไม่มี login = ใครก็แก้ข้อมูลได้ และไม่รู้ว่าใครกรอก** | ข้อมูลวิจัยถูกแก้โดยไม่ตั้งใจ ตรวจย้อนหลังไม่ได้ | operator picker บังคับเลือกทุก session + เก็บ device ID + soft delete + audit log · จำกัดการเข้าถึงที่ระดับเครือข่าย · เสนอเพิ่ม PIN ง่าย ๆ ใน v1.1 |
 | **R-05** 🟡 | **Dashboard ว่างเปล่าวันส่งมอบ** (เพราะไม่ migrate) | ลูกค้าอาจเข้าใจว่าระบบพัง หรือรู้สึกว่าไม่ได้ประโยชน์ทันที | สื่อสารล่วงหน้าชัด ๆ (ดู 4.3) + ทำหน้า empty state ที่อธิบายว่าต้องกรอกอะไรก่อน + เตรียมข้อมูลตัวอย่างสำหรับ demo |
 | **R-06** 🟢 | เน็ตในแลป "หลุดบ้าง แต่ไม่บ่อยมาก" (Q-N1) | ถ้าหลุดตอนกดบันทึกพอดี ข้อมูลอาจหาย | **ปิดความเสี่ยงแล้วด้วย Tier 1** (11.4) — local write queue + `client_uuid` · ถ้าภายหลังพบว่าหลุดถี่กว่าที่คิด อัปเกรดเป็น Tier 2 ได้โดยไม่ต้องรื้อ |
-| **R-10** 🟡 | **demo บน free tier อาจ cold start 1 นาที หรือ DB หมดอายุกลางทาง** | ลูกค้าเปิด iPad แล้วรอ / ข้อมูล demo หาย | ดู 11.6 — frontend บน Vercel (ไม่มี cold start) · DB บน Neon/Supabase แทน Render free · ปลุกระบบก่อนนัด 5 นาที |
 | **R-07** 🟢 | **ช่วง cleavage ต้องส่องทุก 15 นาที** — ผู้ใช้อาจไม่ทันทำหลาย batch พร้อมกัน | บันทึกไม่ครบ checkpoint | หน้า Due Now เรียงลำดับความเร่งด่วน + รองรับ backdating (FR-4.12) |
-| **R-08** 🟢 | **Protocol อาจเปลี่ยนอีก** — ลูกค้าเปลี่ยนจาก 22 → 26 → 36 stage ในเวลาไม่ถึงปี | ข้อมูลเทียบข้ามช่วงไม่ได้ | stage definition + timing profile แบบ versioned ตั้งแต่แรก (FR-1.5, FR-1.7) |
-| **R-09** 🟢 | Dashboard ช้าเมื่อข้อมูลโต | ผู้ใช้เลิกใช้ | คำนวณสด + index ก่อน; เพิ่มตารางสรุปที่ refresh ด้วย job เมื่อมีผลวัดว่าจำเป็น (11.7) |
+| **R-08** 🟢 | **Protocol อาจเปลี่ยนอีก** — ลูกค้าเปลี่ยนจาก 22 → 26 → 36 stage ในเวลาไม่ถึงปี | ข้อมูลเทียบข้ามช่วงไม่ได้ | v1 ใช้ Stage Definition ที่ seed และอ่านอย่างเดียว + Timing Profile แบบ versioned (FR-1.5, FR-1.7) · หากชุด stage เปลี่ยนให้สร้าง protocol/version ผ่าน change request ไม่แก้ของเดิมทับ |
+| **R-09** 🟢 | Dashboard ช้าเมื่อข้อมูลโต | ผู้ใช้เลิกใช้ | ใส่ index ที่ SRS ระบุไว้ก่อน + คำนวณสด; index เพิ่มเติมต้องอิง query plan ของข้อมูล 5 ปี · ถ้าไม่พอค่อยเพิ่ม **ตารางสรุปที่ refresh ด้วย job** — **ห้ามใช้ materialized view** เพราะผิดกฎข้อ 3 ของสัญญาความพกพา (11.5) |
+| **R-10** 🟡 | **demo บน free tier อาจ cold start 1 นาที หรือ DB หมดอายุกลางทาง** | ลูกค้าเปิด iPad แล้วรอ / ข้อมูล demo หาย | ดู 11.6 — frontend บน Vercel (ไม่มี cold start) · DB บน Neon/Supabase แทน Render free · ปลุกระบบก่อนนัด 5 นาที |
 
 ---
 
-## 14. Open Questions — ปิดครบแล้ว
+## 14. Open Questions — ปิดครบ ยกเว้น 1 ข้อที่ไม่บล็อก
 
-**Q-01 ถึง Q-12 และ Q-N1 ถึง Q-N6 ปิดครบทุกข้อ** (สรุปในภาคผนวก D และ E) ไม่มีคำถามที่บล็อกการเริ่มพัฒนา
+**Q-01 ถึง Q-12 และ Q-N1, Q-N2, Q-N4, Q-N5, Q-N6 ปิดแล้ว** (สรุปในภาคผนวก D และ E) — เหลือ **Q-N3 (hosting) ที่ยังรอคำตอบ แต่ไม่บล็อกการเริ่มพัฒนา**
 
 เหลือเพียง **1 เรื่องที่ยังรอคำตอบแต่ไม่บล็อก**:
 
 | ID | เรื่อง | สถานะ | เหตุผลที่ไม่บล็อก |
 |---|---|---|---|
-| Q-N3 | hosting จริงจะเป็นแบบไหน (shared / VPS / cloud) | ⏳ รอลูกค้าประสานงาน อาจใช้เวลานาน | สถาปัตยกรรม 11.1 + สัญญาความพกพา 11.5 ทำให้เริ่มเขียนได้เลยและย้ายทีหลังได้ · demo ใช้ Vercel frontend + process host + Neon ไปก่อน (11.6) |
+| Q-N3 | hosting จริงจะเป็นแบบไหน (shared / VPS / cloud) | ⏳ รอลูกค้าประสานงาน อาจใช้เวลานาน | สถาปัตยกรรม 11.1 + สัญญาความพกพา 11.5 ทำให้เริ่มเขียนได้เลยและย้ายทีหลังได้ · demo ใช้ Vercel/Neon ไปก่อน (11.6) |
 
 **สิ่งที่ควรถามลูกค้าเมื่อมีโอกาส (ไม่เร่ง):**
 
@@ -1176,13 +1245,13 @@ P วางแผนเปิดระบบ demo บน iPad — ใช้ Verc
 | Phase | ระยะเวลา | ส่งมอบ |
 |---|---|---|
 | **P0 — Discovery** | 2 วัน | สังเกตการณ์การทำงานจริงในแลป 1 รอบ · ยืนยัน ERD · ตั้ง repo + CI (รวม MySQL compat check) |
-| **P1 — Foundation** | 2 สัปดาห์ | Schema + `golang-migrate` + `sqlc` + master data CRUD (Go API) + SPA shell + seed 36 stages + **หน้าตั้งค่าเวลามาตรฐาน (FR-1.7)** |
+| **P1 — Foundation** | 2 สัปดาห์ | Schema + `golang-migrate` + `sqlc` + OpenAPI idempotency contract สำหรับทุก write + backend Dockerfile + local Compose (PostgreSQL default/MySQL compatibility) + master data CRUD (Go API) + SPA shell + seed 36 stages + **หน้าตั้งค่าเวลามาตรฐาน (FR-1.7)** |
 | **P2 — Data Entry (หัวใจ)** | 3 สัปดาห์ | Batch/embryo registration · หน้า Due Now · checkpoint entry + **แสดง deviation สด** · 96-well view · การเลื่อนขั้น Stage 1→2 · fish register · daily roll-call + backdating |
 | **P3 — Network resilience** | 3 วัน | Optimistic UI + local write queue + idempotency + สถานะ sync (Tier 1) |
 | **P4 — Dashboard** | 2 สัปดาห์ | ทั้ง 3 แท็บ + filter + **แผง timing deviation** + จุดเริ่มผิดปกติ + drill-down + print stylesheet สำหรับ PDF |
 | **P5 — Export** | 1 สัปดาห์ | Excel 14 sheets (`excelize`) + **PDF จากฝั่ง browser** + R-ready table |
-| **P6 — UAT & Hardening** | 1.5 สัปดาห์ | ทดลองใช้คู่ขนานกับ Excel 1 รอบทดลองเต็ม · แก้ไข · ส่งมอบ + คู่มือ |
-| | **รวม ~9.5 สัปดาห์** | *(v0.1 = 13 · v0.2 = 10)* |
+| **P6 — UAT & Hardening** | 1.5 สัปดาห์ | ทดลองใช้คู่ขนานกับ Excel 1 รอบทดลองเต็ม · harden/test container ที่ใช้มาตั้งแต่ P1 · ส่งมอบทั้ง Dockerfile/image instructions และ binary + static files · คู่มือ deploy/restore |
+| | **รวม ~10.5 สัปดาห์** *(งานหลัก 9.5 สัปดาห์ + P0 2 วัน + P3 3 วัน)* | *(v0.1 = 13 · v0.2 = 10)* |
 
 ### ข้อเสนอสำคัญ: Parallel Run
 
@@ -1222,12 +1291,12 @@ P วางแผนเปิดระบบ demo บน iPad — ใช้ Verc
 | `Templat_work sheet` | `Observation time` | `embryo_observation.observed_at` |
 | `Templat_work sheet` | `Degenerated` | `embryo_observation.outcome = DEGENERATED` |
 | `Templat_work sheet` | `Observed Dead` | `embryo_observation.outcome = DEAD` |
-| `Templat_work sheet` | `Nor/Ab` | `embryo_observation.condition` |
+| `Templat_work sheet` | `Nor/Ab` | `embryo_observation.biological_condition` |
 | `Template_Raw data V.2` | `Natural breeding` / `IVF` × Normal/Abnormal | `control_arm_count.*` |
 | `Cloned fish status` | `DOB` | `clone_fish.dob` *(= วัน activation — ยืนยันแล้ว 46/46)* |
 | `Cloned fish status` | `Code` | `clone_fish.fish_code` |
 | `Cloned fish status` | `STATUS` | `clone_fish.status` |
-| `Cloned fish status` | `Normal` / `Abnormal` | `clone_fish.condition` (รวมเป็น enum เดียว) |
+| `Cloned fish status` | `Normal` / `Abnormal` | `clone_fish.biological_condition` (รวมเป็น enum เดียว) |
 | `Cloned fish status` | `SEX` | `clone_fish.sex` |
 | `Cloned fish status` | `cut tail` | `clone_fish.fin_clipped` |
 | `Cloned fish status` | `AGE of clone` | **ลบทิ้ง** — คำนวณจาก `dob` (Req #7) |
@@ -1326,7 +1395,7 @@ H_T = h / (0.055 × T − 0.57)
 
 | ID | คำถามเดิม | คำตอบ | ผลต่อเอกสาร |
 |---|---|---|---|
-| Q-01 | `2-cell` ที่ 0.75 h หรือ 1 h | **ขยายเป็นฟีเจอร์ใหม่** — ต้องมีเวลากลางต่อ stage เทียบกับเวลาจริง เพื่อดูเร็ว/ช้า และต้องปรับค่าได้ง่าย | เพิ่ม S-14, FR-1.7–1.10, FR-4.9, FR-6.3, หัวข้อ 5.6, ภาคผนวก C · ค่า `2-cell` = **0.75 h** ตาม ZFIN |
+| Q-01 | `2-cell` ที่ 0.75 h หรือ 1 h | **ขยายเป็นฟีเจอร์ใหม่** — ต้องมีเวลากลางต่อ stage เทียบกับเวลาจริง เพื่อดูเร็ว/ช้า และต้องปรับค่าได้ง่าย | เพิ่ม S-14, FR-1.7–1.9, FR-4.9, FR-6.3, หัวข้อ 5.6, ภาคผนวก C · ค่า `2-cell` = **0.75 h** ตาม ZFIN |
 | Q-02 | Stage set สุดท้าย + `Fry`/`Juvenile`/`Adult` | สมมติฐานถูกต้อง | 36 stage · Fry/Juvenile/Adult = ช่วงอายุใน Stage 2 |
 | Q-03 | เกณฑ์ย้าย Stage 1 → 2 | **อายุเกิน 5 วัน และยังมีชีวิตรอด** | Stage 1 = checkpoint 1–26 · เพิ่ม S-15, FR-3.1–3.2, หัวข้อ 5.4, flow 7.4 |
 | Q-04 | Abnormal → แช่แข็งทันทีไหม | **ติดตามต่อจนตาย** เพียง mark ว่าพบผิดปกติช่วงไหน | เพิ่ม S-16, FR-4.17, FR-6.4, `first_abnormal_*`, overlay ใน dashboard |
@@ -1353,10 +1422,10 @@ H_T = h / (0.055 × T − 0.57)
 | Q-N5 | ค่า tolerance ควรเป็นเท่าไหร่ | **ไม่ต้องมี tolerance** — บอกส่วนต่างตรง ๆ เช่น "นานกว่าสากล 1 ชม." | ลบ `tolerance_h` จาก schema · ตัด FR-1.10 · ตัดแถบสีเขียว/เหลือง/แดง · ตัดคอลัมน์ tolerance ในภาคผนวก C |
 | Q-N6 | ต้องการ notification ไหม | **ยังไม่ต้องมี** | ตัดออกจาก v1 · เหลือแค่หน้า Due Now |
 | — | *(คำถามเพิ่ม)* ถ้า backend ใช้ Go จะเป็นอย่างไร | เลือก **Go** | วิเคราะห์ข้อดี-ข้อเสียใน 11.3 · แก้จุดอ่อน PDF ด้วยการ render ฝั่ง browser · แก้จุดอ่อน type sharing ด้วย OpenAPI codegen |
-| — | *(คำถามเพิ่ม)* จะ demo ยังไง | **Vercel frontend + Fly/Render/VPS backend** เปิดบน iPad ให้ลูกค้าดู | เพิ่มหัวข้อ 11.6 — แยก static hosting จาก Go process host · เตือนกับดัก Render free tier · เพิ่ม R-10 |
+| — | *(คำถามเพิ่ม)* จะ demo ยังไง | **Vercel / Render** เปิดบน iPad ให้ลูกค้าดู | เพิ่มหัวข้อ 11.6 — Vercel รับ standard Go server แต่ทำงานแบบ Function/Fluid Compute · เตือนกับดัก Render free tier (spin-down 15 นาที + DB หมดอายุ 30 วัน) · เพิ่ม R-10 |
 
-> **หมายเหตุการแก้ข้อมูล:** Vercel Go Runtime ใช้รูปแบบ Function handler ภายใต้ `/api`; ไม่ควรระบุว่าสามารถนำ Go binary แบบ long-running ของระบบนี้ไปวางได้โดยตรง
+> **หมายเหตุการแก้ข้อมูล:** ปัจจุบัน Vercel รับ source/container ของ standard Go server ที่ฟัง `$PORT` ได้แล้ว แต่ runtime ยังเป็น Vercel Function/Fluid Compute ไม่ใช่ always-on VPS; แผน demo ใช้ได้เพราะ ChronoFish API เป็น stateless และไม่พึ่ง background process
 
 ---
 
-*เอกสารนี้ v0.3 — Open Questions ปิดครบ · tech stack ล็อกแล้ว (Static SPA + Go + PostgreSQL แบบ ANSI) · **พร้อมเริ่ม implement ได้ทันที** โดยไม่ต้องรอคำตอบเรื่อง hosting*
+*เอกสารนี้ v0.3.2 — Open Questions ปิดครบ ยกเว้น Q-N3 (hosting) ที่ยังรอแต่ไม่บล็อก · stack หลักล็อกแล้ว (Static SPA + Go + PostgreSQL/MySQL contract) ส่วน library ระดับ feature เลือกเมื่อเริ่ม slice จริง · **พร้อมเริ่ม implement ได้ทันที** โดยไม่ต้องรอคำตอบเรื่อง hosting*
