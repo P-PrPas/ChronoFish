@@ -1,8 +1,8 @@
 # ChronoFish — Detailed Implementation Plan
 
-> สถานะเอกสาร: แผนดำเนินงานสำหรับ SRS v1.0  
-> วันที่จัดทำ: 20 สิงหาคม 2026  
-> แหล่งความจริง: `SRS_Cloning_Tracking_System.md` → `api/openapi.yaml` → implementation  
+> สถานะเอกสาร: แผนดำเนินงานสำหรับ SRS v1.0
+> วันที่จัดทำ: 20 สิงหาคม 2026
+> แหล่งความจริง: `SRS_Cloning_Tracking_System.md` → `api/openapi.yaml` → implementation
 > ฐานข้อมูลหลัก: PostgreSQL 16 และต้องผ่านชุดทดสอบเดียวกันบน MySQL 8
 
 ## 1. วัตถุประสงค์และวิธีใช้เอกสารนี้
