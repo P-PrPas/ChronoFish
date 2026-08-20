@@ -121,6 +121,12 @@ func TestChangedStateOnlyContainsMutationDelta(t *testing.T) {
 	}
 }
 
+func TestStringValueDecodesDriverBytes(t *testing.T) {
+	if got := stringValue([]byte("operator-1")); got != "operator-1" {
+		t.Fatalf("stringValue = %q, want driver text", got)
+	}
+}
+
 func TestCommitPersistsOnlyChangedCanonicalRows(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

@@ -320,6 +320,9 @@ func stringValue(value any) string {
 	if value == nil {
 		return ""
 	}
+	if bytes, ok := value.([]byte); ok {
+		return string(bytes)
+	}
 	return fmt.Sprint(value)
 }
 
