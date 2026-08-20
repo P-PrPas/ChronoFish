@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -94,12 +95,21 @@ func (s *apiServer) kpiLocked(embryos []map[string]any, query map[string][]strin
 		}
 	}
 	fish := s.filteredFishLocked(query)
-	nEggs := 0
+	nEggs, nActivated := 0, 0
+	countedLots := make(map[string]bool)
 	for _, embryo := range embryos {
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
-		nEggs += intValue(lot["nEggs"])
+		lotID := stringValue(lot["id"])
+		if !countedLots[lotID] {
+			countedLots[lotID] = true
+			nEggs += intValue(lot["nEggs"])
+			nActivated += intValue(lot["nActivated"])
+		}
 	}
-	return map[string]any{"stage1": map[string]any{"nBatches": len(s.filteredBatchIDsLocked(query)), "nEggs": nEggs, "nActivated": len(embryos), "nReachedShield": s.reachedStageCountLocked(embryos, 19), "nReachedDay1": s.reachedStageCountLocked(embryos, 22), "nPromoted": len(fish), "pctNormal": percentage(normal, len(embryos)), "pctAbnormal": percentage(abnormal, len(embryos))}, "stage2": map[string]any{"nFish": len(fish), "nAlive": countFish(fish, "ALIVE"), "nDead": countFish(fish, "DEAD"), "nFrozen": countFish(fish, "FROZEN"), "nDiscarded": countFish(fish, "DISCARDED"), "meanAgeDaysAlive": meanFishAge(fish, "ALIVE")}}
+	if nActivated == 0 {
+		nActivated = len(embryos)
+	}
+	return map[string]any{"stage1": map[string]any{"nBatches": len(s.filteredBatchIDsLocked(query)), "nEggs": nEggs, "nActivated": nActivated, "nReachedShield": s.reachedStageCountLocked(embryos, 19), "nReachedDay1": s.reachedStageCountLocked(embryos, 22), "nPromoted": len(fish), "pctNormal": percentage(normal, len(embryos)), "pctAbnormal": percentage(abnormal, len(embryos))}, "stage2": map[string]any{"nFish": len(fish), "nAlive": countFish(fish, "ALIVE"), "nDead": countFish(fish, "DEAD"), "nFrozen": countFish(fish, "FROZEN"), "nDiscarded": countFish(fish, "DISCARDED"), "meanAgeDaysAlive": meanFishAge(fish, "ALIVE")}}
 }
 
 func (s *apiServer) filteredBatchIDsLocked(query map[string][]string) map[string]bool {
@@ -131,7 +141,22 @@ func (s *apiServer) filteredBatchIDsLocked(query map[string][]string) map[string
 func (s *apiServer) filteredFishLocked(query map[string][]string) map[string]map[string]any {
 	result := make(map[string]map[string]any)
 	for id, fish := range s.entities["fish"] {
+		if wanted := firstQuery(query, "status"); wanted != "" && !strings.EqualFold(wanted, stringValue(fish["status"])) {
+			continue
+		}
 		if wanted := firstQuery(query, "siteId"); wanted != "" && wanted != stringValue(fish["siteId"]) {
+			continue
+		}
+		if wanted := firstQuery(query, "boxId"); wanted != "" && wanted != stringValue(fish["fishBoxId"]) {
+			continue
+		}
+		if wanted := firstQuery(query, "condition"); wanted != "" && !strings.EqualFold(wanted, stringValue(fish["condition"])) {
+			continue
+		}
+		if from := firstQuery(query, "dobFrom"); from != "" && stringValue(fish["dob"]) < from {
+			continue
+		}
+		if to := firstQuery(query, "dobTo"); to != "" && stringValue(fish["dob"]) > to {
 			continue
 		}
 		if wanted := firstQuery(query, "donorCellLineId"); wanted != "" && wanted != stringValue(fish["donorCellLineId"]) {
@@ -220,8 +245,21 @@ func (s *apiServer) deviationLocked(embryos []map[string]any) []map[string]any {
 			sum += value
 		}
 		median := values[len(values)/2]
-		items = append(items, map[string]any{"stageOrder": stage, "stageLabel": stageLabel(stage), "expectedHpa": expectedHPA(stageCode(stage)), "n": len(values), "meanDeviationH": sum / float64(len(values)), "medianDeviationH": median, "sdDeviationH": nil, "minDeviationH": values[0], "maxDeviationH": values[len(values)-1]})
+		if len(values)%2 == 0 {
+			median = (values[len(values)/2-1] + values[len(values)/2]) / 2
+		}
+		mean := sum / float64(len(values))
+		var variance float64
+		for _, value := range values {
+			variance += (value - mean) * (value - mean)
+		}
+		var sd any
+		if len(values) > 1 {
+			sd = math.Sqrt(variance / float64(len(values)-1))
+		}
+		items = append(items, map[string]any{"stageOrder": stage, "stageLabel": stageLabel(stage), "expectedHpa": expectedHPA(stageCode(stage)), "n": len(values), "meanDeviationH": mean, "medianDeviationH": median, "sdDeviationH": sd, "minDeviationH": values[0], "maxDeviationH": values[len(values)-1]})
 	}
+	sort.Slice(items, func(i, j int) bool { return intValue(items[i]["stageOrder"]) < intValue(items[j]["stageOrder"]) })
 	return items
 }
 func (s *apiServer) abnormalityLocked(embryos []map[string]any) []map[string]any {
@@ -236,6 +274,7 @@ func (s *apiServer) abnormalityLocked(embryos []map[string]any) []map[string]any
 	for stage, count := range counts {
 		items = append(items, map[string]any{"stageOrder": stage, "stageLabel": stageLabel(stage), "count": count})
 	}
+	sort.Slice(items, func(i, j int) bool { return intValue(items[i]["stageOrder"]) < intValue(items[j]["stageOrder"]) })
 	return items
 }
 func (s *apiServer) observationAtStageLocked(embryoID string, stage int) map[string]any {
@@ -285,12 +324,12 @@ func (s *apiServer) fishSurvivalLocked(query map[string][]string) []map[string]a
 	items := make([]map[string]any, 0, maxAge+1)
 	for age := 0; age <= maxAge; age++ {
 		atRisk, alive := 0, 0
+		today := time.Now().In(bangkokLocation()).Format("2006-01-02")
 		for _, fish := range fishItems {
-			dob, err := time.ParseInLocation("2006-01-02", stringValue(fish["dob"]), bangkokLocation())
-			if err != nil {
+			observedAge := ageDaysOn(stringValue(fish["dob"]), today)
+			if observedAge == 0 && stringValue(fish["dob"]) != today {
 				continue
 			}
-			observedAge := int(time.Since(dob).Hours() / 24)
 			if observedAge >= age {
 				atRisk++
 				if stringValue(fish["status"]) == "ALIVE" || s.exitAgeLocked(fish) > age {
@@ -303,11 +342,11 @@ func (s *apiServer) fishSurvivalLocked(query map[string][]string) []map[string]a
 	return items
 }
 func (s *apiServer) exitAgeLocked(fish map[string]any) int {
-	return ageDays(stringValue(fish["exitDate"]))
+	return ageDaysOn(stringValue(fish["dob"]), stringValue(fish["exitDate"]))
 }
 func (s *apiServer) gapsLocked(query map[string][]string) []map[string]any {
 	items := make([]map[string]any, 0)
-	today := time.Now().UTC().Format("2006-01-02")
+	today := time.Now().In(bangkokLocation()).Format("2006-01-02")
 	for _, fish := range s.filteredFishLocked(query) {
 		latest := ""
 		for _, observation := range s.fishObs {

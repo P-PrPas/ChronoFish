@@ -13,6 +13,9 @@ func TestStageNumberAndCalendarAge(t *testing.T) {
 	if got := AgeDaysOn("2026-08-20", "2026-08-25", location); got != 5 {
 		t.Fatalf("age = %d, want 5", got)
 	}
+	if got := StageNumber("not-a-stage"); got != 0 {
+		t.Fatalf("invalid stage number = %d, want 0", got)
+	}
 }
 
 func TestPromotionDecision(t *testing.T) {

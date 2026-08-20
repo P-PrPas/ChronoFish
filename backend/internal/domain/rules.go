@@ -8,9 +8,16 @@ import (
 
 func StageNumber(code string) int {
 	suffix := strings.TrimPrefix(code, "stage_")
-	number, _ := strconv.Atoi(strings.TrimLeft(strings.SplitN(suffix, "_", 2)[0], "0"))
-	if number == 0 {
-		return 1
+	if suffix == code {
+		return 0
+	}
+	part := strings.TrimLeft(strings.SplitN(suffix, "_", 2)[0], "0")
+	if part == "" {
+		return 0
+	}
+	number, err := strconv.Atoi(part)
+	if err != nil || number < 1 {
+		return 0
 	}
 	return number
 }

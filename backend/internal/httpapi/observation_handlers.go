@@ -287,6 +287,10 @@ func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Req
 				writeAPIError(w, 422, "validation_error", "invalid observedOn")
 				return true
 			}
+			if dob := stringValue(s.entities["fish"][stringValue(old["cloneFishId"])]["dob"]); dob != "" && stringValue(value) < dob {
+				writeAPIError(w, 422, "validation_error", "observedOn ต้องไม่ก่อนวันเกิดปลา")
+				return true
+			}
 			if observedOn.After(bangkokDateStart(time.Now())) {
 				writeAPIError(w, 422, "validation_error", "observedOn ห้ามเป็นวันที่ในอนาคต")
 				return true
@@ -357,6 +361,15 @@ func (s *apiServer) recomputeFishLocked(fishID string) {
 	latestCondition := "NORMAL"
 	var firstAbnormal map[string]any
 	firstAbnormalDate := ""
+	var inherited map[string]any
+	if embryo := s.entities["embryos"][stringValue(fish["embryoId"])]; embryo != nil && stringValue(embryo["firstAbnormalOn"]) != "" {
+		inherited = map[string]any{
+			"firstAbnormalOn":        embryo["firstAbnormalOn"],
+			"firstAbnormalAgeDays":   embryo["firstAbnormalAgeDays"],
+			"firstAbnormalStageCode": embryo["firstAbnormalStageCode"],
+			"firstAbnormalStageId":   embryo["firstAbnormalStageId"],
+		}
+	}
 	for _, observation := range s.fishObs {
 		if observation["deletedAt"] != nil || stringValue(observation["cloneFishId"]) != fishID {
 			continue
@@ -380,15 +393,27 @@ func (s *apiServer) recomputeFishLocked(fishID string) {
 		fish["status"], fish["exitDate"], fish["exitReason"] = latestOutcome, latestDate, latestOutcome
 	}
 	if firstAbnormal != nil {
-		inheritedDate := stringValue(fish["firstAbnormalOn"])
+		inheritedDate := stringValue(inherited["firstAbnormalOn"])
 		if inheritedDate == "" || firstAbnormalDate < inheritedDate {
 			fish["firstAbnormalOn"] = firstAbnormalDate
 			fish["firstAbnormalAgeDays"] = ageDaysOn(stringValue(fish["dob"]), firstAbnormalDate)
 			fish["firstAbnormalSource"] = "fish"
+		} else if inherited != nil {
+			for key, value := range inherited {
+				fish[key] = value
+			}
+			fish["firstAbnormalSource"] = "embryo"
 		}
-	} else if stringValue(fish["firstAbnormalSource"]) == "fish" {
-		for _, field := range []string{"firstAbnormalOn", "firstAbnormalAgeDays", "firstAbnormalSource"} {
-			delete(fish, field)
+	} else {
+		if inherited != nil {
+			for key, value := range inherited {
+				fish[key] = value
+			}
+			fish["firstAbnormalSource"] = "embryo"
+		} else if stringValue(fish["firstAbnormalSource"]) == "fish" {
+			for _, field := range []string{"firstAbnormalOn", "firstAbnormalAgeDays", "firstAbnormalSource", "firstAbnormalStageCode", "firstAbnormalStageId"} {
+				delete(fish, field)
+			}
 		}
 	}
 }
@@ -506,13 +531,14 @@ func (s *apiServer) createFishObservations(w http.ResponseWriter, r *http.Reques
 			continue
 		}
 		observedOn, dateErr := time.ParseInLocation("2006-01-02", stringValue(item["observedOn"]), bangkokLocation())
-		if dateErr != nil || observedOn.After(bangkokDateStart(time.Now())) || !validFishOutcome(stringValue(item["outcome"])) || !validCondition(stringValue(item["condition"])) {
+		if dateErr != nil || (stringValue(fish["dob"]) != "" && stringValue(item["observedOn"]) < stringValue(fish["dob"])) || observedOn.After(bangkokDateStart(time.Now())) || !validFishOutcome(stringValue(item["outcome"])) || !validCondition(stringValue(item["condition"])) {
 			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "วันที่หรือ enum ของ fish observation ไม่ถูกต้อง"}}
 			results = append(results, result)
 			continue
 		}
 		if fishObservationExistsLocked(stringValue(item["cloneFishId"]), stringValue(item["observedOn"]), s.fishObs) {
-			result := map[string]any{"clientUuid": client, "status": "duplicate"}
+			original := s.fishObservationLocked(stringValue(item["cloneFishId"]), stringValue(item["observedOn"]))
+			result := map[string]any{"clientUuid": client, "id": original["id"], "status": "duplicate", "ageDays": original["ageDays"], "outcome": original["outcome"], "condition": original["condition"]}
 			body, _ := json.Marshal(result)
 			s.idempotency["fish:"+client] = body
 			results = append(results, result)
@@ -559,12 +585,18 @@ func fishObservationExistsLocked(fishID, observedOn string, observations map[str
 	return false
 }
 
-func ageDays(value string) int {
-	dob, err := time.Parse("2006-01-02", value)
-	if err != nil {
-		return 0
+func (s *apiServer) fishObservationLocked(fishID, observedOn string) map[string]any {
+	for _, observation := range s.fishObs {
+		if observation["deletedAt"] == nil && stringValue(observation["cloneFishId"]) == fishID && stringValue(observation["observedOn"]) == observedOn {
+			return observation
+		}
 	}
-	return int(time.Since(dob).Hours() / 24)
+	return map[string]any{}
+}
+
+func ageDays(value string) int {
+	today := time.Now().In(bangkokLocation()).Format("2006-01-02")
+	return ageDaysOn(value, today)
 }
 
 func ageDaysOn(dobValue, observedValue string) int {

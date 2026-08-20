@@ -21,8 +21,12 @@ func (s *apiServer) promotions(w http.ResponseWriter, r *http.Request, p []strin
 				continue
 			}
 			lot := s.entities["injection-lots"][stringValue(e["injectionLotId"])]
+			batch := s.entities["batches"][stringValue(lot["batchId"])]
+			if wanted := firstQuery(r.URL.Query(), "siteId"); wanted != "" && wanted != stringValue(batch["siteId"]) {
+				continue
+			}
 			activated, err := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
-			if err == nil && domain.PromotionEligible(e["exitReason"] != nil, true, calendarAge(activated, now), 5) {
+			if err == nil && domain.PromotionEligible(e["exitReason"] != nil, true, calendarAge(activated, now), s.promotionThresholdLocked(batch)) {
 				items = append(items, map[string]any{"embryoId": e["id"], "embryoCode": e["embryoCode"], "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "ageDays": calendarAge(activated, now), "suggestedFishCode": "No." + strconv.Itoa(s.fishNo), "suggestedRunningNo": s.fishNo})
 			}
 		}
@@ -79,7 +83,7 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
 		batch := s.entities["batches"][stringValue(lot["batchId"])]
 		activated, activatedErr := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
-		eligible := ok && lot != nil && batch != nil && activatedErr == nil && domain.PromotionEligible(embryo["exitReason"] != nil, latest != nil && stringValue(latest["outcome"]) == "ALIVE", calendarAge(activated, time.Now().UTC()), 5)
+		eligible := ok && lot != nil && batch != nil && activatedErr == nil && domain.PromotionEligible(embryo["exitReason"] != nil, latest != nil && stringValue(latest["outcome"]) == "ALIVE", calendarAge(activated, time.Now().UTC()), s.promotionThresholdLocked(batch))
 		if !eligible {
 			result := map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "embryo ยังไม่เข้าเกณฑ์เลื่อนขั้น"}}
 			body, _ := json.Marshal(result)
@@ -133,6 +137,17 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 	}
 	writeJSON(w, 201, map[string]any{"items": results})
 	return true
+}
+
+func (s *apiServer) promotionThresholdLocked(batch map[string]any) int {
+	if batch == nil {
+		return 5
+	}
+	protocol := s.entities["protocols"][stringValue(batch["protocolId"])]
+	if threshold := intValue(protocol["stage1MaxAgeDays"]); threshold > 0 {
+		return threshold
+	}
+	return 5
 }
 
 func (s *apiServer) fishCodeExistsLocked(code string) bool {
