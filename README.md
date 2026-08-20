@@ -71,3 +71,5 @@ smoke checks.
 Optional initial master data is under `backend/db/seeds/{postgres,mysql}/master_data.sql`.
 
 Configuration is documented in [`.env.example`](.env.example). Do not commit real credentials.
+
+Deployment, backup/restore, and upgrade procedures are documented in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
