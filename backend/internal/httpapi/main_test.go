@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHealth(t *testing.T) {
@@ -168,6 +169,55 @@ func TestWorkbookHasFourteenSheets(t *testing.T) {
 	}
 }
 
+func TestWorkbookExportUsesImpliedMatrixGroupedCountsAndRShape(t *testing.T) {
+	server := newAPIServer()
+	server.entities["sites"]["site-1"] = map[string]any{"id": "site-1", "code": "KU"}
+	server.entities["donor-cell-lines"]["donor-1"] = map[string]any{"id": "donor-1", "strain": "AB", "preparation": "CHUNKS"}
+	server.entities["treatment-groups"]["treatment-1"] = map[string]any{"id": "treatment-1", "code": "CONTROL"}
+	server.entities["batches"]["batch-1"] = map[string]any{"id": "batch-1", "batchCode": "B-1", "siteId": "site-1", "treatmentGroupId": "treatment-1", "experimentDate": "2026-08-20", "replicateNo": 1, "timingProfileId": "01900000-0000-7000-8000-000000000002"}
+	server.entities["injection-lots"]["lot-1"] = map[string]any{"id": "lot-1", "batchId": "batch-1", "donorCellLineId": "donor-1", "activatedAt": time.Now().UTC().Add(-200 * time.Hour).Format(time.RFC3339), "lotNo": "1", "nEggs": 3, "nActivated": 1}
+	server.entities["embryos"]["embryo-1"] = map[string]any{"id": "embryo-1", "embryoCode": "B-1_1_1", "injectionLotId": "lot-1", "active": true}
+	server.observations["observation-1"] = map[string]any{"id": "observation-1", "embryoId": "embryo-1", "stageCode": stageCode(5), "outcome": "ALIVE", "condition": "NORMAL", "hpaActual": 1.65, "hpaExpectedSnapshot": 1.5, "deviationH": 0.15}
+	embryos := []map[string]any{server.entities["embryos"]["embryo-1"]}
+	observationRows := server.embryoObservationExportRows(embryos)
+	if len(observationRows) != 1 || observationRows[0][11] != "10.0000" {
+		t.Fatalf("deviation percent row = %#v", observationRows)
+	}
+	matrix := server.embryoMatrixExportRows(embryos)[0]
+	if matrix[5] != "1" || matrix[10] != "" {
+		t.Fatalf("matrix values = stage1 %q, stage6 %q; want implied 1 then blank", matrix[5], matrix[10])
+	}
+	counts := server.stageCountExportRows(embryos)
+	if len(counts) != 26 || counts[0][0] != "KU" || counts[0][3] != "B-1" {
+		t.Fatalf("grouped stage count row = %#v", counts[0])
+	}
+	rRows := server.rAnalysisExportRows(embryos)
+	if len(rRows) != 1 || rRows[0][4] != "1" || rRows[0][9] != "0" {
+		t.Fatalf("R analysis row = %#v", rRows)
+	}
+	workbook, err := server.buildWorkbook()
+	if err != nil {
+		t.Fatal(err)
+	}
+	archive, err := zip.NewReader(bytes.NewReader(workbook), int64(len(workbook)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range archive.File {
+		if file.Name == "xl/worksheets/sheet1.xml" {
+			reader, readErr := file.Open()
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			body, readErr := io.ReadAll(reader)
+			_ = reader.Close()
+			if readErr != nil || !strings.Contains(string(body), "row_count.04_Stage_Counts") {
+				t.Fatalf("metadata row counts missing: %v", readErr)
+			}
+		}
+	}
+}
+
 func TestUUIDV7ShapeAndUniqueness(t *testing.T) {
 	seen := make(map[string]bool)
 	for index := 0; index < 100; index++ {
@@ -205,6 +255,19 @@ func TestExportIsBinaryAndIdempotent(t *testing.T) {
 	}
 	if _, err := zip.NewReader(bytes.NewReader(second.Body.Bytes()), int64(second.Body.Len())); err != nil {
 		t.Fatalf("retry is not xlsx: %v", err)
+	}
+}
+
+func TestRTableHasNotebookShape(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/exports/r-table", nil)
+	newHandler("test", "").ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	header := strings.Split(strings.TrimSpace(strings.SplitN(recorder.Body.String(), "\n", 2)[0]), ",")
+	if len(header) != 30 || strings.Join(header[:4], ",") != "Sites,Strain,Replicate,Strain_Rep" {
+		t.Fatalf("R table header = %#v", header)
 	}
 }
 

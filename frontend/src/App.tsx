@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { ChangeEvent, FormEvent, type ReactNode, useCallback, useEffect, useMemo, useState } from 'react'
 import type { components } from './api/schema'
 
 type Page = 'dashboard' | 'due' | 'batches' | 'fish' | 'master' | 'timing' | 'promotions' | 'controls' | 'audit' | 'export'
@@ -35,6 +35,24 @@ type ApiRecord = Partial<components['schemas']['Site'] & components['schemas']['
   operatorName: string
   error: string
   pendingPromotionCount: number
+  riskSet: number
+  alive: number
+  nPrev: number
+  nDead: number
+  surv: number
+  pctOfDevelopment: number
+  pctOfActivated: number
+  n: number
+  meanDeviationH: number
+  medianDeviationH: number
+  sdDeviationH: number
+  minDeviationH: number
+  maxDeviationH: number
+  date: string
+  count: number
+  dead: number
+  batchCode: string
+  lotNo: string
 }> & { [key: string]: unknown }
 interface ApiItem extends ApiRecord {
   items?: ApiItem[]
@@ -251,8 +269,36 @@ function Audit() {
 function Export() {
   const [message, setMessage] = useState('')
   const download = async () => { try { const response = await request('/exports/excel', { method: 'POST', body: JSON.stringify({ locale: 'th' }) }); const blob = await response.blob(); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = 'chronofish-export.xlsx'; link.click(); URL.revokeObjectURL(url) } catch (e) { setMessage((e as Error).message) } }
-  return <section><div className="page-heading"><div><p className="eyebrow">SCR-17 / 14 SHEETS</p><h1>Export</h1><p className="muted">Excel และ print/PDF dashboard ตาม filter ปัจจุบัน</p></div></div><div className="action-grid"><button className="action-card" onClick={download}><span className="action-icon">↓</span><strong>Download Excel</strong><span>14 sheets + R analysis table</span></button><button className="action-card" onClick={() => window.print()}><span className="action-icon">▣</span><strong>Print / PDF</strong><span>ใช้ browser print พร้อมกราฟบนหน้าปัจจุบัน</span></button></div>{message && <ErrorMessage message={message} />}</section>
+  return <><section className="export-controls"><div className="page-heading"><div><p className="eyebrow">SCR-17 / 14 SHEETS</p><h1>Export</h1><p className="muted">Excel และ print/PDF dashboard ตาม filter ปัจจุบัน</p></div></div><div className="action-grid"><button className="action-card" onClick={download}><span className="action-icon">↓</span><strong>Download Excel</strong><span>14 sheets + R analysis table</span></button><button className="action-card" onClick={() => window.print()}><span className="action-icon">▣</span><strong>Print / PDF</strong><span>ทุก panel ของ dashboard ผ่าน browser print</span></button></div>{message && <ErrorMessage message={message} />}</section><PrintableDashboard /></>
 }
+
+interface PrintableReport {
+  kpi: ApiItem | null
+  funnel: ApiItem[]
+  survival: ApiItem[]
+  deviation: ApiItem[]
+  abnormality: ApiItem[]
+  fishSurvival: ApiItem[]
+  gaps: ApiItem[]
+  loading: boolean
+  error: string
+}
+
+function PrintableDashboard() {
+  const [report, setReport] = useState<PrintableReport>({ kpi: null, funnel: [], survival: [], deviation: [], abnormality: [], fishSurvival: [], gaps: [], loading: true, error: '' })
+  useEffect(() => {
+    let cancelled = false
+    void Promise.all([get('/analytics/kpi'), get('/analytics/funnel'), get('/analytics/survival'), get('/analytics/timing-deviation'), get('/analytics/abnormality-onset'), get('/analytics/fish-survival'), get('/analytics/observation-gaps')]).then(([kpi, funnel, survival, deviation, abnormality, fishSurvival, gaps]) => {
+      if (!cancelled) setReport({ kpi, funnel: funnel.items ?? [], survival: survival.items ?? [], deviation: deviation.items ?? [], abnormality: abnormality.items ?? [], fishSurvival: fishSurvival.items ?? [], gaps: gaps.items ?? [], loading: false, error: '' })
+    }).catch((error: Error) => { if (!cancelled) setReport((current) => ({ ...current, loading: false, error: error.message })) })
+    return () => { cancelled = true }
+  }, [])
+  const kpi = report.kpi
+  return <section className="print-report" aria-labelledby="print-report-title"><div className="print-report__header"><p className="eyebrow">CHRONOFISH / DASHBOARD SUMMARY</p><h1 id="print-report-title">Experiment dashboard report</h1><p className="muted">Generated from the same filtered analytics endpoints as the dashboard.</p></div>{report.loading && <p className="notice">Loading dashboard panels…</p>}{report.error && <ErrorMessage message={report.error} />}{!report.loading && !report.error && <><div className="metric-grid"><Metric label="Activated embryos" value={kpi?.stage1?.nActivated ?? 0} /><Metric label="Promoted fish" value={kpi?.stage1?.nPromoted ?? 0} /><Metric label="Alive fish" value={kpi?.stage2?.nAlive ?? 0} /><Metric label="Batches" value={kpi?.stage1?.nBatches ?? 0} /></div><ReportPanel title="Development funnel"><div className="report-bars">{report.funnel.map((point) => <div className="report-bar" key={point.stageOrder}><span>{point.stageLabel ?? point.stageCode ?? point.stageOrder ?? '—'}</span><div><i style={{ width: `${Math.min(100, Number(point.pctOfActivated ?? 0))}%` }} /></div><strong>{point.alive ?? 0}</strong></div>)}</div></ReportPanel><ReportPanel title="Discrete-time survival"><ReportTable headers={['Stage', 'Risk set', 'Alive', 'n prev', 'n dead', 'Survival']} rows={report.survival.map((point) => [point.stageLabel ?? point.stageOrder ?? '—', point.riskSet ?? 0, point.alive ?? 0, point.nPrev ?? 0, point.nDead ?? 0, Number(point.surv ?? 0).toFixed(4)])} /></ReportPanel><ReportPanel title="Timing deviation"><ReportTable headers={['Stage', 'n', 'Mean H', 'Median H', 'SD H']} rows={report.deviation.map((point) => [point.stageLabel ?? point.stageOrder ?? '—', point.n ?? 0, Number(point.meanDeviationH ?? 0).toFixed(3), Number(point.medianDeviationH ?? 0).toFixed(3), point.sdDeviationH == null ? '—' : Number(point.sdDeviationH).toFixed(3)])} /></ReportPanel><ReportPanel title="Abnormality onset / comparison groups"><ReportTable headers={['Stage', 'Count']} rows={report.abnormality.map((point) => [point.stageLabel ?? point.stageOrder ?? '—', point.count ?? 0])} /></ReportPanel><ReportPanel title="Stage 2 fish survival"><ReportTable headers={['Date', 'Alive', 'Dead']} rows={report.fishSurvival.map((point) => [point.date ?? point.observedOn ?? '—', point.alive ?? 0, point.dead ?? 0])} /></ReportPanel><ReportPanel title="Observation gaps"><ReportTable headers={['Batch', 'Lot', 'Stage', 'Minutes late']} rows={report.gaps.map((point) => [point.batchCode ?? '—', point.lotNo ?? '—', point.stageLabel ?? point.stageCode ?? point.stageOrder ?? '—', point.minutesLate ?? 0])} /></ReportPanel></>}</section>
+}
+
+function ReportPanel({ title, children }: { title: string; children: ReactNode }) { return <section className="report-panel"><h2>{title}</h2>{children}</section> }
+function ReportTable({ headers, rows }: { headers: string[]; rows: (string | number)[][] }) { return <div className="table-wrap"><table><thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.length === 0 ? <tr><td colSpan={headers.length}>No data</td></tr> : rows.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{String(value)}</td>)}</tr>)}</tbody></table></div> }
 
 function Empty({ message }: { message: string }) { return <div className="empty"><span aria-hidden="true">⌁</span><p>{message}</p></div> }
 function ErrorMessage({ message }: { message: string }) { return <p className="error" role="alert">{message}</p> }

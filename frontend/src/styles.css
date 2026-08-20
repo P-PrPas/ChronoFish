@@ -16,3 +16,22 @@ button { cursor: pointer; }
 @media (max-width: 760px) { .topbar { padding: 0 1rem; }.tagline { display: none; }.layout { display: block; }nav { display: flex; gap: .35rem; overflow-x: auto; padding: .6rem; }.nav-link { min-width: max-content; margin: 0; text-align: center; }.content { padding: 1.25rem; }.metric-grid, .action-grid { grid-template-columns: repeat(2, 1fr); }.form-card--inline { grid-template-columns: 1fr; }.well-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }.page-heading { align-items: flex-start; flex-direction: column; }.page-heading .button { width: 100%; } }
 @media (max-width: 430px) { .metric-grid, .action-grid { grid-template-columns: 1fr 1fr; gap: .55rem; }.metric { padding: .85rem; }.metric strong { font-size: 1.5rem; }.top-actions { gap: .55rem; }.connection { font-size: 0; }.connection span { width: .6rem; height: .6rem; }.list-row { padding: .8rem; }.well-grid { gap: .35rem; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; } }
+.print-report { display: none; }
+.report-panel { margin: 1.25rem 0; padding: 1rem; border: 1px solid #dce5ed; border-radius: .8rem; background: #fff; break-inside: avoid; }
+.report-panel h2 { margin: 0 0 .8rem; color: #183d61; font-size: 1.1rem; }
+.print-report__header { margin-bottom: 1.5rem; }
+.report-bars { display: grid; gap: .35rem; }
+.report-bar { display: grid; grid-template-columns: 7rem 1fr 3rem; align-items: center; gap: .6rem; font-size: .78rem; }
+.report-bar > div { height: .65rem; overflow: hidden; border-radius: 999px; background: #e5edf4; }
+.report-bar i { display: block; height: 100%; border-radius: inherit; background: #1769aa; }
+.report-bar strong { text-align: right; }
+@media print {
+  .export-controls { display: none !important; }
+  .print-report { display: block; color: #132238; }
+  .print-report .metric-grid { grid-template-columns: repeat(4, 1fr); }
+  .print-report .table-wrap { overflow: visible; border: 0; }
+  .print-report table { font-size: 9pt; }
+  .print-report th, .print-report td { padding: .35rem .45rem; }
+  .report-panel { border-color: #c5d0da; }
+  @page { size: A4; margin: 12mm; }
+}

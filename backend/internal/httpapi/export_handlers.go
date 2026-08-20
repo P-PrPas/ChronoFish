@@ -23,13 +23,16 @@ func (s *apiServer) exports(w http.ResponseWriter, r *http.Request, p []string) 
 	if p[0] == "r-table" {
 		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 		w.Header().Set("Content-Disposition", "attachment; filename=chronofish-r-table.csv")
-		writer := csv.NewWriter(w)
-		_ = writer.Write([]string{"fish_code", "dob", "status", "condition"})
 		s.mu.RLock()
-		for _, fish := range s.entities["fish"] {
-			_ = writer.Write([]string{stringValue(fish["fishCode"]), stringValue(fish["dob"]), stringValue(fish["status"]), stringValue(fish["condition"])})
-		}
+		embryos := s.filteredEmbryos(r.URL.Query())
+		headers := append([]string{"Sites", "Strain", "Replicate", "Strain_Rep"}, stageCodes(26)...)
+		rows := s.rAnalysisExportRows(embryos)
 		s.mu.RUnlock()
+		writer := csv.NewWriter(w)
+		_ = writer.Write(headers)
+		for _, row := range rows {
+			_ = writer.Write(row)
+		}
 		writer.Flush()
 		return true
 	}
@@ -83,7 +86,7 @@ func (s *apiServer) buildWorkbook(query ...map[string][]string) ([]byte, error) 
 	}
 	embryos := s.filteredEmbryos(filters)
 	fish := s.filteredFishLocked(filters)
-	profile := s.entities["timing-profiles"]["01900000-0000-7000-8000-000000000002"]
+	profile := s.exportProfileLocked(embryos)
 	sheets := []workbookSheet{
 		{name: "00_Metadata", headers: []string{"key", "value"}},
 		{name: "01_Batches", headers: []string{"batch_code", "experiment_date", "site", "operator", "treatment_group", "clutch_code", "replicate_no", "recipient_egg_lot", "csof_lot", "incubation_temp_c", "lot_no", "donor_strain", "donor_preparation", "donor_batch_code", "enu_power_pct", "enu_pulse_us", "enu_led", "enu_start_at", "enu_finish_at", "activated_at", "n_eggs", "n_activated", "notes"}, rows: s.batchExportRows(filters)},
@@ -94,13 +97,13 @@ func (s *apiServer) buildWorkbook(query ...map[string][]string) ([]byte, error) 
 		{name: "06_Fish_Register", headers: []string{"fish_code", "running_no", "dob", "strain", "donor_batch_code", "site", "fish_box", "status", "condition", "first_abnormal_on", "first_abnormal_age_days", "sex", "fin_clipped", "exit_date", "exit_reason", "age_days_current", "embryo_code", "remarks"}, rows: s.fishRegisterExportRows(fish)},
 		{name: "07_Fish_Observations", headers: []string{"fish_code", "observed_on", "age_days", "outcome", "condition", "operator", "is_backdated", "notes"}, rows: s.fishObservationExportRows(fish)},
 		{name: "08_Fish_Matrix", headers: append([]string{"fish_code", "dob", "strain", "status"}, fishMatrixColumns(fish, s.fishObs)...), rows: s.fishMatrixExportRows(fish)},
-		{name: "09_Control_Arms", headers: []string{"batch_code", "experiment_date", "site", "arm_type", "stage_label", "n_normal", "n_abnormal"}, rows: s.controlExportRows()},
+		{name: "09_Control_Arms", headers: []string{"batch_code", "experiment_date", "site", "arm_type", "stage_label", "n_normal", "n_abnormal"}, rows: s.controlExportRows(filters)},
 		{name: "10_Specimens", headers: []string{"specimen_code", "fish_code", "specimen_kind", "specimen_type", "collected_on", "frozen_on", "storage", "notes"}, rows: s.specimenExportRows(fish)},
 		{name: "11_Summary", headers: []string{"strain", "n_batches", "n_eggs", "n_activated", "n_reached_shield", "n_reached_day1", "n_promoted", "n_normal", "n_abnormal", "pct_normal", "pct_abnormal"}, rows: s.summaryExportRows(embryos, fish)},
 		{name: "12_R_Analysis_Table", headers: append([]string{"Sites", "Strain", "Replicate", "Strain_Rep"}, stageCodes(26)...), rows: s.rAnalysisExportRows(embryos)},
 		{name: "13_Stage_Timing_Reference", headers: []string{"stage_order", "stage_code", "stage_label", "expected_hpa", "phase", "stage_scope", "profile_version", "reference_temp_c", "source_note"}, rows: timingReferenceRows(profile)},
 	}
-	metadata := [][]string{{"exported_at", time.Now().UTC().Format(time.RFC3339)}, {"filter", jsonString(filters)}, {"system_version", s.buildVersion}, {"timing_profile_version", fmt.Sprint(profile["version"])}}
+	metadata := [][]string{{"exported_at", time.Now().UTC().Format(time.RFC3339)}, {"date_from", firstQuery(filters, "dateFrom")}, {"date_to", firstQuery(filters, "dateTo")}, {"filter", jsonString(filters)}, {"system_version", s.buildVersion}, {"timing_profile_version", fmt.Sprint(profile["version"])}}
 	for _, sheet := range sheets[1:] {
 		metadata = append(metadata, []string{"row_count." + sheet.name, strconv.Itoa(len(sheet.rows))})
 	}
@@ -110,6 +113,23 @@ func (s *apiServer) buildWorkbook(query ...map[string][]string) ([]byte, error) 
 		exportSheets[index] = export.Sheet{Name: sheet.name, Headers: sheet.headers, Rows: sheet.rows}
 	}
 	return export.Build(exportSheets, s.buildVersion)
+}
+
+func (s *apiServer) exportProfileLocked(embryos []map[string]any) map[string]any {
+	for _, embryo := range embryos {
+		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+		batch := s.entities["batches"][stringValue(lot["batchId"])]
+		if profile := s.entities["timing-profiles"][stringValue(batch["timingProfileId"])]; profile != nil {
+			return profile
+		}
+	}
+	if profile := s.entities["timing-profiles"]["01900000-0000-7000-8000-000000000002"]; profile != nil {
+		return profile
+	}
+	for _, id := range sortedIDs(s.entities["timing-profiles"]) {
+		return s.entities["timing-profiles"][id]
+	}
+	return map[string]any{}
 }
 
 func stageCodes(max int) []string {
@@ -129,7 +149,7 @@ func sortedIDs(records map[string]map[string]any) []string {
 	return ids
 }
 func fishMatrixColumns(fish map[string]map[string]any, observations map[string]map[string]any) []string {
-	max := 1
+	max := 0
 	for id := range fish {
 		for _, observation := range observations {
 			if stringValue(observation["cloneFishId"]) == id && intValue(observation["ageDays"]) > max {
@@ -179,7 +199,12 @@ func (s *apiServer) embryoObservationExportRows(embryos []map[string]any) [][]st
 		embryo := s.entities["embryos"][stringValue(observation["embryoId"])]
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
 		batch := s.entities["batches"][stringValue(lot["batchId"])]
-		rows = append(rows, []string{stringValue(embryo["embryoCode"]), stringValue(batch["batchCode"]), stringValue(lot["lotNo"]), stringValue(embryo["wellPosition"]), stringValue(observation["stageCode"]), strconv.Itoa(stageNumber(stringValue(observation["stageCode"]))), stageLabel(stageNumber(stringValue(observation["stageCode"]))), stringValue(observation["observedAt"]), fmt.Sprint(observation["hpaActual"]), fmt.Sprint(observation["hpaExpectedSnapshot"]), fmt.Sprint(observation["deviationH"]), "", stringValue(observation["outcome"]), stringValue(observation["condition"]), stringValue(observation["operatorId"]), fmt.Sprint(observation["isBackdated"]), stringValue(observation["notes"])})
+		deviationPct := ""
+		expected := numberValue(observation["hpaExpectedSnapshot"])
+		if expected > 0 {
+			deviationPct = strconv.FormatFloat(numberValue(observation["deviationH"])/expected*100, 'f', 4, 64)
+		}
+		rows = append(rows, []string{stringValue(embryo["embryoCode"]), stringValue(batch["batchCode"]), stringValue(lot["lotNo"]), stringValue(embryo["wellPosition"]), stringValue(observation["stageCode"]), strconv.Itoa(stageNumber(stringValue(observation["stageCode"]))), stageLabel(stageNumber(stringValue(observation["stageCode"]))), stringValue(observation["observedAt"]), fmt.Sprint(observation["hpaActual"]), fmt.Sprint(observation["hpaExpectedSnapshot"]), fmt.Sprint(observation["deviationH"]), deviationPct, stringValue(observation["outcome"]), stringValue(observation["condition"]), stringValue(observation["operatorId"]), fmt.Sprint(observation["isBackdated"]), stringValue(observation["notes"])})
 	}
 	return rows
 }
@@ -193,14 +218,12 @@ func (s *apiServer) embryoMatrixExportRows(embryos []map[string]any) [][]string 
 		treatment := s.entities["treatment-groups"][stringValue(batch["treatmentGroupId"])]
 		row := []string{stringValue(embryo["embryoCode"]), stringValue(batch["batchCode"]), stringValue(site["code"]), stringValue(donor["strain"]), stringValue(treatment["code"])}
 		for stage := 1; stage <= 26; stage++ {
-			observation := s.observationAtStageLocked(stringValue(embryo["id"]), stage)
 			value := ""
-			if observation != nil {
-				if stringValue(observation["outcome"]) == "ALIVE" {
-					value = "1"
-				} else if stringValue(observation["outcome"]) == "DEAD" || stringValue(observation["outcome"]) == "DEGENERATED" {
-					value = "0"
-				}
+			switch s.checkpointStatusLocked(embryo, stage) {
+			case "alive":
+				value = "1"
+			case "dead":
+				value = "0"
 			}
 			row = append(row, value)
 		}
@@ -208,17 +231,54 @@ func (s *apiServer) embryoMatrixExportRows(embryos []map[string]any) [][]string 
 	}
 	return rows
 }
+
+type exportEmbryoGroup struct {
+	site, strain, treatment, batchCode string
+	embryos                            []map[string]any
+}
+
+func (s *apiServer) exportEmbryoGroupsLocked(embryos []map[string]any) []*exportEmbryoGroup {
+	groups := make(map[string]*exportEmbryoGroup)
+	for _, embryo := range embryos {
+		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+		batch := s.entities["batches"][stringValue(lot["batchId"])]
+		site := s.entities["sites"][stringValue(batch["siteId"])]
+		donor := s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]
+		treatment := s.entities["treatment-groups"][stringValue(batch["treatmentGroupId"])]
+		group := []string{stringValue(batch["id"]), stringValue(site["code"]), stringValue(donor["strain"]), stringValue(treatment["code"])}
+		key := strings.Join(group, "\x00")
+		if groups[key] == nil {
+			groups[key] = &exportEmbryoGroup{site: group[1], strain: group[2], treatment: group[3], batchCode: stringValue(batch["batchCode"])}
+		}
+		groups[key].embryos = append(groups[key].embryos, embryo)
+	}
+	keys := make([]string, 0, len(groups))
+	for key := range groups {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]*exportEmbryoGroup, 0, len(keys))
+	for _, key := range keys {
+		result = append(result, groups[key])
+	}
+	return result
+}
+
 func (s *apiServer) stageCountExportRows(embryos []map[string]any) [][]string {
 	rows := [][]string{}
-	for _, record := range s.survivalLocked(embryos) {
-		rows = append(rows, []string{"", "", "", "", fmt.Sprint(record["stageOrder"]), stringValue(record["stageLabel"]), fmt.Sprint(record["riskSet"]), fmt.Sprint(record["alive"]), fmt.Sprint(record["nPrev"]), fmt.Sprint(record["nDead"]), fmt.Sprint(record["surv"]), fmt.Sprint(record["pctOfDevelopment"])})
+	for _, group := range s.exportEmbryoGroupsLocked(embryos) {
+		for _, record := range s.survivalLocked(group.embryos) {
+			rows = append(rows, []string{group.site, group.strain, group.treatment, group.batchCode, fmt.Sprint(record["stageOrder"]), stringValue(record["stageLabel"]), fmt.Sprint(record["riskSet"]), fmt.Sprint(record["alive"]), fmt.Sprint(record["nPrev"]), fmt.Sprint(record["nDead"]), fmt.Sprint(record["surv"]), fmt.Sprint(record["pctOfDevelopment"])})
+		}
 	}
 	return rows
 }
 func (s *apiServer) timingDeviationExportRows(embryos []map[string]any) [][]string {
 	rows := [][]string{}
-	for _, record := range s.deviationLocked(embryos) {
-		rows = append(rows, []string{"", "", "", fmt.Sprint(record["stageOrder"]), stringValue(record["stageLabel"]), fmt.Sprint(record["n"]), fmt.Sprint(record["meanDeviationH"]), fmt.Sprint(record["medianDeviationH"]), fmt.Sprint(record["sdDeviationH"]), fmt.Sprint(record["minDeviationH"]), fmt.Sprint(record["maxDeviationH"])})
+	for _, group := range s.exportEmbryoGroupsLocked(embryos) {
+		for _, record := range s.deviationLocked(group.embryos) {
+			rows = append(rows, []string{group.site, group.strain, group.treatment, fmt.Sprint(record["stageOrder"]), stringValue(record["stageLabel"]), fmt.Sprint(record["n"]), fmt.Sprint(record["meanDeviationH"]), fmt.Sprint(record["medianDeviationH"]), fmt.Sprint(record["sdDeviationH"]), fmt.Sprint(record["minDeviationH"]), fmt.Sprint(record["maxDeviationH"])})
+		}
 	}
 	return rows
 }
@@ -272,11 +332,15 @@ func (s *apiServer) fishMatrixExportRows(fish map[string]map[string]any) [][]str
 	}
 	return rows
 }
-func (s *apiServer) controlExportRows() [][]string {
+func (s *apiServer) controlExportRows(filters map[string][]string) [][]string {
 	rows := [][]string{}
+	allowed := s.filteredBatchIDsLocked(filters)
 	for _, id := range sortedIDs(s.entities["control-arm-counts"]) {
 		item := s.entities["control-arm-counts"][id]
 		batch := s.entities["batches"][stringValue(item["batchId"])]
+		if !allowed[stringValue(batch["id"])] {
+			continue
+		}
 		site := s.entities["sites"][stringValue(batch["siteId"])]
 		rows = append(rows, []string{stringValue(batch["batchCode"]), stringValue(batch["experimentDate"]), stringValue(site["code"]), stringValue(item["armType"]), stageLabel(stageNumber(stringValue(item["stageCode"]))), fmt.Sprint(item["nNormal"]), fmt.Sprint(item["nAbnormal"])})
 	}
@@ -303,10 +367,16 @@ func (s *apiServer) summaryExportRows(embryos []map[string]any, fish map[string]
 	}
 	rows := [][]string{}
 	for strain, group := range groups {
-		normal, abnormal, batches := 0, 0, map[string]bool{}
+		normal, abnormal, nEggs, nActivated, batches := 0, 0, 0, 0, map[string]bool{}
+		lots := map[string]bool{}
 		for _, embryo := range group {
 			lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
 			batches[stringValue(lot["batchId"])] = true
+			if !lots[stringValue(lot["id"])] {
+				lots[stringValue(lot["id"])] = true
+				nEggs += intValue(lot["nEggs"])
+				nActivated += intValue(lot["nActivated"])
+			}
 			if observation := s.latestEmbryoObservationLocked(stringValue(embryo["id"])); observation != nil {
 				if stringValue(observation["condition"]) == "NORMAL" {
 					normal++
@@ -323,7 +393,10 @@ func (s *apiServer) summaryExportRows(embryos []map[string]any, fish map[string]
 				promoted++
 			}
 		}
-		rows = append(rows, []string{strain, strconv.Itoa(len(batches)), "", strconv.Itoa(len(group)), strconv.Itoa(s.reachedStageCountLocked(group, 19)), strconv.Itoa(s.reachedStageCountLocked(group, 22)), strconv.Itoa(promoted), strconv.Itoa(normal), strconv.Itoa(abnormal), fmt.Sprint(percentage(normal, len(group))), fmt.Sprint(percentage(abnormal, len(group)))})
+		if nActivated == 0 {
+			nActivated = len(group)
+		}
+		rows = append(rows, []string{strain, strconv.Itoa(len(batches)), strconv.Itoa(nEggs), strconv.Itoa(nActivated), strconv.Itoa(s.reachedStageCountLocked(group, 19)), strconv.Itoa(s.reachedStageCountLocked(group, 22)), strconv.Itoa(promoted), strconv.Itoa(normal), strconv.Itoa(abnormal), fmt.Sprint(percentage(normal, len(group))), fmt.Sprint(percentage(abnormal, len(group)))})
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i][0] < rows[j][0] })
 	return rows
@@ -358,7 +431,7 @@ func (s *apiServer) rAnalysisExportRows(embryos []map[string]any) [][]string {
 		for stage := 1; stage <= 26; stage++ {
 			alive := 0
 			for _, embryo := range item.embryos {
-				if observation := s.observationAtStageLocked(stringValue(embryo["id"]), stage); observation != nil && stringValue(observation["outcome"]) == "ALIVE" {
+				if s.checkpointStatusLocked(embryo, stage) == "alive" {
 					alive++
 				}
 			}
