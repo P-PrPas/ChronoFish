@@ -1,0 +1,2616 @@
+openapi: 3.1.0
+
+info:
+  title: SCNT Tracking System API
+  version: 1.0.0
+  summary: Zebrafish somatic cell nuclear transfer embryo and clone-fish tracking
+  description: |
+    Contract between the static SPA front end and the Go back end.
+
+    This document is the single source of truth for the interface
+    (SRS v1.0 section 8, API-02). Generate both sides from it:
+
+      * server stubs — generated directly from this OpenAPI 3.1 document
+      * browser client — `openapi-typescript api/openapi.yaml -o frontend/src/api/schema.d.ts`
+
+    ### Conventions
+
+    * All timestamps are RFC 3339 **with an explicit offset** (CI-04).
+      The server stores UTC; the client sends and displays `Asia/Bangkok`.
+    * All hour values are decimal hours with 4 decimal places (DR-05).
+    * Writes carry `X-Operator-Id` and `X-Device-Id` (API-03) because the
+      system has no login (CON-01) and still has to record who did what.
+    * Bulk write endpoints are idempotent on `clientUuid` (BR-18). Re-sending
+      is always safe and is the normal case, not an error — the offline write
+      queue retries freely.
+    * JSON fields use `camelCase`; SQL columns and tabular exports use
+      `snake_case`.
+    * The server computes authoritative `hpaActual`, `hpaExpected`, and
+      `deviationH`. The client may calculate a live preview only (DC-05).
+  contact:
+    name: SCNT Tracking System
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://{host}/api/v1
+    description: Deployment target is not yet decided (SRS 9.2); host is configurable
+    variables:
+      host:
+        default: localhost:8080
+
+tags:
+  - name: Master data
+    description: Sites, operators, strains, lots, treatment groups, boxes (FR-100)
+  - name: Timing
+    description: Protocol stages and reference timing profiles (FR-200)
+  - name: Experiments
+    description: Batches, injection lots, embryos (FR-300)
+  - name: Observations
+    description: Recording survival at checkpoints and daily roll-call (FR-400, FR-600)
+  - name: Promotion
+    description: Moving surviving embryos into the fish register (FR-500)
+  - name: Fish
+    description: Clone fish register and specimens (FR-600)
+  - name: Analytics
+    description: Dashboard aggregates (FR-800)
+  - name: Export
+    description: Excel and R-ready output (FR-900)
+  - name: Audit
+    description: Change history (FR-1100)
+
+paths:
+
+  # ---------------------------------------------------------------- master data
+  /sites:
+    get:
+      tags: [Master data]
+      summary: List sites
+      operationId: listSites
+      parameters:
+        - $ref: '#/components/parameters/IncludeInactive'
+      responses:
+        '200':
+          description: Sites
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Site' }
+    post:
+      tags: [Master data]
+      summary: Create a site
+      operationId: createSite
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SiteInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Site' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /sites/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    patch:
+      tags: [Master data]
+      summary: Update a site
+      operationId: updateSite
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SitePatchInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Site' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /operators:
+    get:
+      tags: [Master data]
+      summary: List operators
+      operationId: listOperators
+      parameters: [ $ref: '#/components/parameters/IncludeInactive' ]
+      responses:
+        '200':
+          description: Operators
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Operator' }
+    post:
+      tags: [Master data]
+      summary: Create an operator
+      operationId: createOperator
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OperatorInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Operator' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /donor-cell-lines:
+    get:
+      tags: [Master data]
+      summary: List donor cell lines
+      operationId: listDonorCellLines
+      parameters: [ $ref: '#/components/parameters/IncludeInactive' ]
+      responses:
+        '200':
+          description: Donor cell lines
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/DonorCellLine' }
+    post:
+      tags: [Master data]
+      summary: Create a donor cell line
+      operationId: createDonorCellLine
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DonorCellLineInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DonorCellLine' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /recipient-egg-lots:
+    get:
+      tags: [Master data]
+      summary: List recipient egg lots
+      operationId: listRecipientEggLots
+      parameters: [ $ref: '#/components/parameters/IncludeInactive' ]
+      responses:
+        '200':
+          description: Recipient egg lots
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/RecipientEggLot' }
+    post:
+      tags: [Master data]
+      summary: Create a recipient egg lot
+      operationId: createRecipientEggLot
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecipientEggLotInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecipientEggLot' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /csof-lots:
+    get:
+      tags: [Master data]
+      summary: List CSOF lots
+      operationId: listCsofLots
+      parameters: [ $ref: '#/components/parameters/IncludeInactive' ]
+      responses:
+        '200':
+          description: CSOF lots
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/CsofLot' }
+    post:
+      tags: [Master data]
+      summary: Create a CSOF lot
+      operationId: createCsofLot
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CsofLotInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CsofLot' }
+        '409':
+          $ref: '#/components/responses/Conflict'
+          # AC-101: 'CSOF 2021-3 ' and 'csof 2021-3' both collide with 'CSOF 2021-3'
+
+  /treatment-groups:
+    get:
+      tags: [Master data]
+      summary: List treatment groups
+      operationId: listTreatmentGroups
+      parameters: [ $ref: '#/components/parameters/IncludeInactive' ]
+      responses:
+        '200':
+          description: Treatment groups
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/TreatmentGroup' }
+    post:
+      tags: [Master data]
+      summary: Create a treatment group
+      operationId: createTreatmentGroup
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TreatmentGroupInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TreatmentGroup' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /fish-boxes:
+    get:
+      tags: [Master data]
+      summary: List fish boxes
+      operationId: listFishBoxes
+      parameters: [ $ref: '#/components/parameters/IncludeInactive' ]
+      responses:
+        '200':
+          description: Fish boxes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/FishBox' }
+    post:
+      tags: [Master data]
+      summary: Create a fish box
+      operationId: createFishBox
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FishBoxInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FishBox' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /operators/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    patch:
+      tags: [Master data]
+      summary: Update or deactivate an operator
+      operationId: updateOperator
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OperatorPatchInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Operator' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /donor-cell-lines/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    patch:
+      tags: [Master data]
+      summary: Update or deactivate a donor cell line
+      operationId: updateDonorCellLine
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DonorCellLinePatchInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DonorCellLine' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /recipient-egg-lots/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    patch:
+      tags: [Master data]
+      summary: Update or deactivate a recipient egg lot
+      operationId: updateRecipientEggLot
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RecipientEggLotPatchInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RecipientEggLot' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /csof-lots/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    patch:
+      tags: [Master data]
+      summary: Update or deactivate a CSOF lot
+      operationId: updateCsofLot
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CsofLotPatchInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CsofLot' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /treatment-groups/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    patch:
+      tags: [Master data]
+      summary: Update or deactivate a treatment group
+      operationId: updateTreatmentGroup
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TreatmentGroupPatchInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TreatmentGroup' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /fish-boxes/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    patch:
+      tags: [Master data]
+      summary: Update or deactivate a fish box
+      operationId: updateFishBox
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FishBoxPatchInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FishBox' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # -------------------------------------------------------------------- timing
+  /protocols:
+    get:
+      tags: [Timing]
+      summary: List protocols
+      operationId: listProtocols
+      responses:
+        '200':
+          description: Protocols
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Protocol' }
+
+  /protocols/{id}/stages:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    get:
+      tags: [Timing]
+      summary: List the checkpoint definitions of a protocol
+      description: Returns all 36 stages in order. Stages 1–26 are `STAGE_1`, 27–36 are `STAGE_2`.
+      operationId: listProtocolStages
+      responses:
+        '200':
+          description: Stage definitions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/StageDefinition' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /timing-profiles/current:
+    get:
+      tags: [Timing]
+      summary: Get the reference timing profile currently in effect
+      operationId: getCurrentTimingProfile
+      parameters:
+        - name: protocolId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Current profile with one entry per stage
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TimingProfile' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /timing-profiles:
+    get:
+      tags: [Timing]
+      summary: List every version of the reference timing, newest first
+      operationId: listTimingProfiles
+      parameters:
+        - name: protocolId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Profile versions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/TimingProfile' }
+    post:
+      tags: [Timing]
+      summary: Save edited reference timing as a new version
+      description: |
+        Saving never overwrites (BR-21). The server copies every stage entry from
+        the current version, applies the supplied overrides, stores the result as
+        `version + 1`, and marks it current.
+
+        Batches created earlier keep pointing at the version they were created
+        with, and `deviation_h` values already stored on observations are never
+        recomputed (NFR-203, AC-204). This is what lets the lab adjust the
+        reference times freely without silently rewriting past results.
+      operationId: createTimingProfileVersion
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [protocolId, name, entries]
+              properties:
+                protocolId: { type: string, format: uuid }
+                name:
+                  type: string
+                  maxLength: 200
+                  examples: ['Lab-measured 2026-09']
+                referenceTempC:
+                  type: [number, 'null']
+                  description: Recorded for reference. Not applied in v1 (Q-N2, FR-207 is v2).
+                  examples: [28.5]
+                sourceNote: { type: [string, 'null'], maxLength: 500 }
+                entries:
+                  type: array
+                  minItems: 1
+                  description: Only the stages whose value changed need to be listed.
+                  items:
+                    type: object
+                    required: [stageCode, expectedHpa]
+                    properties:
+                      stageCode: { type: string, examples: ['stage_09_256C'] }
+                      expectedHpa: { type: number, minimum: 0, examples: [2.5] }
+      responses:
+        '201':
+          description: New version created and made current
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TimingProfile' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /timing-profiles/csv:
+    get:
+      tags: [Timing]
+      summary: Download the current reference timing as CSV
+      operationId: exportTimingCsv
+      parameters:
+        - name: protocolId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: CSV with columns stage_order, stage_code, label, expected_hpa
+          content:
+            text/csv:
+              schema: { type: string }
+    post:
+      tags: [Timing]
+      summary: Upload reference timing as CSV, creating a new version
+      operationId: importTimingCsv
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          text/csv:
+            schema: { type: string }
+      responses:
+        '201':
+          description: New version created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TimingProfile' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  # --------------------------------------------------------------- experiments
+  /batches:
+    get:
+      tags: [Experiments]
+      summary: List experiment batches
+      operationId: listBatches
+      parameters:
+        - { name: dateFrom, in: query, schema: { type: string, format: date } }
+        - { name: dateTo, in: query, schema: { type: string, format: date } }
+        - { name: siteId, in: query, schema: { type: string, format: uuid } }
+        - { name: operatorId, in: query, schema: { type: string, format: uuid } }
+        - { name: treatmentGroupId, in: query, schema: { type: string, format: uuid } }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Batches
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Batch' }
+                  nextCursor: { type: [string, 'null'] }
+    post:
+      tags: [Experiments]
+      summary: Create an experiment batch
+      description: |
+        The server pins the currently-effective timing profile onto the batch at
+        creation time (FR-303) and suggests `batchCode` as
+        `{dayNo}_{operator}_{treatmentGroup}` when the caller omits it (FR-302).
+      operationId: createBatch
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BatchInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Batch' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /batches/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    get:
+      tags: [Experiments]
+      summary: Get a batch with its injection lots
+      operationId: getBatch
+      responses:
+        '200':
+          description: Batch
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/BatchDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Experiments]
+      summary: Update a batch
+      operationId: updateBatch
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BatchInput' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Batch' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /batches/{id}/duplicate:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    post:
+      tags: [Experiments]
+      summary: Create a new batch by copying this one
+      description: Copies everything except dates and times (FR-305) — enucleation settings repeat almost every run.
+      operationId: duplicateBatch
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [experimentDate]
+              properties:
+                experimentDate: { type: string, format: date }
+                dayNo: { type: [integer, 'null'] }
+                copyInjectionLots:
+                  type: boolean
+                  default: false
+                  description: Copy lot settings without embryos or activation times.
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Batch' }
+
+  /batches/{id}/injection-lots:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    post:
+      tags: [Experiments]
+      summary: Add an injection lot and generate its embryos
+      description: |
+        Creates the lot and immediately generates `nActivated` embryo records
+        (FR-308) with codes `{batchCode}_{lotNo}_{seq}` starting at 1 — the same
+        shape the lab already uses in its v2 spreadsheet (`1_Jan_Control_1_1`).
+
+        `activatedAt` is mandatory (FR-307): it is T0 for every downstream
+        calculation and for the fish date of birth (BR-01, BR-10).
+      operationId: createInjectionLot
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InjectionLotInput' }
+      responses:
+        '201':
+          description: Lot created with its embryos
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InjectionLotDetail' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /injection-lots/{id}/embryos:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    get:
+      tags: [Experiments]
+      summary: List the embryos of a lot
+      operationId: listLotEmbryos
+      parameters:
+        - name: aliveOnly
+          in: query
+          description: Only embryos with no exit event yet (FR-405)
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Embryos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Embryo' }
+    post:
+      tags: [Experiments]
+      summary: Add extra embryos to a lot
+      description: For when the real count differs from what was entered initially (FR-310).
+      operationId: addLotEmbryos
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [count]
+              properties:
+                count: { type: integer, minimum: 1, maximum: 96 }
+      responses:
+        '201':
+          description: Embryos added
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Embryo' }
+
+  /embryos/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    patch:
+      tags: [Experiments]
+      summary: Update an embryo
+      operationId: updateEmbryo
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                wellPosition:
+                  type: [string, 'null']
+                  pattern: '^[A-H](1[0-2]|[1-9])$'
+                  examples: ['B3']
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Embryo' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      tags: [Experiments]
+      summary: Soft-delete an embryo
+      description: Sets `deletedAt`; nothing is ever physically removed (CON-08, BR-20).
+      operationId: deleteEmbryo
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      responses:
+        '204': { description: Soft-deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /batches/{id}/control-arm-counts:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    get:
+      tags: [Experiments]
+      summary: List aggregate counts for the natural-breeding and IVF arms
+      operationId: listControlArmCounts
+      responses:
+        '200':
+          description: Counts
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ControlArmCount' }
+    put:
+      tags: [Experiments]
+      summary: Set aggregate counts for the natural-breeding and IVF arms
+      description: |
+        These arms are counted in bulk rather than tracked per embryo (FR-703,
+        Q6), matching how the lab already records them. Sending a row for an
+        existing (armType, stageCode) pair replaces it.
+      operationId: putControlArmCounts
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [armType, stageCode, nNormal, nAbnormal]
+                    properties:
+                      armType: { $ref: '#/components/schemas/ControlArmType' }
+                      stageCode: { type: string, examples: ['stage_19_SH'] }
+                      nNormal: { type: integer, minimum: 0 }
+                      nAbnormal: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: Stored
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/ControlArmCount' }
+
+  # -------------------------------------------------------------- observations
+  /due-checkpoints:
+    get:
+      tags: [Observations]
+      summary: What needs looking at right now
+      description: |
+        The home screen (FR-401). Returns every (injection lot × checkpoint) that
+        is due but not yet recorded, most overdue first, computed per BR-22:
+        `dueAt = activatedAt + expectedHpa`.
+
+        Also returns the next not-yet-due checkpoint per lot so the technician
+        can see what is coming, and the count of embryos waiting to be promoted
+        (FR-404).
+      operationId: listDueCheckpoints
+      parameters:
+        - { name: siteId, in: query, schema: { type: string, format: uuid } }
+        - { name: operatorId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Work queue
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [overdue, upcoming, pendingPromotionCount]
+                properties:
+                  overdue:
+                    type: array
+                    items: { $ref: '#/components/schemas/DueCheckpoint' }
+                  upcoming:
+                    type: array
+                    items: { $ref: '#/components/schemas/DueCheckpoint' }
+                  pendingPromotionCount: { type: integer, minimum: 0 }
+
+  /injection-lots/{id}/checkpoints/{stageCode}:
+    parameters:
+      - $ref: '#/components/parameters/PathId'
+      - name: stageCode
+        in: path
+        required: true
+        schema: { type: string }
+        examples: { default: { value: stage_09_256C } }
+    get:
+      tags: [Observations]
+      summary: Everything the checkpoint entry screen needs
+      description: |
+        Returns only embryos with no exit event (FR-405), each with the condition
+        carried forward from its previous observation so the screen can default
+        sensibly (FR-409), plus the reference time for this checkpoint so the
+        client can show the deviation live as the technician works (FR-412).
+      operationId: getCheckpointEntry
+      responses:
+        '200':
+          description: Entry screen payload
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CheckpointEntry' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /observations/embryo:
+    post:
+      tags: [Observations]
+      summary: Record embryo observations (bulk, idempotent)
+      description: |
+        The main write path of the system. Send the whole checkpoint in one call.
+
+        **Idempotent on `clientUuid`** (BR-18): a repeat of a `clientUuid` the
+        server already has returns `duplicate` with the stored row and HTTP 200 —
+        never an error, never a second row. The offline queue depends on this;
+        without it a request that succeeded but whose response was lost would
+        double-count and corrupt the survival numbers.
+
+        Per item the server computes `hpaActual` (BR-02), reads `hpaExpected`
+        from the profile pinned to the batch and **freezes it onto the row**
+        (BR-03), and derives `deviationH` (BR-04).
+
+        Recording `DEAD` or `DEGENERATED` also writes the embryo's exit event.
+        Marking an embryo `ALIVE` after it already has one violates monotonic
+        survival (BR-07) and is rejected with `409` unless `overrideReason` is
+        supplied.
+
+        Partial success is normal: each item reports its own status, so one bad
+        row never discards the rest of the checkpoint.
+      operationId: createEmbryoObservations
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [observations]
+              properties:
+                observations:
+                  type: array
+                  minItems: 1
+                  maxItems: 200
+                  items: { $ref: '#/components/schemas/EmbryoObservationInput' }
+            examples:
+              checkpoint:
+                summary: One checkpoint, one embryo alive and one dead
+                value:
+                  observations:
+                    - clientUuid: 0192f3a1-7c4e-7000-8000-1a2b3c4d5e6f
+                      embryoId: 0192f0aa-0000-7000-8000-000000000001
+                      stageCode: stage_09_256C
+                      observedAt: '2026-08-20T12:38:00+07:00'
+                      outcome: ALIVE
+                      condition: NORMAL
+                    - clientUuid: 0192f3a1-7c4e-7000-8000-1a2b3c4d5e70
+                      embryoId: 0192f0aa-0000-7000-8000-000000000002
+                      stageCode: stage_09_256C
+                      observedAt: '2026-08-20T12:38:00+07:00'
+                      outcome: DEAD
+                      condition: UNDETERMINED
+      responses:
+        '200':
+          description: Per-item results
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results]
+                properties:
+                  results:
+                    type: array
+                    items: { $ref: '#/components/schemas/EmbryoObservationResult' }
+              examples:
+                mixed:
+                  summary: One created, one already seen
+                  value:
+                    results:
+                      - clientUuid: 0192f3a1-7c4e-7000-8000-1a2b3c4d5e6f
+                        id: 0192f3b0-0000-7000-8000-000000000001
+                        status: created
+                        hpaActual: 2.6333
+                        hpaExpected: 2.5
+                        deviationH: 0.1333
+                        deviationLabel: ช้ากว่าสากล 8 นาที
+                        exitRecorded: false
+                      - clientUuid: 0192f3a1-7c4e-7000-8000-1a2b3c4d5e70
+                        id: 0192f3b1-0000-7000-8000-000000000002
+                        status: duplicate
+                        hpaActual: 2.6333
+                        hpaExpected: 2.5
+                        deviationH: 0.1333
+                        deviationLabel: ช้ากว่าสากล 8 นาที
+                        exitRecorded: true
+
+  /observations/embryo/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    patch:
+      tags: [Observations]
+      summary: Correct a mis-entered embryo observation
+      description: |
+        Corrections are recorded, not hidden (FR-1101, FR-1102). Editing the
+        outcome recalculates the embryo's exit event; editing the condition can
+        clear or move `firstAbnormal` (BR-12). `hpaExpectedSnapshot` is only
+        recomputed if `observedAt` changes.
+      operationId: updateEmbryoObservation
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                observedAt: { type: string, format: date-time }
+                outcome: { $ref: '#/components/schemas/EmbryoOutcome' }
+                condition: { $ref: '#/components/schemas/Condition' }
+                notes: { type: [string, 'null'] }
+                correctionReason: { type: string, maxLength: 500 }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/EmbryoObservation' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+    delete:
+      tags: [Observations]
+      summary: Soft-delete an observation
+      operationId: deleteEmbryoObservation
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      responses:
+        '204': { description: Soft-deleted }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /fish/roll-call:
+    get:
+      tags: [Observations]
+      summary: The daily fish check-list
+      description: |
+        Living fish only (FR-602), with age computed from date of birth (BR-11)
+        and a flag for any fish already known to be abnormal, including the age
+        at which that was first seen (FR-605). `date` may be in the past so a
+        missed day can be filled in later (FR-607, Q-N4 backdating).
+      operationId: getFishRollCall
+      parameters:
+        - { name: date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: boxId, in: query, schema: { type: string, format: uuid } }
+        - { name: siteId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Roll-call list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [date, items]
+                properties:
+                  date: { type: string, format: date }
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/RollCallEntry' }
+
+  /observations/fish:
+    post:
+      tags: [Observations]
+      summary: Record fish observations (bulk, idempotent)
+      description: |
+        Same idempotency contract as the embryo endpoint (BR-18). "Everyone still
+        alive" is one call carrying every living fish (FR-604, AC-604).
+
+        An outcome of `DEAD`, `FROZEN`, or `DISCARDED` also closes the fish:
+        `status`, `exitDate`, and `exitReason` are set, and it drops off the next
+        day's roll-call (FR-606, AC-606).
+
+        For a consecutive date range, the client expands each fish/date into a
+        separate item with its own `clientUuid`. This keeps retries idempotent.
+      operationId: createFishObservations
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [observations]
+              properties:
+                observations:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  items: { $ref: '#/components/schemas/FishObservationInput' }
+      responses:
+        '200':
+          description: Per-item results
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [results]
+                properties:
+                  results:
+                    type: array
+                    items: { $ref: '#/components/schemas/FishObservationResult' }
+
+  /observations/fish/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    patch:
+      tags: [Observations]
+      summary: Correct a fish observation
+      operationId: updateFishObservation
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FishObservationPatchInput' }
+      responses:
+        '204': { description: Corrected and audited }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+    delete:
+      tags: [Observations]
+      summary: Soft-delete an incorrect fish observation
+      operationId: deleteFishObservation
+      parameters:
+        - $ref: '#/components/parameters/OperatorId'
+        - $ref: '#/components/parameters/DeviceId'
+        - name: reason
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        '204': { description: Soft-deleted and audited }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  # ----------------------------------------------------------------- promotion
+  /promotions/pending:
+    get:
+      tags: [Promotion]
+      summary: Embryos that qualify to become clone fish
+      description: |
+        Qualifies when all of BR-09 hold: older than `stage1MaxAgeDays` (5 days
+        by default, so past 120 h), no exit event, and last observation `ALIVE`.
+        Abnormal embryos qualify like any other (FR-506, Q4).
+
+        Each entry carries a suggested `fishCode` and `runningNo` (BR-13, BR-14)
+        which the caller may override.
+      operationId: listPendingPromotions
+      parameters:
+        - { name: siteId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Candidates
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/PromotionCandidate' }
+
+  /promotions:
+    post:
+      tags: [Promotion]
+      summary: Promote embryos into the fish register
+      description: |
+        Always explicit — the system never promotes on its own (FR-504).
+
+        The new fish inherits its date of birth from the lot's `activatedAt`,
+        **not** from the day it was promoted (BR-10, AC-505), along with the
+        donor line, site, condition, and any first-abnormal marker. The embryo
+        is closed with `exitReason = PROMOTED`, which keeps it counted as a
+        survivor rather than a loss in the survival curves.
+
+        Running numbers are allocated inside the same transaction so two people
+        promoting at once cannot collide (BR-14).
+      operationId: createPromotions
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [promotions]
+              properties:
+                promotions:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [clientUuid, embryoId]
+                    properties:
+                      clientUuid: { type: string, format: uuid }
+                      embryoId: { type: string, format: uuid }
+                      fishCode:
+                        type: [string, 'null']
+                        description: Overrides the server's suggestion.
+                        examples: ['No.47_Clone1-AB cell-24']
+                      fishBoxId: { type: [string, 'null'], format: uuid }
+      responses:
+        '201':
+          description: Fish created
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/CloneFish' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  # ---------------------------------------------------------------------- fish
+  /fish:
+    get:
+      tags: [Fish]
+      summary: The clone fish register
+      operationId: listFish
+      parameters:
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/FishStatus' } }
+        - { name: siteId, in: query, schema: { type: string, format: uuid } }
+        - { name: boxId, in: query, schema: { type: string, format: uuid } }
+        - { name: treatmentGroupId, in: query, schema: { type: string, format: uuid } }
+        - { name: strain, in: query, schema: { type: string } }
+        - { name: condition, in: query, schema: { $ref: '#/components/schemas/Condition' } }
+        - { name: dobFrom, in: query, schema: { type: string, format: date } }
+        - { name: dobTo, in: query, schema: { type: string, format: date } }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Fish
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/CloneFish' }
+                  nextCursor: { type: [string, 'null'] }
+    post:
+      tags: [Fish]
+      summary: Register a fish by hand
+      description: For fish that did not come through the normal promotion path (FR-509).
+      operationId: createFish
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CloneFishInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CloneFish' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /fish/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    get:
+      tags: [Fish]
+      summary: One fish with its full observation timeline
+      operationId: getFish
+      responses:
+        '200':
+          description: Fish detail
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CloneFishDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [Fish]
+      summary: Update a fish
+      description: Sex is usually only determinable weeks in (FR-609), so it can be set at any time.
+      operationId: updateFish
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fishCode: { type: string }
+                sex: { $ref: '#/components/schemas/Sex' }
+                finClipped: { type: boolean }
+                fishBoxId: { type: [string, 'null'], format: uuid }
+                remarks: { type: [string, 'null'] }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CloneFish' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /fish/{id}/specimens:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    get:
+      tags: [Fish]
+      summary: List DNA specimens taken from a fish
+      operationId: listFishSpecimens
+      responses:
+        '200':
+          description: Specimens
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Specimen' }
+    post:
+      tags: [Fish]
+      summary: Record a DNA specimen
+      operationId: createSpecimen
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SpecimenInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Specimen' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  # ----------------------------------------------------------------- analytics
+  /analytics/kpi:
+    get:
+      tags: [Analytics]
+      summary: Headline numbers for both stages
+      operationId: getKpi
+      parameters: [ $ref: '#/components/parameters/AnalyticsFilters' ]
+      responses:
+        '200':
+          description: KPIs
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/KpiResponse' }
+
+  /analytics/funnel:
+    get:
+      tags: [Analytics]
+      summary: Survivors at each checkpoint, with percentage of activated
+      description: Percentages follow BR-17 and are always computed live, never stored (DC-04).
+      operationId: getFunnel
+      parameters: [ $ref: '#/components/parameters/AnalyticsFilters' ]
+      responses:
+        '200':
+          description: Funnel
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/FunnelStep' }
+
+  /analytics/survival:
+    get:
+      tags: [Analytics]
+      summary: Discrete-time survival by checkpoint
+      description: |
+        Returns `riskSet`, `alive`, `nPrev`, `nDead` and `surv` per BR-15 and
+        BR-16, grouped by site and strain — the same shape the lab's existing R
+        notebook consumes.
+
+        `riskSet` excludes embryos that have not yet reached the checkpoint's
+        due time, so an experiment still in progress does not read as mass
+        mortality. The raw counts are always returned alongside `surv` so the
+        analyst can recompute survival their own way rather than trusting ours.
+      operationId: getSurvival
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFilters'
+        - name: groupBy
+          in: query
+          schema:
+            type: array
+            items: { type: string, enum: [site, strain, treatmentGroup] }
+          examples: { default: { value: [site, strain] } }
+      responses:
+        '200':
+          description: Survival table
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/SurvivalPoint' }
+
+  /analytics/timing-deviation:
+    get:
+      tags: [Analytics]
+      summary: How far development ran ahead of or behind the reference times
+      description: |
+        Distribution of `deviationH` per checkpoint. Positive means slower than
+        the reference, negative means faster. There is deliberately no
+        pass/fail threshold — the lab asked for the raw difference and nothing
+        more (Q-N5, BR-04).
+      operationId: getTimingDeviation
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFilters'
+        - name: groupBy
+          in: query
+          schema:
+            type: array
+            items: { type: string, enum: [site, strain, treatmentGroup, operator] }
+      responses:
+        '200':
+          description: Deviation summary
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/DeviationSummary' }
+
+  /analytics/abnormality-onset:
+    get:
+      tags: [Analytics]
+      summary: Where abnormality is first seen
+      operationId: getAbnormalityOnset
+      parameters: [ $ref: '#/components/parameters/AnalyticsFilters' ]
+      responses:
+        '200':
+          description: Onset histogram
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [stageOrder, stageLabel, count]
+                      properties:
+                        stageOrder: { type: integer }
+                        stageLabel: { type: string }
+                        count: { type: integer }
+
+  /analytics/fish-survival:
+    get:
+      tags: [Analytics]
+      summary: Daily survival of clone fish
+      operationId: getFishSurvival
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFilters'
+        - name: splitByCondition
+          in: query
+          description: Return normal and abnormal fish as separate series (FR-817)
+          schema: { type: boolean, default: false }
+      responses:
+        '200':
+          description: Fish survival series
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [ageDays, atRisk, alive, surv]
+                      properties:
+                        group: { type: [string, 'null'] }
+                        ageDays: { type: integer }
+                        atRisk: { type: integer }
+                        alive: { type: integer }
+                        surv: { type: number }
+
+  /analytics/observation-gaps:
+    get:
+      tags: [Analytics]
+      summary: Fish that have missed a daily check
+      description: Drives the reminder to backfill (FR-822).
+      operationId: getObservationGaps
+      parameters: [ $ref: '#/components/parameters/AnalyticsFilters' ]
+      responses:
+        '200':
+          description: Gaps
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [fishId, fishCode, lastObservedOn, missedDays]
+                      properties:
+                        fishId: { type: string, format: uuid }
+                        fishCode: { type: string }
+                        lastObservedOn: { type: [string, 'null'], format: date }
+                        missedDays: { type: integer }
+
+  /analytics/pipeline:
+    get:
+      tags: [Analytics]
+      summary: End-to-end funnel across both stages
+      description: |
+        Joins Stage 1 and Stage 2 into a single chain — something the lab's
+        spreadsheets cannot do today because the two live in separate sheets
+        with no key between them (FR-823).
+      operationId: getPipeline
+      parameters: [ $ref: '#/components/parameters/AnalyticsFilters' ]
+      responses:
+        '200':
+          description: Pipeline
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [step, count, pctOfStart]
+                      properties:
+                        step: { type: string, examples: ['Reached Shield'] }
+                        count: { type: integer }
+                        pctOfStart: { type: number }
+                        pctOfPrevious: { type: [number, 'null'] }
+
+  # -------------------------------------------------------------------- export
+  /exports/excel:
+    post:
+      tags: [Export]
+      summary: Build the 14-sheet Excel workbook
+      description: |
+        Uses the same filters as the dashboard (FR-905). Every sheet is a flat
+        table with a single header row and no merged cells (FR-902) so pandas
+        and readxl can read it directly — which is precisely what the current
+        spreadsheets cannot do.
+
+        Generated per request and streamed; nothing is written to disk (FR-909,
+        CON-05), which is also what lets the backend run on a filesystem-less
+        platform.
+      operationId: exportExcel
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExportRequest' }
+      responses:
+        '200':
+          description: Workbook
+          headers:
+            Content-Disposition:
+              schema: { type: string, examples: ['attachment; filename="scnt_export_2026-08-20.xlsx"'] }
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: { type: string, format: binary }
+
+  /exports/r-table:
+    get:
+      tags: [Export]
+      summary: The analysis table as CSV
+      description: |
+        Columns `Sites, Strain, Replicate, Strain_Rep` followed by one column per
+        checkpoint, matching the shape the lab's R notebook already expects
+        (FR-904, AC-904).
+      operationId: exportRTable
+      parameters: [ $ref: '#/components/parameters/AnalyticsFilters' ]
+      responses:
+        '200':
+          description: CSV
+          content:
+            text/csv:
+              schema: { type: string }
+
+  # --------------------------------------------------------------------- audit
+  /audit-log:
+    get:
+      tags: [Audit]
+      summary: Change history
+      operationId: listAuditLog
+      parameters:
+        - { name: table, in: query, schema: { type: string } }
+        - { name: recordId, in: query, schema: { type: string, format: uuid } }
+        - { name: operatorId, in: query, schema: { type: string, format: uuid } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Audit entries
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditEntry' }
+                  nextCursor: { type: [string, 'null'] }
+
+  /health:
+    get:
+      summary: Service health
+      operationId: getHealth
+      responses:
+        '200':
+          description: API is ready to serve requests
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, version]
+                properties:
+                  status: { type: string, const: ok }
+                  version: { type: string }
+
+components:
+
+  parameters:
+    PathId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    OperatorId:
+      name: X-Operator-Id
+      in: header
+      required: true
+      description: Who is doing this. Required on every write because there is no login (CON-01, FR-1105).
+      schema: { type: string, format: uuid }
+    DeviceId:
+      name: X-Device-Id
+      in: header
+      required: true
+      description: Stable per-device identifier generated on first use and kept in local storage.
+      schema: { type: string, maxLength: 64 }
+    IncludeInactive:
+      name: includeInactive
+      in: query
+      description: Include deactivated rows. Off by default so dropdowns stay clean (FR-111).
+      schema: { type: boolean, default: false }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    AnalyticsFilters:
+      name: filters
+      in: query
+      description: |
+        Every `/analytics` endpoint accepts the same filter set, so the dashboard
+        can swap panels without rebuilding its query state:
+        `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
+        `donorCellLineId`, `strain`, `batchId`.
+      style: form
+      explode: true
+      schema: { $ref: '#/components/schemas/AnalyticsFilter' }
+
+  responses:
+    NotFound:
+      description: No such resource
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Conflicts with current state — for example a duplicate normalised name, or a monotonic-survival violation without an override reason
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    UnprocessableEntity:
+      description: Well-formed but breaks a business rule (BR-19)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          examples:
+            beforeActivation:
+              summary: Observation timed before its lot was activated
+              value:
+                error:
+                  code: OBSERVATION_BEFORE_ACTIVATION
+                  message: เวลาที่สังเกตอยู่ก่อนเวลา activation ของล็อตนี้
+                  field: observedAt
+                  details:
+                    observedAt: '2026-08-20T09:00:00+07:00'
+                    activatedAt: '2026-08-20T10:59:00+07:00'
+
+  schemas:
+
+    # ---- shared enums -------------------------------------------------------
+    EmbryoOutcome:
+      type: string
+      enum: [ALIVE, DEAD, DEGENERATED, NOT_OBSERVED]
+      description: DEGENERATED is kept distinct from DEAD because the lab records the two separately.
+    FishOutcome:
+      type: string
+      enum: [ALIVE, DEAD, FROZEN, DISCARDED, NOT_OBSERVED]
+    Condition:
+      type: string
+      enum: [NORMAL, ABNORMAL, UNDETERMINED]
+    FishStatus:
+      type: string
+      enum: [ALIVE, DEAD, FROZEN, DISCARDED]
+    Sex:
+      type: string
+      enum: [M, F, UNKNOWN]
+    ExitReason:
+      type: string
+      enum: [DEAD, DEGENERATED, PROMOTED, LOST]
+      description: PROMOTED means the embryo survived into the fish register — a success, not a loss.
+    ArmType:
+      type: string
+      enum: [SCNT, NATURAL_BREEDING, IVF]
+    ControlArmType:
+      type: string
+      enum: [NATURAL_BREEDING, IVF]
+    StagePhase:
+      type: string
+      enum: [CLEAVAGE, BLASTULA, GASTRULA, LARVAL]
+    StageScope:
+      type: string
+      enum: [STAGE_1, STAGE_2]
+    Preparation:
+      type: string
+      enum: [DISSOCIATED, CHUNKS]
+    SpecimenKind:
+      type: string
+      enum: [CL, RT, DC]
+      description: Clone, Recipient Tail, Donor Cell.
+    SpecimenType:
+      type: string
+      enum: [WHOLE_EMBRYO, CAUDAL_FIN_CLIP]
+    WriteStatus:
+      type: string
+      enum: [created, duplicate, rejected]
+      description: '`duplicate` is a normal outcome of retrying, not a failure.'
+
+    # ---- errors -------------------------------------------------------------
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              examples: [OBSERVATION_BEFORE_ACTIVATION]
+            message:
+              type: string
+              description: Written for the person on the iPad, not for a log file (NFR-304).
+            field: { type: [string, 'null'] }
+            details: { type: [object, 'null'], additionalProperties: true }
+
+    # ---- master data --------------------------------------------------------
+    Site:
+      type: object
+      required: [id, code, name, active]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, examples: [KU] }
+        name: { type: string, examples: [Kasetsart University] }
+        active: { type: boolean }
+    SiteInput:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 20 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        active: { type: boolean, default: true }
+    SitePatchInput:
+      type: object
+      minProperties: 1
+      properties:
+        code: { type: string, minLength: 1, maxLength: 20 }
+        name: { type: string, minLength: 1, maxLength: 200 }
+        active: { type: boolean }
+
+    Operator:
+      type: object
+      required: [id, name, active]
+      properties:
+        id: { type: string, format: uuid }
+        siteId: { type: [string, 'null'], format: uuid }
+        name: { type: string, examples: [Jan] }
+        active: { type: boolean }
+    OperatorInput:
+      type: object
+      required: [name]
+      properties:
+        siteId: { type: [string, 'null'], format: uuid }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        active: { type: boolean, default: true }
+    OperatorPatchInput:
+      type: object
+      minProperties: 1
+      properties:
+        siteId: { type: [string, 'null'], format: uuid }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        active: { type: boolean }
+
+    DonorCellLine:
+      type: object
+      required: [id, strain, preparation, active]
+      properties:
+        id: { type: string, format: uuid }
+        strain: { type: string, examples: [AB] }
+        preparation: { $ref: '#/components/schemas/Preparation' }
+        batchCode: { type: [string, 'null'], examples: [AB240426_e48h] }
+        active: { type: boolean }
+    DonorCellLineInput:
+      type: object
+      required: [strain, preparation]
+      properties:
+        strain: { type: string, minLength: 1, maxLength: 50 }
+        preparation: { $ref: '#/components/schemas/Preparation' }
+        batchCode: { type: [string, 'null'], maxLength: 100 }
+        active: { type: boolean, default: true }
+    DonorCellLinePatchInput:
+      type: object
+      minProperties: 1
+      properties:
+        strain: { type: string, minLength: 1, maxLength: 50 }
+        preparation: { $ref: '#/components/schemas/Preparation' }
+        batchCode: { type: [string, 'null'], maxLength: 100 }
+        active: { type: boolean }
+
+    RecipientEggLot:
+      type: object
+      required: [id, breed, label, active]
+      properties:
+        id: { type: string, format: uuid }
+        breed: { type: string, examples: [TAB Taiwan] }
+        lotDate: { type: [string, 'null'], format: date }
+        label: { type: string, examples: ['TAB Taiwan 29-04-2025'] }
+        active: { type: boolean }
+    RecipientEggLotInput:
+      type: object
+      required: [breed, label]
+      properties:
+        breed: { type: string, minLength: 1, maxLength: 100 }
+        lotDate: { type: [string, 'null'], format: date }
+        label: { type: string, minLength: 1, maxLength: 200 }
+        active: { type: boolean, default: true }
+    RecipientEggLotPatchInput:
+      type: object
+      minProperties: 1
+      properties:
+        breed: { type: string, minLength: 1, maxLength: 100 }
+        lotDate: { type: [string, 'null'], format: date }
+        label: { type: string, minLength: 1, maxLength: 200 }
+        active: { type: boolean }
+
+    CsofLot:
+      type: object
+      required: [id, lotCode, active]
+      properties:
+        id: { type: string, format: uuid }
+        lotCode: { type: string, examples: ['CSOF 2024-19'] }
+        active: { type: boolean }
+    CsofLotInput:
+      type: object
+      required: [lotCode]
+      properties:
+        lotCode: { type: string, minLength: 1, maxLength: 100 }
+        active: { type: boolean, default: true }
+    CsofLotPatchInput:
+      type: object
+      minProperties: 1
+      properties:
+        lotCode: { type: string, minLength: 1, maxLength: 100 }
+        active: { type: boolean }
+
+    TreatmentGroup:
+      type: object
+      required: [id, code, armType, active]
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, examples: [RK701] }
+        name: { type: [string, 'null'] }
+        armType: { $ref: '#/components/schemas/ArmType' }
+        active: { type: boolean }
+    TreatmentGroupInput:
+      type: object
+      required: [code, armType]
+      properties:
+        code: { type: string, minLength: 1, maxLength: 50 }
+        name: { type: [string, 'null'], maxLength: 200 }
+        armType: { $ref: '#/components/schemas/ArmType' }
+        active: { type: boolean, default: true }
+    TreatmentGroupPatchInput:
+      type: object
+      minProperties: 1
+      properties:
+        code: { type: string, minLength: 1, maxLength: 50 }
+        name: { type: [string, 'null'], maxLength: 200 }
+        armType: { $ref: '#/components/schemas/ArmType' }
+        active: { type: boolean }
+
+    FishBox:
+      type: object
+      required: [id, boxCode, active]
+      properties:
+        id: { type: string, format: uuid }
+        boxCode: { type: string, examples: [Box-4] }
+        siteId: { type: [string, 'null'], format: uuid }
+        active: { type: boolean }
+    FishBoxInput:
+      type: object
+      required: [boxCode]
+      properties:
+        boxCode: { type: string, minLength: 1, maxLength: 50 }
+        siteId: { type: [string, 'null'], format: uuid }
+        active: { type: boolean, default: true }
+    FishBoxPatchInput:
+      type: object
+      minProperties: 1
+      properties:
+        boxCode: { type: string, minLength: 1, maxLength: 50 }
+        siteId: { type: [string, 'null'], format: uuid }
+        active: { type: boolean }
+
+    # ---- protocol and timing ------------------------------------------------
+    Protocol:
+      type: object
+      required: [id, name, stage1MaxAgeDays, active]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, examples: [SCNT standard] }
+        stage1MaxAgeDays:
+          type: integer
+          description: Age past which a surviving embryo becomes eligible for promotion (BR-09).
+          examples: [5]
+        active: { type: boolean }
+
+    StageDefinition:
+      type: object
+      required: [id, stageOrder, code, label, shortLabel, phase, stageScope]
+      properties:
+        id: { type: string, format: uuid }
+        stageOrder: { type: integer, examples: [9] }
+        code: { type: string, examples: [stage_09_256C] }
+        label:
+          type: string
+          description: Always English, in both UI languages (NFR-703).
+          examples: [256-cell]
+        shortLabel: { type: string, examples: ['256C'] }
+        phase: { $ref: '#/components/schemas/StagePhase' }
+        stageScope: { $ref: '#/components/schemas/StageScope' }
+
+    TimingProfile:
+      type: object
+      required: [id, protocolId, version, name, isCurrent, entries]
+      properties:
+        id: { type: string, format: uuid }
+        protocolId: { type: string, format: uuid }
+        version: { type: integer, examples: [1] }
+        name: { type: string, examples: ['ZFIN 28.5C (default)'] }
+        referenceTempC: { type: [number, 'null'], examples: [28.5] }
+        autoTempAdjust:
+          type: boolean
+          description: Always false in v1 (Q-N2); the field exists so enabling FR-207 later needs no migration.
+        sourceNote: { type: [string, 'null'], examples: ['Kimmel et al. 1995 / ZFIN, 28.5 C'] }
+        isCurrent: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        createdByOperatorId: { type: [string, 'null'], format: uuid }
+        entries:
+          type: array
+          items:
+            type: object
+            required: [stageOrder, stageCode, stageLabel, expectedHpa]
+            properties:
+              stageOrder: { type: integer }
+              stageCode: { type: string }
+              stageLabel: { type: string }
+              expectedHpa: { type: number, examples: [2.5] }
+
+    # ---- experiments --------------------------------------------------------
+    Batch:
+      type: object
+      required: [id, batchCode, experimentDate, siteId, operatorId, protocolId, timingProfileId, treatmentGroupId]
+      properties:
+        id: { type: string, format: uuid }
+        batchCode: { type: string, examples: ['1_Jan_Control'] }
+        experimentDate: { type: string, format: date }
+        dayNo: { type: [integer, 'null'] }
+        siteId: { type: string, format: uuid }
+        operatorId: { type: string, format: uuid }
+        protocolId: { type: string, format: uuid }
+        timingProfileId:
+          type: string
+          format: uuid
+          description: Pinned when the batch was created and never changed afterwards (FR-303, BR-21).
+        timingProfileVersion: { type: integer }
+        treatmentGroupId: { type: string, format: uuid }
+        recipientEggLotId: { type: [string, 'null'], format: uuid }
+        csofLotId: { type: [string, 'null'], format: uuid }
+        clutchCode: { type: [string, 'null'], examples: [E6] }
+        replicateNo: { type: [integer, 'null'] }
+        incubationTempC:
+          type: [number, 'null']
+          description: Recorded but unused in v1 (ASM-01, Q-N2).
+        notes: { type: [string, 'null'] }
+    BatchInput:
+      type: object
+      required: [experimentDate, siteId, operatorId, protocolId, treatmentGroupId]
+      properties:
+        batchCode:
+          type: [string, 'null']
+          description: Omit to let the server suggest `{dayNo}_{operator}_{treatmentGroup}` (FR-302).
+        experimentDate: { type: string, format: date }
+        dayNo: { type: [integer, 'null'] }
+        siteId: { type: string, format: uuid }
+        operatorId: { type: string, format: uuid }
+        protocolId: { type: string, format: uuid }
+        treatmentGroupId: { type: string, format: uuid }
+        recipientEggLotId: { type: [string, 'null'], format: uuid }
+        csofLotId: { type: [string, 'null'], format: uuid }
+        clutchCode: { type: [string, 'null'], maxLength: 50 }
+        replicateNo: { type: [integer, 'null'], minimum: 1 }
+        incubationTempC: { type: [number, 'null'], minimum: 0, maximum: 50 }
+        notes: { type: [string, 'null'] }
+    BatchDetail:
+      allOf:
+        - $ref: '#/components/schemas/Batch'
+        - type: object
+          properties:
+            injectionLots:
+              type: array
+              items: { $ref: '#/components/schemas/InjectionLot' }
+
+    InjectionLot:
+      type: object
+      required: [id, batchId, lotNo, donorCellLineId, activatedAt, nActivated]
+      properties:
+        id: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        lotNo:
+          type: string
+          description: Text, not a number — real data contains both '1' and 'June_2'.
+          examples: ['1']
+        donorCellLineId: { type: string, format: uuid }
+        enuPowerPct: { type: [integer, 'null'], examples: [100] }
+        enuPulseUs: { type: [integer, 'null'], examples: [500] }
+        enuLed: { type: [integer, 'null'], examples: [85] }
+        enuStartAt: { type: [string, 'null'], format: date-time }
+        enuFinishAt: { type: [string, 'null'], format: date-time }
+        activatedAt:
+          type: string
+          format: date-time
+          description: T0 for everything downstream (BR-01).
+        nEggs: { type: [integer, 'null'] }
+        nActivated: { type: integer }
+        notes: { type: [string, 'null'] }
+    InjectionLotInput:
+      type: object
+      required: [lotNo, donorCellLineId, activatedAt, nActivated]
+      properties:
+        lotNo: { type: string, maxLength: 20 }
+        donorCellLineId: { type: string, format: uuid }
+        enuPowerPct: { type: [integer, 'null'], minimum: 0, maximum: 100 }
+        enuPulseUs: { type: [integer, 'null'], minimum: 0 }
+        enuLed: { type: [integer, 'null'], minimum: 0 }
+        enuStartAt: { type: [string, 'null'], format: date-time }
+        enuFinishAt: { type: [string, 'null'], format: date-time }
+        activatedAt: { type: string, format: date-time }
+        nEggs: { type: [integer, 'null'], minimum: 0 }
+        nActivated:
+          type: integer
+          minimum: 0
+          maximum: 96
+          description: This many embryo records are created immediately (FR-308).
+        wellPositions:
+          type: [array, 'null']
+          description: Optional, in sequence order; entry i is the well of embryo i+1.
+          items: { type: string, pattern: '^[A-H](1[0-2]|[1-9])$' }
+        notes: { type: [string, 'null'] }
+    InjectionLotDetail:
+      allOf:
+        - $ref: '#/components/schemas/InjectionLot'
+        - type: object
+          properties:
+            embryos:
+              type: array
+              items: { $ref: '#/components/schemas/Embryo' }
+
+    Embryo:
+      type: object
+      required: [id, injectionLotId, seqInLot, embryoCode]
+      properties:
+        id: { type: string, format: uuid }
+        injectionLotId: { type: string, format: uuid }
+        seqInLot: { type: integer, examples: [1] }
+        embryoCode: { type: string, examples: ['1_Jan_Control_1_1'] }
+        wellPosition: { type: [string, 'null'], examples: [B3] }
+        exitStageCode: { type: [string, 'null'] }
+        exitAt: { type: [string, 'null'], format: date-time }
+        exitReason: { oneOf: [ { $ref: '#/components/schemas/ExitReason' }, { type: 'null' } ] }
+        firstAbnormalStageCode: { type: [string, 'null'] }
+        latestCondition: { oneOf: [ { $ref: '#/components/schemas/Condition' }, { type: 'null' } ] }
+
+    ControlArmCount:
+      type: object
+      required: [id, batchId, armType, stageCode, nNormal, nAbnormal]
+      properties:
+        id: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        armType: { $ref: '#/components/schemas/ControlArmType' }
+        stageCode: { type: string }
+        stageLabel: { type: string }
+        nNormal: { type: integer }
+        nAbnormal: { type: integer }
+
+    # ---- observations -------------------------------------------------------
+    DueCheckpoint:
+      type: object
+      required: [injectionLotId, batchCode, lotNo, stageCode, stageLabel, dueAt, minutesLate, embryosRemaining]
+      properties:
+        injectionLotId: { type: string, format: uuid }
+        batchId: { type: string, format: uuid }
+        batchCode: { type: string }
+        lotNo: { type: string }
+        stageCode: { type: string }
+        stageLabel: { type: string }
+        stageOrder: { type: integer }
+        dueAt: { type: string, format: date-time }
+        minutesLate:
+          type: integer
+          description: Negative when the checkpoint is still in the future.
+        embryosRemaining: { type: integer }
+        operatorName: { type: [string, 'null'] }
+
+    CheckpointEntry:
+      type: object
+      required: [injectionLotId, batchCode, lotNo, stage, activatedAt, expectedHpa, embryos]
+      properties:
+        injectionLotId: { type: string, format: uuid }
+        batchCode: { type: string }
+        lotNo: { type: string }
+        stage: { $ref: '#/components/schemas/StageDefinition' }
+        activatedAt: { type: string, format: date-time }
+        expectedHpa: { type: number, examples: [2.5] }
+        dueAt: { type: string, format: date-time }
+        totalEmbryos: { type: integer }
+        embryos:
+          type: array
+          items:
+            type: object
+            required: [embryoId, embryoCode, defaultCondition]
+            properties:
+              embryoId: { type: string, format: uuid }
+              embryoCode: { type: string }
+              wellPosition: { type: [string, 'null'] }
+              defaultCondition:
+                $ref: '#/components/schemas/Condition'
+                description: Carried forward from the previous observation (FR-409).
+              firstAbnormalStageLabel: { type: [string, 'null'] }
+
+    EmbryoObservationInput:
+      type: object
+      required: [clientUuid, embryoId, stageCode, observedAt, outcome, condition]
+      properties:
+        clientUuid:
+          type: string
+          format: uuid
+          description: Generated on the device before sending. The idempotency key (BR-18).
+        embryoId: { type: string, format: uuid }
+        stageCode: { type: string, examples: [stage_09_256C] }
+        observedAt:
+          type: string
+          format: date-time
+          description: Must fall between the lot's activation and now (BR-19).
+        outcome: { $ref: '#/components/schemas/EmbryoOutcome' }
+        condition: { $ref: '#/components/schemas/Condition' }
+        notes: { type: [string, 'null'] }
+        overrideReason:
+          type: [string, 'null']
+          maxLength: 500
+          description: Required to record ALIVE for an embryo that already has an exit event (BR-07, FR-420).
+
+    EmbryoObservationResult:
+      type: object
+      required: [clientUuid, status]
+      properties:
+        clientUuid: { type: string, format: uuid }
+        id: { type: [string, 'null'], format: uuid }
+        status: { $ref: '#/components/schemas/WriteStatus' }
+        hpaActual: { type: [number, 'null'], examples: [2.6333] }
+        hpaExpected: { type: [number, 'null'], examples: [2.5] }
+        deviationH: { type: [number, 'null'], examples: [0.1333] }
+        deviationLabel:
+          type: [string, 'null']
+          description: Preformatted for display per BR-23, so both platforms word it identically.
+          examples: ['ช้ากว่าสากล 8 นาที']
+        exitRecorded: { type: [boolean, 'null'] }
+        error: { type: [object, 'null'], additionalProperties: true }
+
+    EmbryoObservation:
+      type: object
+      required: [id, embryoId, stageCode, observedAt, hpaActual, hpaExpectedSnapshot, deviationH, outcome, condition]
+      properties:
+        id: { type: string, format: uuid }
+        clientUuid: { type: string, format: uuid }
+        embryoId: { type: string, format: uuid }
+        embryoCode: { type: string }
+        stageCode: { type: string }
+        stageOrder: { type: integer }
+        observedAt: { type: string, format: date-time }
+        hpaActual: { type: number }
+        hpaExpectedSnapshot:
+          type: number
+          description: Frozen at write time so past results never shift when the reference is edited (BR-03, NFR-203).
+        deviationH: { type: number }
+        deviationPct: { type: [number, 'null'] }
+        outcome: { $ref: '#/components/schemas/EmbryoOutcome' }
+        condition: { $ref: '#/components/schemas/Condition' }
+        operatorId: { type: string, format: uuid }
+        isBackdated: { type: boolean }
+        notes: { type: [string, 'null'] }
+
+    RollCallEntry:
+      type: object
+      required: [fishId, fishCode, ageDays, status, condition, alreadyRecorded]
+      properties:
+        fishId: { type: string, format: uuid }
+        fishCode: { type: string, examples: ['No.6_Clone3-AB cell-16'] }
+        ageDays: { type: integer, examples: [329] }
+        status: { $ref: '#/components/schemas/FishStatus' }
+        condition: { $ref: '#/components/schemas/Condition' }
+        firstAbnormalAgeDays: { type: [integer, 'null'] }
+        fishBoxCode: { type: [string, 'null'] }
+        alreadyRecorded:
+          type: boolean
+          description: True when this date already has an observation, so the screen can show it as done.
+
+    FishObservationInput:
+      type: object
+      required: [clientUuid, cloneFishId, observedOn, outcome, condition]
+      properties:
+        clientUuid: { type: string, format: uuid }
+        cloneFishId: { type: string, format: uuid }
+        observedOn: { type: string, format: date }
+        outcome: { $ref: '#/components/schemas/FishOutcome' }
+        condition: { $ref: '#/components/schemas/Condition' }
+        notes: { type: [string, 'null'] }
+        overrideReason:
+          type: [string, 'null']
+          maxLength: 500
+          description: Required by the server when the observation is backdated (BR-07, BR-19).
+
+    FishObservationPatchInput:
+      type: object
+      minProperties: 2
+      required: [overrideReason]
+      properties:
+        observedOn: { type: string, format: date }
+        outcome: { $ref: '#/components/schemas/FishOutcome' }
+        condition: { $ref: '#/components/schemas/Condition' }
+        notes: { type: [string, 'null'] }
+        overrideReason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Audit reason for correcting the observation.
+
+    FishObservationResult:
+      type: object
+      required: [clientUuid, status]
+      properties:
+        clientUuid: { type: string, format: uuid }
+        id: { type: [string, 'null'], format: uuid }
+        status: { $ref: '#/components/schemas/WriteStatus' }
+        ageDays: { type: [integer, 'null'] }
+        fishClosed:
+          type: [boolean, 'null']
+          description: True when this observation ended the fish's tracking (FR-606).
+        error: { type: [object, 'null'], additionalProperties: true }
+
+    # ---- fish ---------------------------------------------------------------
+    PromotionCandidate:
+      type: object
+      required: [embryoId, embryoCode, dob, ageDays, strain, condition, suggestedFishCode, suggestedRunningNo]
+      properties:
+        embryoId: { type: string, format: uuid }
+        embryoCode: { type: string, examples: ['1_Jan_Control_2_1'] }
+        batchCode: { type: string }
+        dob:
+          type: string
+          format: date
+          description: Date of the lot's activation, which becomes the fish's date of birth (BR-10).
+        ageDays: { type: integer, examples: [6] }
+        strain: { type: string }
+        donorCellLineId: { type: string, format: uuid }
+        siteId: { type: [string, 'null'], format: uuid }
+        condition: { $ref: '#/components/schemas/Condition' }
+        firstAbnormalStageLabel:
+          type: [string, 'null']
+          description: Abnormal embryos are promoted like any other; this just carries the marker across (FR-506).
+        suggestedFishCode: { type: string, examples: ['No.47_Clone1-AB cell-24'] }
+        suggestedRunningNo: { type: integer, examples: [47] }
+
+    CloneFish:
+      type: object
+      required: [id, fishCode, runningNo, dob, donorCellLineId, status, condition, sex, finClipped]
+      properties:
+        id: { type: string, format: uuid }
+        embryoId: { type: [string, 'null'], format: uuid }
+        embryoCode: { type: [string, 'null'] }
+        fishCode: { type: string, examples: ['No.6_Clone3-AB cell-16'] }
+        runningNo: { type: integer }
+        dob: { type: string, format: date }
+        ageDays:
+          type: integer
+          description: Computed live from dob, never stored (BR-11, DC-04).
+        strain: { type: string }
+        donorCellLineId: { type: string, format: uuid }
+        siteId: { type: [string, 'null'], format: uuid }
+        fishBoxId: { type: [string, 'null'], format: uuid }
+        fishBoxCode: { type: [string, 'null'] }
+        status: { $ref: '#/components/schemas/FishStatus' }
+        condition: { $ref: '#/components/schemas/Condition' }
+        firstAbnormalOn: { type: [string, 'null'], format: date }
+        firstAbnormalAgeDays: { type: [integer, 'null'] }
+        sex: { $ref: '#/components/schemas/Sex' }
+        finClipped: { type: boolean }
+        exitDate: { type: [string, 'null'], format: date }
+        exitReason: { type: [string, 'null'], enum: [DEAD, FROZEN, DISCARDED, LOST, null] }
+        remarks: { type: [string, 'null'] }
+    CloneFishInput:
+      type: object
+      required: [fishCode, dob, donorCellLineId]
+      properties:
+        fishCode: { type: string, minLength: 1, maxLength: 150 }
+        dob: { type: string, format: date }
+        donorCellLineId: { type: string, format: uuid }
+        siteId: { type: [string, 'null'], format: uuid }
+        fishBoxId: { type: [string, 'null'], format: uuid }
+        condition: { $ref: '#/components/schemas/Condition' }
+        sex: { $ref: '#/components/schemas/Sex' }
+        remarks: { type: [string, 'null'] }
+        overrideReason:
+          type: [string, 'null']
+          maxLength: 500
+          description: Required by the server when manually registering an older fish (BR-07).
+    CloneFishDetail:
+      allOf:
+        - $ref: '#/components/schemas/CloneFish'
+        - type: object
+          properties:
+            observations:
+              type: array
+              items:
+                type: object
+                required: [id, observedOn, ageDays, outcome, condition]
+                properties:
+                  id: { type: string, format: uuid }
+                  observedOn: { type: string, format: date }
+                  ageDays: { type: integer }
+                  outcome: { $ref: '#/components/schemas/FishOutcome' }
+                  condition: { $ref: '#/components/schemas/Condition' }
+                  operatorName: { type: [string, 'null'] }
+                  isBackdated: { type: boolean }
+                  notes: { type: [string, 'null'] }
+            specimens:
+              type: array
+              items: { $ref: '#/components/schemas/Specimen' }
+            embryoTimeline:
+              type: array
+              description: The Stage 1 history of the embryo this fish came from, so one screen covers the whole life.
+              items: { $ref: '#/components/schemas/EmbryoObservation' }
+
+    Specimen:
+      type: object
+      required: [id, cloneFishId, specimenCode, specimenKind, specimenType]
+      properties:
+        id: { type: string, format: uuid }
+        cloneFishId: { type: string, format: uuid }
+        specimenCode: { type: string, examples: [CL1] }
+        specimenKind: { $ref: '#/components/schemas/SpecimenKind' }
+        specimenType: { $ref: '#/components/schemas/SpecimenType' }
+        collectedOn: { type: [string, 'null'], format: date }
+        frozenOn: { type: [string, 'null'], format: date }
+        storage: { type: [string, 'null'], enum: ['-20', '-80', null] }
+        notes: { type: [string, 'null'] }
+    SpecimenInput:
+      type: object
+      required: [specimenCode, specimenKind, specimenType]
+      properties:
+        specimenCode: { type: string, maxLength: 50 }
+        specimenKind: { $ref: '#/components/schemas/SpecimenKind' }
+        specimenType: { $ref: '#/components/schemas/SpecimenType' }
+        collectedOn: { type: [string, 'null'], format: date }
+        frozenOn: { type: [string, 'null'], format: date }
+        storage: { type: [string, 'null'], enum: ['-20', '-80', null] }
+        notes: { type: [string, 'null'] }
+        markFinClipped:
+          type: boolean
+          default: false
+          description: Also set the fish's finClipped flag, so one action covers both (FR-610).
+
+    # ---- analytics ----------------------------------------------------------
+    AnalyticsFilter:
+      type: object
+      properties:
+        dateFrom: { type: string, format: date }
+        dateTo: { type: string, format: date }
+        siteId: { type: string, format: uuid }
+        operatorId: { type: string, format: uuid }
+        treatmentGroupId: { type: string, format: uuid }
+        donorCellLineId: { type: string, format: uuid }
+        strain: { type: string }
+        batchId: { type: string, format: uuid }
+
+    KpiResponse:
+      type: object
+      required: [stage1, stage2]
+      properties:
+        stage1:
+          type: object
+          required: [nActivated, nReachedShield, nReachedDay1, nPromoted, pctNormal]
+          properties:
+            nBatches: { type: integer }
+            nEggs: { type: integer }
+            nActivated: { type: integer }
+            nReachedShield: { type: integer }
+            nReachedDay1: { type: integer }
+            nPromoted: { type: integer }
+            pctNormal: { type: number }
+            pctAbnormal: { type: number }
+        stage2:
+          type: object
+          required: [nFish, nAlive, nDead, nFrozen, nDiscarded]
+          properties:
+            nFish: { type: integer }
+            nAlive: { type: integer }
+            nDead: { type: integer }
+            nFrozen: { type: integer }
+            nDiscarded: { type: integer }
+            meanAgeDaysAlive: { type: [number, 'null'] }
+
+    FunnelStep:
+      type: object
+      required: [stageOrder, stageCode, stageLabel, alive, pctOfActivated]
+      properties:
+        stageOrder: { type: integer }
+        stageCode: { type: string }
+        stageLabel: { type: string }
+        riskSet: { type: integer }
+        alive: { type: integer }
+        pctOfActivated: { type: number }
+
+    SurvivalPoint:
+      type: object
+      required: [stageOrder, stageLabel, riskSet, alive, nPrev, nDead, surv]
+      properties:
+        site: { type: [string, 'null'] }
+        strain: { type: [string, 'null'] }
+        treatmentGroup: { type: [string, 'null'] }
+        stageOrder: { type: integer }
+        stageLabel: { type: string }
+        riskSet:
+          type: integer
+          description: Embryos that have actually reached this checkpoint's due time (BR-16).
+        alive: { type: integer }
+        nPrev: { type: integer }
+        nDead: { type: integer }
+        surv: { type: number, examples: [0.4711] }
+
+    DeviationSummary:
+      type: object
+      required: [stageOrder, stageLabel, n, meanDeviationH, medianDeviationH]
+      properties:
+        site: { type: [string, 'null'] }
+        strain: { type: [string, 'null'] }
+        treatmentGroup: { type: [string, 'null'] }
+        operator: { type: [string, 'null'] }
+        stageOrder: { type: integer }
+        stageLabel: { type: string }
+        expectedHpa: { type: number }
+        n: { type: integer }
+        meanDeviationH: { type: number, examples: [0.1333] }
+        medianDeviationH: { type: number }
+        sdDeviationH: { type: [number, 'null'] }
+        minDeviationH: { type: number }
+        maxDeviationH: { type: number }
+
+    ExportRequest:
+      type: object
+      properties:
+        filters: { $ref: '#/components/schemas/AnalyticsFilter' }
+        sheets:
+          type: [array, 'null']
+          description: Omit for all 14 sheets. Sheet names are listed in SRS appendix B.
+          items: { type: string }
+        locale:
+          type: string
+          enum: [th, en]
+          default: th
+
+    AuditEntry:
+      type: object
+      required: [id, tableName, recordId, action, occurredAt]
+      properties:
+        id: { type: string, format: uuid }
+        tableName: { type: string }
+        recordId: { type: string, format: uuid }
+        action: { type: string, enum: [INSERT, UPDATE, DELETE] }
+        oldValues: { type: [object, 'null'], additionalProperties: true }
+        newValues: { type: [object, 'null'], additionalProperties: true }
+        operatorId: { type: [string, 'null'], format: uuid }
+        operatorName: { type: [string, 'null'] }
+        deviceId: { type: [string, 'null'] }
+        occurredAt: { type: string, format: date-time }

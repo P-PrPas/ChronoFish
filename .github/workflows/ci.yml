@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache: false
+      - name: Test backend
+        working-directory: backend
+        run: go test ./...
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build frontend
+        working-directory: frontend
+        run: npm ci
+      - name: Verify generated frontend contract
+        working-directory: frontend
+        run: npm run generate:api && git diff --exit-code -- src/api/schema.d.ts
+      - name: Type-check and build frontend
+        working-directory: frontend
+        run: npm run check
+
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python scripts/validate_openapi.py
+      - name: Verify generated MySQL migrations
+        run: |
+          python scripts/gen_mysql_migrations.py
+          git diff --exit-code -- backend/db/migrations/mysql
+
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: chronofish
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d chronofish"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/chronofish
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply PostgreSQL migrations
+        run: for file in backend/db/migrations/postgres/*.up.sql; do psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f "$file"; done
+      - name: Test PostgreSQL constraints
+        run: psql "$DATABASE_URL" -f backend/db/tests/postgres/constraint_checks.sql
+      - name: Verify PostgreSQL master seed is idempotent
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/db/seeds/postgres/master_data.sql
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f backend/db/seeds/postgres/master_data.sql
+
+  mysql:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: chronofish
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -proot"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply MySQL migrations
+        run: for file in backend/db/migrations/mysql/*.up.sql; do mysql -h 127.0.0.1 -uroot -proot chronofish < "$file"; done
+      - name: Verify MySQL master seed is idempotent
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot chronofish < backend/db/seeds/mysql/master_data.sql
+          mysql -h 127.0.0.1 -uroot -proot chronofish < backend/db/seeds/mysql/master_data.sql
+      - name: Verify MySQL CHECK constraints are enforced
+        run: |
+          if mysql -h 127.0.0.1 -uroot -proot chronofish -e "INSERT INTO treatment_group (id, code, arm_type, active, created_at, updated_at) VALUES ('44444444-0000-7000-8000-000000000099', 'INVALID', 'GENE_EDIT', TRUE, NOW(), NOW())"; then
+            echo "invalid arm_type unexpectedly succeeded"
+            exit 1
+          fi
