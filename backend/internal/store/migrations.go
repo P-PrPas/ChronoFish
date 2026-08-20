@@ -50,7 +50,13 @@ func RunMigrations(ctx context.Context, db *sql.DB, driver, directory string) er
 	var m *migrate.Migrate
 	switch driver {
 	case "postgres":
-		backend, err := postgresDriver.WithInstance(db, &postgresDriver.Config{MigrationsTable: "schema_migrations", MultiStatementEnabled: true})
+		backend, err := postgresDriver.WithInstance(db, &postgresDriver.Config{
+			MigrationsTable:       "schema_migrations",
+			MultiStatementEnabled: true,
+			// pgx/v5 does not apply its URL default when using WithInstance;
+			// zero would make bufio.Scanner reject every migration token.
+			MultiStatementMaxSize: postgresDriver.DefaultMultiStatementMaxSize,
+		})
 		if err != nil {
 			return fmt.Errorf("initialize PostgreSQL migrator: %w", err)
 		}
