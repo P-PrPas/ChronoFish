@@ -17,8 +17,43 @@ func (s *apiServer) auditLog(w http.ResponseWriter, r *http.Request) bool {
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	writeJSON(w, 200, map[string]any{"items": append([]map[string]any(nil), s.audits...)})
+	query := r.URL.Query()
+	from := parseAuditTime(query.Get("from"))
+	to := parseAuditTime(query.Get("to"))
+	items := make([]map[string]any, 0, len(s.audits))
+	for _, item := range s.audits {
+		if value := query.Get("table"); value != "" && stringValue(item["tableName"]) != value {
+			continue
+		}
+		if value := query.Get("recordId"); value != "" && stringValue(item["recordId"]) != value {
+			continue
+		}
+		if value := query.Get("operatorId"); value != "" && stringValue(item["operatorId"]) != value {
+			continue
+		}
+		occurred := parseAuditTime(stringValue(item["occurredAt"]))
+		if !from.IsZero() && (occurred.IsZero() || occurred.Before(from)) {
+			continue
+		}
+		if !to.IsZero() && (occurred.IsZero() || occurred.After(to)) {
+			continue
+		}
+		items = append(items, cloneMap(item))
+	}
+	writeJSON(w, 200, map[string]any{"items": items})
 	return true
+}
+
+func parseAuditTime(value string) time.Time {
+	if value == "" {
+		return time.Time{}
+	}
+	for _, layout := range []string{time.RFC3339, "2006-01-02T15:04", "2006-01-02"} {
+		if parsed, err := time.Parse(layout, value); err == nil {
+			return parsed
+		}
+	}
+	return time.Time{}
 }
 
 func (s *apiServer) auditLocked(r *http.Request, action, table, id string, old, newValue map[string]any) {

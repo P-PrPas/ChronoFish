@@ -50,6 +50,28 @@ func TestCORS(t *testing.T) {
 	}
 }
 
+func TestAuditLogFiltersByResourceRecordOperatorAndTime(t *testing.T) {
+	server := newAPIServer()
+	server.audits = []map[string]any{
+		{"id": "audit-1", "tableName": "batches", "recordId": "batch-1", "operatorId": "operator-1", "occurredAt": "2026-08-20T10:00:00Z"},
+		{"id": "audit-2", "tableName": "sites", "recordId": "site-1", "operatorId": "operator-2", "occurredAt": "2026-08-21T10:00:00Z"},
+	}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/audit-log?table=batches&recordId=batch-1&operatorId=operator-1&from=2026-08-20T09:00&to=2026-08-20T11:00", nil)
+	if !server.auditLog(recorder, request) {
+		t.Fatal("audit route was not handled")
+	}
+	var response struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Items) != 1 || response.Items[0]["id"] != "audit-1" {
+		t.Fatalf("filtered audit entries = %#v", response.Items)
+	}
+}
+
 func TestMasterDataCreateTrimsAndRejectsDuplicate(t *testing.T) {
 	handler := newHandler("test", "")
 	keyNumber := 100
