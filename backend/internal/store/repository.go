@@ -600,7 +600,7 @@ func (s *SQLRepository) QueryEntityPage(ctx context.Context, query EntityPageQue
 	args = append(args, query.Limit+1)
 	selectText := "SELECT * FROM " + table
 	if query.Resource == "fish" {
-		selectText = "SELECT cf.*, dl.strain AS fish_strain, b.treatment_group_id AS fish_treatment_group_id FROM clone_fish cf LEFT JOIN donor_cell_line dl ON dl.id = cf.donor_cell_line_id LEFT JOIN embryo e ON e.id = cf.embryo_id LEFT JOIN injection_lot l ON l.id = e.injection_lot_id LEFT JOIN experiment_batch b ON b.id = l.batch_id"
+		selectText = "SELECT cf.*, dl.strain AS fish_strain, b.treatment_group_id AS fish_treatment_group_id, fb.box_code AS fish_box_code FROM clone_fish cf LEFT JOIN donor_cell_line dl ON dl.id = cf.donor_cell_line_id LEFT JOIN fish_box fb ON fb.id = cf.fish_box_id LEFT JOIN embryo e ON e.id = cf.embryo_id LEFT JOIN injection_lot l ON l.id = e.injection_lot_id LEFT JOIN experiment_batch b ON b.id = l.batch_id"
 	}
 	rows, err := s.db.QueryContext(ctx, selectText+" WHERE "+strings.Join(where, " AND ")+" ORDER BY "+map[bool]string{true: "cf.id", false: "id"}[query.Resource == "fish"]+" LIMIT "+limitPlaceholder, args...)
 	if err != nil {
@@ -646,7 +646,17 @@ func scanEntityRows(rows *sql.Rows, resource string) ([]map[string]any, error) {
 				item["treatmentGroupId"] = value
 				continue
 			}
+			if resource == "fish" && column == "fish_box_code" {
+				item["fishBoxCode"] = value
+				continue
+			}
 			item[apiField(column)] = value
+		}
+		if resource == "fish" {
+			if dob := stringValue(item["dob"]); dob != "" {
+				location := time.FixedZone("Asia/Bangkok", 7*60*60)
+				item["ageDays"] = domain.AgeDaysOn(dob, time.Now().In(location).Format("2006-01-02"), location)
+			}
 		}
 		if id := stringValue(item["id"]); id != "" {
 			items = append(items, item)
