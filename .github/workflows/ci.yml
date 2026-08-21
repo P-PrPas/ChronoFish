@@ -101,7 +101,7 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache: false
-      - name: Verify PostgreSQL v3 to v4 migration upgrade
+      - name: Verify PostgreSQL v3 to current migration upgrade
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/chronofish
         run: |
@@ -114,7 +114,9 @@ jobs:
           psql "$upgrade_url" -v ON_ERROR_STOP=1 -c "INSERT INTO request_idempotency (scope,idempotency_key,request_hash,status_code,content_type,response_body,operator_id,device_id,created_at,completed_at) VALUES ('upgrade','01900000-0000-7000-8000-000000000301',repeat('a',64),102,'application/json','', '00000000-0000-7000-8000-000000000001','ci',NOW(),NULL)"
           psql "$upgrade_url" -v ON_ERROR_STOP=1 -f backend/db/migrations/postgres/000004_idempotency_lease.up.sql
           psql "$upgrade_url" -v ON_ERROR_STOP=1 -f backend/db/migrations/postgres/000005_row_versions.up.sql
+          psql "$upgrade_url" -v ON_ERROR_STOP=1 -f backend/db/migrations/postgres/000006_fish_running_sequence.up.sql
           psql "$upgrade_url" -v ON_ERROR_STOP=1 -c "SELECT lease_until,lease_token FROM request_idempotency WHERE scope='upgrade' AND idempotency_key='01900000-0000-7000-8000-000000000301'"
+          psql "$upgrade_url" -v ON_ERROR_STOP=1 -c "SELECT next_running_no FROM fish_running_sequence WHERE id='00000000-0000-7000-8000-000000000006'"
       - name: Boot API and apply PostgreSQL migrations
         working-directory: backend
         env:
@@ -207,7 +209,7 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache: false
-      - name: Verify MySQL v3 to v4 migration upgrade
+      - name: Verify MySQL v3 to current migration upgrade
         run: |
           set -euo pipefail
           mysql -h 127.0.0.1 -uroot -proot -e 'CREATE DATABASE chronofish_upgrade'
@@ -217,7 +219,9 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot chronofish_upgrade -e "INSERT INTO request_idempotency (scope,idempotency_key,request_hash,status_code,content_type,response_body,operator_id,device_id,created_at,completed_at) VALUES ('upgrade','01900000-0000-7000-8000-000000000302',REPEAT('a',64),102,'application/json','', '00000000-0000-7000-8000-000000000001','ci',NOW(),NULL)"
           mysql -h 127.0.0.1 -uroot -proot chronofish_upgrade < backend/db/migrations/mysql/000004_idempotency_lease.up.sql
           mysql -h 127.0.0.1 -uroot -proot chronofish_upgrade < backend/db/migrations/mysql/000005_row_versions.up.sql
+          mysql -h 127.0.0.1 -uroot -proot chronofish_upgrade < backend/db/migrations/mysql/000006_fish_running_sequence.up.sql
           mysql -h 127.0.0.1 -uroot -proot chronofish_upgrade -e "SELECT lease_until,lease_token FROM request_idempotency WHERE scope='upgrade' AND idempotency_key='01900000-0000-7000-8000-000000000302'"
+          mysql -h 127.0.0.1 -uroot -proot chronofish_upgrade -e "SELECT next_running_no FROM fish_running_sequence WHERE id='00000000-0000-7000-8000-000000000006'"
       - name: Boot API and apply MySQL migrations
         working-directory: backend
         env:

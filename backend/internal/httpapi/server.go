@@ -135,7 +135,12 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodGet {
-		if refresher, ok := s.store.(interface {
+		if refresher, ok := s.store.(canonicalReadModel); ok {
+			if err := refresher.RefreshReadModelForRequest(r.Context(), s, r.URL.Path); err != nil {
+				writeAPIError(w, http.StatusServiceUnavailable, "persistence_unavailable", "the committed read model is temporarily unavailable")
+				return
+			}
+		} else if refresher, ok := s.store.(interface {
 			RefreshReadModel(context.Context, *apiServer) error
 		}); ok {
 			if err := refresher.RefreshReadModel(r.Context(), s); err != nil {
@@ -240,6 +245,22 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
+	// A write must validate and derive from the latest committed aggregate. The
+	// SQL adapter refreshes only the route's bounded dependency set; memory
+	// tests retain their in-process behavior.
+	if mutation {
+		if refresher, ok := s.store.(canonicalReadModel); ok {
+			if err := refresher.RefreshReadModelForRequest(r.Context(), s, r.URL.Path); err != nil {
+				if mutationLeaseToken != "" {
+					_ = s.store.(interface {
+						Abort(context.Context, storepkg.Mutation) error
+					}).Abort(context.Background(), storepkg.Mutation{Scope: requestScope, Key: idempotencyKey, RequestHash: fingerprint, LeaseToken: mutationLeaseToken})
+				}
+				writeAPIError(w, http.StatusServiceUnavailable, "persistence_unavailable", "the committed read model is temporarily unavailable")
+				return
+			}
+		}
+	}
 	originalWriter := w
 	var atomicStore atomicStateStore
 	var deltaStore deltaStateStore
@@ -314,6 +335,7 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if deltaStore != nil {
+			recorded.body = storepkg.RewriteAssignedFishBody(recorded.body, work.Delta().AssignedFish)
 			publishCommittedVersions(s, work.Delta())
 			publishMutationCache(s, cacheBefore)
 		}
@@ -412,11 +434,21 @@ func (s *apiServer) validateWriteContext(r *http.Request, parts []string) error 
 		return errors.New("X-Operator-Id ต้องเป็น UUID และ X-Device-Id ต้องมีความยาวไม่เกิน 64 ตัวอักษร")
 	}
 	if !(len(parts) > 0 && parts[0] == "operators" && len(parts) == 1 && r.Method == http.MethodPost) {
-		s.mu.RLock()
-		operator := s.entities["operators"][operatorID]
-		s.mu.RUnlock()
-		if operator == nil || operator["active"] == false {
-			return errors.New("operator ไม่ถูกต้องหรือถูกปิดใช้งาน")
+		if reader, ok := s.store.(operatorReader); ok {
+			active, err := reader.OperatorActive(r.Context(), operatorID)
+			if err != nil {
+				return errors.New("operator status is temporarily unavailable")
+			}
+			if !active {
+				return errors.New("operator is not active")
+			}
+		} else {
+			s.mu.RLock()
+			operator := s.entities["operators"][operatorID]
+			s.mu.RUnlock()
+			if operator == nil || operator["active"] == false {
+				return errors.New("operator ไม่ถูกต้องหรือถูกปิดใช้งาน")
+			}
 		}
 	}
 	key := r.Header.Get("X-Idempotency-Key")

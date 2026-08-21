@@ -119,7 +119,7 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 			continue
 		}
 		runningNo := s.nextFishRunningNoLocked()
-		fish := map[string]any{"id": id, "embryoId": embryo["id"], "embryoCode": embryo["embryoCode"], "fishCode": fishCode, "runningNo": runningNo, "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "donorCellLineId": lot["donorCellLineId"], "siteId": batch["siteId"], "fishBoxId": item["fishBoxId"], "status": "ALIVE", "condition": stringValue(latest["condition"]), "sex": "UNKNOWN", "finClipped": false, "active": true, "remarks": item["remarks"]}
+		fish := map[string]any{"id": id, "embryoId": embryo["id"], "embryoCode": embryo["embryoCode"], "fishCode": fishCode, "runningNo": runningNo, "allocateRunningNo": true, "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "donorCellLineId": lot["donorCellLineId"], "siteId": batch["siteId"], "fishBoxId": item["fishBoxId"], "status": "ALIVE", "condition": stringValue(latest["condition"]), "sex": "UNKNOWN", "finClipped": false, "active": true, "remarks": item["remarks"]}
 		for _, field := range []string{"firstAbnormalOn", "firstAbnormalAgeDays", "firstAbnormalStageCode", "firstAbnormalStageId"} {
 			if value, exists := embryo[field]; exists {
 				fish[field] = value

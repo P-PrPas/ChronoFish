@@ -37,11 +37,90 @@ type Delta struct {
 	Before State
 	After  State
 	Audits []map[string]any
+	// AssignedFish contains numbers allocated by the database transaction for
+	// newly promoted fish. It lets the transport reconcile its response after
+	// commit while the durable idempotency replay receives the same values.
+	AssignedFish map[string]int
 }
 
 type SQLRepository struct {
 	db     *sql.DB
 	driver string
+}
+
+// LoadResources refreshes only the canonical aggregates needed by one request.
+// It is deliberately separate from Load: startup and ordinary reads must not
+// materialise five years of observations or audit history just to answer a
+// small master-data request.
+func (s *SQLRepository) LoadResources(ctx context.Context, state *State, resources ...string) error {
+	if state.Entities == nil {
+		state.Entities = make(map[string]map[string]map[string]any)
+	}
+	for _, resource := range resources {
+		table := canonicalTable(resource)
+		if table == "" {
+			continue
+		}
+		state.Entities[resource] = make(map[string]map[string]any)
+		if err := s.loadTable(ctx, state, table, resource); err != nil {
+			return fmt.Errorf("load %s: %w", table, err)
+		}
+	}
+	if containsString(resources, "timing-profiles") {
+		for _, profile := range state.Entities["timing-profiles"] {
+			profile["entries"] = []any{}
+		}
+		stageCodes, err := s.loadStageCodes(ctx)
+		if err != nil {
+			return fmt.Errorf("load stage definitions: %w", err)
+		}
+		if err := s.loadTimingEntries(ctx, state); err != nil {
+			return fmt.Errorf("load timing entries: %w", err)
+		}
+		_ = stageCodes // stage codes are joined by loadTimingEntries.
+	}
+	if containsString(resources, "observations") {
+		if state.Observations == nil {
+			state.Observations = make(map[string]map[string]any)
+		}
+		stageCodes, err := s.loadStageCodes(ctx)
+		if err != nil {
+			return fmt.Errorf("load stage definitions: %w", err)
+		}
+		state.Observations = make(map[string]map[string]any)
+		if err := s.loadObservationTable(ctx, state, "embryo_observation", state.Observations, stageCodes); err != nil {
+			return fmt.Errorf("load embryo observations: %w", err)
+		}
+	}
+	if containsString(resources, "fish-observations") {
+		if state.FishObservations == nil {
+			state.FishObservations = make(map[string]map[string]any)
+		}
+		stageCodes, err := s.loadStageCodes(ctx)
+		if err != nil {
+			return fmt.Errorf("load stage definitions: %w", err)
+		}
+		state.FishObservations = make(map[string]map[string]any)
+		if err := s.loadObservationTable(ctx, state, "fish_observation", state.FishObservations, stageCodes); err != nil {
+			return fmt.Errorf("load fish observations: %w", err)
+		}
+	}
+	return nil
+}
+
+// OperatorActive is used for write authentication. Unlike the in-process
+// read model it always observes the committed database row, which matters
+// when two API instances in front of the same database deactivate an operator.
+func (s *SQLRepository) OperatorActive(ctx context.Context, id string) (bool, error) {
+	query := "SELECT active FROM operator WHERE id = " + s.placeholder(1) + " AND deleted_at IS NULL"
+	var active bool
+	if err := s.db.QueryRowContext(ctx, query, id).Scan(&active); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return active, nil
 }
 
 // Store is the persistence/UOW boundary used by the HTTP composition root.
@@ -86,41 +165,15 @@ func (s *SQLRepository) Load(ctx context.Context, state *State) error {
 	state.IdempotencyHash = make(map[string]string)
 	state.FishNo = 1
 
-	tables := []struct{ table, resource string }{
-		{"site", "sites"}, {"operator", "operators"}, {"donor_cell_line", "donor-cell-lines"},
-		{"recipient_egg_lot", "recipient-egg-lots"}, {"csof_lot", "csof-lots"},
-		{"treatment_group", "treatment-groups"}, {"fish_box", "fish-boxes"},
-		{"protocol", "protocols"}, {"stage_timing_profile", "timing-profiles"},
-		{"experiment_batch", "batches"}, {"injection_lot", "injection-lots"},
-		{"embryo", "embryos"}, {"clone_fish", "fish"}, {"specimen", "specimens"},
-		{"control_arm_count", "control-arm-counts"},
-	}
-	for _, table := range tables {
-		if err := s.loadTable(ctx, state, table.table, table.resource); err != nil {
-			return fmt.Errorf("load %s: %w", table.table, err)
-		}
-	}
-	stageCodes, err := s.loadStageCodes(ctx)
-	if err != nil {
-		return fmt.Errorf("load stage definitions: %w", err)
-	}
-	if err := s.loadTimingEntries(ctx, state); err != nil {
-		return fmt.Errorf("load timing entries: %w", err)
-	}
-	if err := s.loadObservationTable(ctx, state, "embryo_observation", state.Observations, stageCodes); err != nil {
-		return fmt.Errorf("load embryo observations: %w", err)
-	}
-	if err := s.loadObservationTable(ctx, state, "fish_observation", state.FishObservations, stageCodes); err != nil {
-		return fmt.Errorf("load fish observations: %w", err)
+	// Reference data is small and safe to keep as a process projection. Large
+	// operational aggregates are refreshed by route; they are intentionally not
+	// loaded during startup.
+	if err := s.LoadResources(ctx, state, "sites", "operators", "donor-cell-lines", "recipient-egg-lots", "csof-lots", "treatment-groups", "fish-boxes", "protocols", "timing-profiles"); err != nil {
+		return fmt.Errorf("load reference data: %w", err)
 	}
 	// Audit history and idempotency replay are repository-backed query paths;
 	// neither is loaded into the process cache at startup. This keeps startup
 	// bounded when the five-year audit/idempotency tables are large.
-	for _, fish := range state.Entities["fish"] {
-		if running := intValue(fish["runningNo"]); running >= state.FishNo {
-			state.FishNo = running + 1
-		}
-	}
 	return nil
 }
 
@@ -484,6 +537,9 @@ func (s *SQLRepository) CommitDelta(ctx context.Context, delta *Delta, mutation 
 		return err
 	}
 	rollback := func(cause error) error { _ = tx.Rollback(); return cause }
+	if err := s.assignFishNumbersTx(ctx, tx, delta); err != nil {
+		return rollback(err)
+	}
 	if err := s.verifyDeltaVersions(ctx, tx, delta); err != nil {
 		return rollback(err)
 	}
@@ -491,6 +547,7 @@ func (s *SQLRepository) CommitDelta(ctx context.Context, delta *Delta, mutation 
 		return rollback(err)
 	}
 	if mutation != nil {
+		mutation.Body = rewriteAssignedFishBody(mutation.Body, delta.AssignedFish)
 		query := "UPDATE request_idempotency SET status_code = " + s.placeholder(1) + ", content_type = " + s.placeholder(2) + ", response_body = " + s.placeholder(3) + ", completed_at = " + s.placeholder(4) + " WHERE scope = " + s.placeholder(5) + " AND idempotency_key = " + s.placeholder(6) + " AND request_hash = " + s.placeholder(7) + " AND status_code = 102 AND lease_token = " + s.placeholder(8)
 		result, execErr := tx.ExecContext(ctx, query, mutation.Status, mutation.ContentType, string(mutation.Body), time.Now().UTC(), mutation.Scope, mutation.Key, mutation.RequestHash, mutation.LeaseToken)
 		if execErr != nil {
@@ -501,6 +558,106 @@ func (s *SQLRepository) CommitDelta(ctx context.Context, delta *Delta, mutation 
 		}
 	}
 	return tx.Commit()
+}
+
+const fishSequenceID = "00000000-0000-7000-8000-000000000006"
+
+// assignFishNumbersTx allocates promotion numbers while holding one durable
+// singleton row lock. Handlers may suggest a number for a preview, but a
+// committed promotion always uses this allocator, so two API instances cannot
+// publish the same running_no or fish code.
+func (s *SQLRepository) assignFishNumbersTx(ctx context.Context, tx *sql.Tx, delta *Delta) error {
+	if delta == nil || len(delta.After.Entities["fish"]) == 0 {
+		return nil
+	}
+	ids := make([]string, 0)
+	for id, item := range delta.After.Entities["fish"] {
+		if item != nil && item["allocateRunningNo"] == true && delta.Before.Entities["fish"][id] == nil {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	sort.Strings(ids)
+	var next int
+	lockQuery := "SELECT next_running_no FROM fish_running_sequence WHERE id = " + s.placeholder(1) + " FOR UPDATE"
+	if err := tx.QueryRowContext(ctx, lockQuery, fishSequenceID).Scan(&next); err != nil {
+		return fmt.Errorf("lock fish running sequence: %w", err)
+	}
+	if next < 1 {
+		next = 1
+	}
+	if delta.AssignedFish == nil {
+		delta.AssignedFish = make(map[string]int, len(ids))
+	}
+	for _, id := range ids {
+		item := delta.After.Entities["fish"][id]
+		item["runningNo"] = next
+		item["fishCode"] = replaceFishRunningPrefix(stringValue(item["fishCode"]), next)
+		delta.AssignedFish[id] = next
+		next++
+	}
+	update := "UPDATE fish_running_sequence SET next_running_no = " + s.placeholder(1) + " WHERE id = " + s.placeholder(2)
+	result, err := tx.ExecContext(ctx, update, next, fishSequenceID)
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected != 1 {
+		return errors.New("fish running sequence disappeared")
+	}
+	return nil
+}
+
+func replaceFishRunningPrefix(code string, runningNo int) string {
+	if strings.HasPrefix(code, "No.") {
+		if separator := strings.IndexByte(code, '_'); separator > 3 {
+			return fmt.Sprintf("No.%d%s", runningNo, code[separator:])
+		}
+	}
+	return code
+}
+
+func rewriteAssignedFishBody(body []byte, assigned map[string]int) []byte {
+	if len(assigned) == 0 || len(body) == 0 {
+		return body
+	}
+	var value any
+	if json.Unmarshal(body, &value) != nil {
+		return body
+	}
+	var visit func(any)
+	visit = func(node any) {
+		switch current := node.(type) {
+		case map[string]any:
+			if id := stringValue(current["id"]); id != "" {
+				if number, ok := assigned[id]; ok {
+					current["runningNo"] = number
+					current["fishCode"] = replaceFishRunningPrefix(stringValue(current["fishCode"]), number)
+				}
+			}
+			for _, child := range current {
+				visit(child)
+			}
+		case []any:
+			for _, child := range current {
+				visit(child)
+			}
+		}
+	}
+	visit(value)
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return body
+	}
+	return encoded
+}
+
+// RewriteAssignedFishBody is the transport-facing part of the allocator
+// seam. The SQL transaction remains the authority; this only updates the
+// already-recorded response before it is flushed to the client.
+func RewriteAssignedFishBody(body []byte, assigned map[string]int) []byte {
+	return rewriteAssignedFishBody(body, assigned)
 }
 
 // verifyDeltaVersions fences a request-scoped write set against changes made

@@ -266,17 +266,31 @@ func percentage(value, total int) float64 {
 	return float64(value) * 100 / float64(total)
 }
 func (s *apiServer) reachedStageCountLocked(embryos []map[string]any, stage int) int {
+	// Index observations once per request. The old implementation scanned the
+	// complete observation table for every embryo, which made the dashboard
+	// quadratic at the five-year data volume.
+	maxReached := make(map[string]int, len(embryos))
+	for _, observation := range s.observations {
+		if observation["deletedAt"] != nil {
+			continue
+		}
+		id := stringValue(observation["embryoId"])
+		if id == "" {
+			continue
+		}
+		order := stageNumber(stringValue(observation["stageCode"]))
+		if order > maxReached[id] && stringValue(observation["outcome"]) == "ALIVE" {
+			maxReached[id] = order
+		}
+	}
 	count := 0
 	for _, embryo := range embryos {
 		if stringValue(embryo["exitReason"]) == "PROMOTED" {
 			count++
 			continue
 		}
-		for _, observation := range s.observations {
-			if observation["deletedAt"] == nil && stringValue(observation["embryoId"]) == stringValue(embryo["id"]) && stageNumber(stringValue(observation["stageCode"])) >= stage {
-				count++
-				break
-			}
+		if maxReached[stringValue(embryo["id"])] >= stage {
+			count++
 		}
 	}
 	return count

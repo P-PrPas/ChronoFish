@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"os"
 	"regexp"
@@ -224,6 +225,19 @@ func TestChangedStateOnlyContainsMutationDelta(t *testing.T) {
 func TestStringValueDecodesDriverBytes(t *testing.T) {
 	if got := stringValue([]byte("operator-1")); got != "operator-1" {
 		t.Fatalf("stringValue = %q, want driver text", got)
+	}
+}
+
+func TestRewriteAssignedFishBodyReconcilesNestedBulkResponse(t *testing.T) {
+	body := []byte(`{"items":[{"status":"created","fish":{"id":"fish-1","runningNo":1,"fishCode":"No.1_Clone2-wt cell-20"}}]}`)
+	got := rewriteAssignedFishBody(body, map[string]int{"fish-1": 27})
+	var decoded map[string]any
+	if err := json.Unmarshal(got, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	fish := decoded["items"].([]any)[0].(map[string]any)["fish"].(map[string]any)
+	if int(fish["runningNo"].(float64)) != 27 || fish["fishCode"] != "No.27_Clone2-wt cell-20" {
+		t.Fatalf("reconciled fish = %#v", fish)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"reflect"
 	"strconv"
+	"strings"
 
 	storepkg "github.com/P-PrPas/ChronoFish/backend/internal/store"
 )
@@ -91,6 +92,14 @@ type deltaStateStore interface {
 
 type auditReader interface {
 	QueryAudits(context.Context, storepkg.AuditQuery) ([]map[string]any, bool, error)
+}
+
+type canonicalReadModel interface {
+	RefreshReadModelForRequest(context.Context, *apiServer, string) error
+}
+
+type operatorReader interface {
+	OperatorActive(context.Context, string) (bool, error)
 }
 
 type mutationCacheValue struct {
@@ -299,6 +308,75 @@ func (s *sqlStateStore) RefreshReadModel(ctx context.Context, server *apiServer)
 	return s.Load(ctx, server)
 }
 
+// RefreshReadModelForRequest keeps the process view as a small, committed
+// projection. Expensive analytical endpoints still opt into the complete
+// projection because they genuinely need the related aggregates; master and
+// detail endpoints refresh only their bounded dependency set.
+func (s *sqlStateStore) RefreshReadModelForRequest(ctx context.Context, server *apiServer, path string) error {
+	resource := strings.Trim(strings.TrimPrefix(path, "/api/v1/"), "/")
+	if resource == "audit" {
+		// The audit handler uses QueryAudits directly with filters/pagination.
+		return nil
+	}
+	if strings.HasPrefix(resource, "analytics") || strings.HasPrefix(resource, "exports") || resource == "due" {
+		return s.Load(ctx, server)
+	}
+	parts := strings.Split(resource, "/")
+	resources := []string{}
+	add := func(values ...string) { resources = append(resources, values...) }
+	switch parts[0] {
+	case "timing-profiles":
+		add("protocols", "timing-profiles")
+	case "batches":
+		add("batches", "injection-lots", "embryos", "donor-cell-lines", "operators", "sites", "protocols", "timing-profiles", "treatment-groups")
+	case "injection-lots":
+		add("injection-lots", "batches", "embryos", "donor-cell-lines", "timing-profiles", "protocols", "observations")
+	case "embryos":
+		add("embryos", "injection-lots", "batches", "timing-profiles", "protocols", "operators", "donor-cell-lines", "observations")
+	case "fish":
+		add("fish", "embryos", "injection-lots", "batches", "donor-cell-lines", "fish-boxes", "fish-observations")
+	case "promotions":
+		add("embryos", "injection-lots", "batches", "protocols", "timing-profiles", "donor-cell-lines", "fish", "observations")
+	case "observations":
+		add("embryos", "injection-lots", "batches", "protocols", "timing-profiles", "operators", "donor-cell-lines", "fish", "observations", "fish-observations")
+	case "specimens":
+		add("specimens", "fish")
+	case "control-arm-counts":
+		add("control-arm-counts", "batches", "protocols", "timing-profiles")
+	case "sites", "operators", "donor-cell-lines", "recipient-egg-lots", "csof-lots", "treatment-groups", "fish-boxes", "protocols":
+		add(parts[0])
+	default:
+		return nil
+	}
+	state := storepkg.State{Entities: make(map[string]map[string]map[string]any), Observations: make(map[string]map[string]any), FishObservations: make(map[string]map[string]any)}
+	if err := s.repository.LoadResources(ctx, &state, resources...); err != nil {
+		return err
+	}
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	for _, name := range resources {
+		if loaded := state.Entities[name]; loaded != nil {
+			server.entities[name] = loaded
+		}
+	}
+	if state.Observations != nil && containsResource(resources, "observations") {
+		server.observations = state.Observations
+	}
+	if state.FishObservations != nil && containsResource(resources, "fish-observations") {
+		server.fishObs = state.FishObservations
+	}
+	return nil
+}
+
+func containsResource(resources []string, target string) bool {
+	for _, resource := range resources {
+		if resource == target {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *sqlStateStore) Save(ctx context.Context, server *apiServer) error {
 	state := stateFromServer(server)
 	return s.repository.Save(ctx, &state)
@@ -330,6 +408,10 @@ func (s *sqlStateStore) CommitDelta(ctx context.Context, delta *storepkg.Delta, 
 
 func (s *sqlStateStore) QueryAudits(ctx context.Context, query storepkg.AuditQuery) ([]map[string]any, bool, error) {
 	return s.repository.QueryAudits(ctx, query)
+}
+
+func (s *sqlStateStore) OperatorActive(ctx context.Context, id string) (bool, error) {
+	return s.repository.OperatorActive(ctx, id)
 }
 
 var _ auditReader = (*sqlStateStore)(nil)
