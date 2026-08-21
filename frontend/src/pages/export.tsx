@@ -186,6 +186,18 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
               label="Promoted fish"
               value={Number(stage1?.nPromoted ?? 0)}
             />
+            <Metric
+              label="Reached Shield"
+              value={Number(stage1?.nReachedShield ?? 0)}
+            />
+            <Metric
+              label="Reached Day 1"
+              value={Number(stage1?.nReachedDay1 ?? 0)}
+            />
+            <Metric
+              label="Normal %"
+              value={`${(Number(stage1?.pctNormal ?? 0) * 100).toFixed(2)}%`}
+            />
             <Metric label="Alive fish" value={Number(stage2?.nAlive ?? 0)} />
             <Metric label="Batches" value={Number(stage1?.nBatches ?? 0)} />
             <Metric label="Frozen fish" value={Number(stage2?.nFrozen ?? 0)} />
@@ -262,6 +274,8 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
             <ReportTable
               headers={[
                 "Condition",
+                "Strain",
+                "Treatment",
                 "Age day",
                 "At risk",
                 "Alive",
@@ -274,6 +288,8 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
               ]}
               rows={report.fishSurvival.map((point) => [
                 String(point.condition ?? "All"),
+                String(point.strain ?? "All"),
+                String(point.treatmentGroup ?? "All"),
                 Number(point.ageDays ?? 0),
                 Number(point.atRisk ?? 0),
                 Number(point.alive ?? 0),
