@@ -55,6 +55,8 @@ describe('lab workflow forms', () => {
     vi.stubGlobal('fetch', vi.fn(async () => json({ entries: [{ id: 'stage-1', stageCode: 'stage_01_1C', stageLabel: '1-cell', stageOrder: 1, expectedHpa: 2.5 }] })))
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
     await act(async () => { root.render(<Timing />); await Promise.resolve() })
+    expect(document.body.textContent).toContain('Protocol')
+    expect(document.querySelector('select[required]')).not.toBeNull()
     expect(document.querySelector('input[aria-label="Expected HPA stage_01_1C"]')).not.toBeNull()
     expect(document.body.textContent).toContain('Save new timing version')
     root.unmount()
