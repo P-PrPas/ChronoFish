@@ -142,7 +142,11 @@ func (s *apiServer) checkpoint(w http.ResponseWriter, r *http.Request, lotID, st
 			if latest := s.latestEmbryoObservationLocked(stringValue(e["id"])); latest != nil && stringValue(latest["condition"]) != "" {
 				condition = stringValue(latest["condition"])
 			}
-			embryos = append(embryos, map[string]any{"embryoId": e["id"], "embryoCode": e["embryoCode"], "wellPosition": e["wellPosition"], "defaultCondition": condition, "firstAbnormalStageLabel": e["firstAbnormalStageCode"]})
+			firstAbnormalStageLabel := any(nil)
+			if code := stringValue(e["firstAbnormalStageCode"]); code != "" {
+				firstAbnormalStageLabel = stageLabel(stageNumber(code))
+			}
+			embryos = append(embryos, map[string]any{"embryoId": e["id"], "embryoCode": e["embryoCode"], "wellPosition": e["wellPosition"], "defaultCondition": condition, "firstAbnormalStageLabel": firstAbnormalStageLabel})
 		}
 	}
 	activated := stringValue(lot["activatedAt"])

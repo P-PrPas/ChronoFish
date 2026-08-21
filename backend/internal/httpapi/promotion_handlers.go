@@ -33,8 +33,12 @@ func (s *apiServer) promotions(w http.ResponseWriter, r *http.Request, p []strin
 				latest := s.latestEmbryoObservationLocked(stringValue(e["id"]))
 				donor := s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]
 				strain := stringValue(donor["strain"])
+				firstAbnormalStageLabel := any(nil)
+				if code := stringValue(e["firstAbnormalStageCode"]); code != "" {
+					firstAbnormalStageLabel = stageLabel(stageNumber(code))
+				}
 				runningNo := s.nextFishRunningNoLocked() + len(items)
-				items = append(items, map[string]any{"embryoId": e["id"], "embryoCode": e["embryoCode"], "batchCode": batch["batchCode"], "siteId": batch["siteId"], "donorCellLineId": lot["donorCellLineId"], "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "ageDays": calendarAge(activated, now), "strain": strain, "condition": latest["condition"], "firstAbnormalOn": e["firstAbnormalOn"], "firstAbnormalAgeDays": e["firstAbnormalAgeDays"], "firstAbnormalStageCode": e["firstAbnormalStageCode"], "firstAbnormalStageLabel": stageLabel(stageNumber(stringValue(e["firstAbnormalStageCode"]))), "suggestedFishCode": s.promotionFishCodeForRunning(e, strain, activated, runningNo), "suggestedRunningNo": runningNo})
+				items = append(items, map[string]any{"embryoId": e["id"], "embryoCode": e["embryoCode"], "batchCode": batch["batchCode"], "siteId": batch["siteId"], "donorCellLineId": lot["donorCellLineId"], "dob": activated.In(bangkokLocation()).Format("2006-01-02"), "ageDays": calendarAge(activated, now), "strain": strain, "condition": latest["condition"], "firstAbnormalOn": e["firstAbnormalOn"], "firstAbnormalAgeDays": e["firstAbnormalAgeDays"], "firstAbnormalStageCode": e["firstAbnormalStageCode"], "firstAbnormalStageLabel": firstAbnormalStageLabel, "suggestedFishCode": s.promotionFishCodeForRunning(e, strain, activated, runningNo), "suggestedRunningNo": runningNo})
 			}
 		}
 		writeJSON(w, 200, map[string]any{"items": items})
