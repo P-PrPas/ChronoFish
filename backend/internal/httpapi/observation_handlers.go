@@ -22,6 +22,18 @@ func (s *apiServer) dueCheckpoints(w http.ResponseWriter, r *http.Request) bool 
 	items := []map[string]any{}
 	upcoming := []map[string]any{}
 	observedStages := make(map[string]map[string]struct{})
+	activeEmbryosByLot := make(map[string]int)
+	activeEmbryoRowsByLot := make(map[string]int)
+	for _, embryo := range s.entities["embryos"] {
+		if embryo["active"] == false || embryo["deletedAt"] != nil {
+			continue
+		}
+		lotID := stringValue(embryo["injectionLotId"])
+		activeEmbryoRowsByLot[lotID]++
+		if embryo["exitReason"] == nil {
+			activeEmbryosByLot[lotID]++
+		}
+	}
 	for _, observation := range s.observations {
 		if observation["deletedAt"] != nil {
 			continue
@@ -36,7 +48,8 @@ func (s *apiServer) dueCheckpoints(w http.ResponseWriter, r *http.Request) bool 
 		}
 	}
 	for _, lot := range s.entities["injection-lots"] {
-		if lot["active"] == false || lot["deletedAt"] != nil || !s.lotHasActiveEmbryoLocked(stringValue(lot["id"])) {
+		lotID := stringValue(lot["id"])
+		if lot["active"] == false || lot["deletedAt"] != nil || activeEmbryoRowsByLot[lotID] == 0 {
 			continue
 		}
 		batch := s.entities["batches"][stringValue(lot["batchId"])]
@@ -59,7 +72,7 @@ func (s *apiServer) dueCheckpoints(w http.ResponseWriter, r *http.Request) bool 
 			_, observed := observedStages[stringValue(lot["id"])][code]
 			if !observed {
 				minutes := int(now.Sub(due).Minutes())
-				embryosRemaining := s.activeEmbryoCountLocked(stringValue(lot["id"]))
+					embryosRemaining := activeEmbryosByLot[lotID]
 				if minutes >= 0 {
 					items = append(items, map[string]any{"injectionLotId": lot["id"], "batchCode": batch["batchCode"], "lotNo": lot["lotNo"], "stageCode": code, "stageLabel": stageLabel(stage), "stageOrder": stage, "dueAt": due.Format(time.RFC3339), "minutesLate": minutes, "urgency": minutes, "embryosRemaining": embryosRemaining})
 				} else if len(upcoming) == 0 || stringValue(upcoming[len(upcoming)-1]["injectionLotId"]) != stringValue(lot["id"]) {
