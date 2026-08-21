@@ -2555,8 +2555,8 @@ components:
             nReachedShield: { type: integer }
             nReachedDay1: { type: integer }
             nPromoted: { type: integer }
-            pctNormal: { type: number }
-            pctAbnormal: { type: number }
+            pctNormal: { type: number, minimum: 0, maximum: 1, description: Fraction of filtered embryos/fish marked NORMAL. }
+            pctAbnormal: { type: number, minimum: 0, maximum: 1, description: Fraction of filtered embryos/fish marked ABNORMAL. }
         stage2:
           type: object
           required: [nFish, nAlive, nDead, nFrozen, nDiscarded]

@@ -1804,7 +1804,9 @@ export interface components {
                 nReachedShield: number;
                 nReachedDay1: number;
                 nPromoted: number;
+                /** @description Fraction of filtered embryos/fish marked NORMAL. */
                 pctNormal: number;
+                /** @description Fraction of filtered embryos/fish marked ABNORMAL. */
                 pctAbnormal?: number;
             };
             stage2: {
