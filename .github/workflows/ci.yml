@@ -152,6 +152,16 @@ jobs:
           conflict=$(curl --silent --show-error -o /tmp/postgres-conflict.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-postgres-site-other","name":"Conflict"}')
           if [ "$conflict" != 409 ]; then echo "::error title=PostgreSQL conflict response::$conflict $(base64 -w0 /tmp/postgres-conflict.json)"; cat /tmp/postgres-conflict.json; exit 1; fi
           if ! cmp -s /tmp/postgres-create.json /tmp/postgres-retry.json; then echo "::error title=PostgreSQL replay mismatch::create=$(base64 -w0 /tmp/postgres-create.json) retry=$(base64 -w0 /tmp/postgres-retry.json)"; diff -u /tmp/postgres-create.json /tmp/postgres-retry.json || true; exit 1; fi
+          PORT=8081 DB_DRIVER=postgres DATABASE_URL="$DATABASE_URL" MIGRATIONS_DIR="$MIGRATIONS_DIR" APP_ENV=production /tmp/chronofish-postgres-api >/tmp/chronofish-postgres-second.log 2>&1 &
+          second_pid=$!
+          trap 'kill "$second_pid" 2>/dev/null || true' EXIT
+          for i in {1..30}; do curl --fail --silent http://127.0.0.1:8081/api/v1/health && break || sleep 1; done
+          curl --fail --silent http://127.0.0.1:8081/api/v1/sites >/tmp/postgres-second-sites.json
+          python - <<'PY'
+          import json
+          sites = json.load(open('/tmp/postgres-second-sites.json'))['items']
+          assert sum(item.get('code') == 'ci-postgres-site' for item in sites) == 1
+          PY
       - name: Run repository and API integration suite on PostgreSQL
         working-directory: backend
         env:
@@ -257,6 +267,16 @@ jobs:
           conflict=$(curl --silent --show-error -o /tmp/mysql-conflict.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-mysql-site-other","name":"Conflict"}')
           if [ "$conflict" != 409 ]; then echo "::error title=MySQL conflict response::$conflict $(base64 -w0 /tmp/mysql-conflict.json)"; cat /tmp/mysql-conflict.json; exit 1; fi
           if ! cmp -s /tmp/mysql-create.json /tmp/mysql-retry.json; then echo "::error title=MySQL replay mismatch::create=$(base64 -w0 /tmp/mysql-create.json) retry=$(base64 -w0 /tmp/mysql-retry.json)"; diff -u /tmp/mysql-create.json /tmp/mysql-retry.json || true; exit 1; fi
+          PORT=8081 DB_DRIVER=mysql DATABASE_URL="$DATABASE_URL" MIGRATIONS_DIR="$MIGRATIONS_DIR" APP_ENV=production /tmp/chronofish-mysql-api >/tmp/chronofish-mysql-second.log 2>&1 &
+          second_pid=$!
+          trap 'kill "$second_pid" 2>/dev/null || true' EXIT
+          for i in {1..45}; do curl --fail --silent http://127.0.0.1:8081/api/v1/health && break || sleep 1; done
+          curl --fail --silent http://127.0.0.1:8081/api/v1/sites >/tmp/mysql-second-sites.json
+          python - <<'PY'
+          import json
+          sites = json.load(open('/tmp/mysql-second-sites.json'))['items']
+          assert sum(item.get('code') == 'ci-mysql-site' for item in sites) == 1
+          PY
       - name: Run repository and API integration suite on MySQL
         working-directory: backend
         env:
