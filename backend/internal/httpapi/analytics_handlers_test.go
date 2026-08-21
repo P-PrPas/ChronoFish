@@ -119,3 +119,18 @@ func TestKpiReportsFishConditionCountsAndFractionalPercentages(t *testing.T) {
 		t.Fatalf("nAbnormal = %d, want 1", got)
 	}
 }
+
+func TestFishSurvivalSplitsConditionStrainAndTreatment(t *testing.T) {
+	s := newAPIServer()
+	s.entities["sites"]["site-1"] = map[string]any{"id": "site-1", "active": true}
+	s.entities["treatment-groups"]["treatment-1"] = map[string]any{"id": "treatment-1", "code": "IVF", "active": true}
+	s.entities["donor-cell-lines"]["donor-1"] = map[string]any{"id": "donor-1", "strain": "AB", "active": true}
+	s.entities["batches"]["batch-1"] = map[string]any{"id": "batch-1", "treatmentGroupId": "treatment-1", "siteId": "site-1", "active": true}
+	s.entities["injection-lots"]["lot-1"] = map[string]any{"id": "lot-1", "batchId": "batch-1", "donorCellLineId": "donor-1", "active": true}
+	s.entities["embryos"]["embryo-1"] = map[string]any{"id": "embryo-1", "injectionLotId": "lot-1", "active": true}
+	s.entities["fish"]["fish-1"] = map[string]any{"id": "fish-1", "embryoId": "embryo-1", "status": "ALIVE", "condition": "NORMAL", "dob": time.Now().In(bangkokLocation()).Format("2006-01-02"), "active": true}
+	rows := s.fishSurvivalLocked(map[string][]string{"splitByCondition": {"true"}})
+	if len(rows) == 0 || stringValue(rows[0]["strain"]) != "AB" || stringValue(rows[0]["treatmentGroup"]) != "IVF" || stringValue(rows[0]["condition"]) != "NORMAL" {
+		t.Fatalf("group metadata = %#v, want condition/strain/treatment", rows)
+	}
+}

@@ -9,6 +9,21 @@ import { uuidv7 } from '../uuidv7'
 type EmbryoOutcome = 'ALIVE' | 'DEAD' | 'DEGENERATED' | 'NOT_OBSERVED'
 const outcomeCycle: EmbryoOutcome[] = ['ALIVE', 'DEAD', 'DEGENERATED']
 
+export type CheckpointTiming = { actual: number | null; expected: number; deviation: number | null; observedMinutes: number | null; liveMinutes: number | null; label: string }
+
+/** Pure preview calculation used by the checkpoint and browser tests. */
+export function checkpointTiming(activatedAt: string, observedAt: string, expectedHpa: number, now = Date.now()): CheckpointTiming {
+  const activatedMs = Date.parse(activatedAt)
+  let observedMs = Number.NaN
+  try { observedMs = Date.parse(dateTimeLocalToRFC3339(observedAt)) } catch { /* invalid input stays unavailable */ }
+  const observedMinutes = Number.isNaN(activatedMs) || Number.isNaN(observedMs) ? null : Math.max(0, Math.floor((observedMs - activatedMs) / 60_000))
+  const liveMinutes = Number.isNaN(activatedMs) ? null : Math.max(0, Math.floor((now - activatedMs) / 60_000))
+  const actual = observedMinutes === null ? null : observedMinutes / 60
+  const deviation = actual === null ? null : actual - expectedHpa
+  const label = deviation === null || Math.abs(deviation) < 1 / 60 ? 'ตรงกับสากล' : `${deviation < 0 ? 'เร็วกว่า' : 'ช้ากว่า'}สากล ${Math.floor(Math.abs(deviation))} ชม. ${Math.round((Math.abs(deviation) % 1) * 60)} นาที`
+  return { actual, expected: expectedHpa, deviation, observedMinutes, liveMinutes, label }
+}
+
 export function Due({ t, onPendingChange }: { t: AppText; onPendingChange: (count: number) => void }) {
   const [data, setData] = useState<ApiItem>({ overdue: [], upcoming: [] })
   const [selected, setSelected] = useState<ApiItem | null>(null)

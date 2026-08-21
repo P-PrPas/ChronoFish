@@ -205,6 +205,7 @@ func (s *apiServer) filteredBatchIDsLocked(query map[string][]string) map[string
 
 func (s *apiServer) filteredFishLocked(query map[string][]string) map[string]map[string]any {
 	result := make(map[string]map[string]any)
+	batchIDs := s.filteredBatchIDsLocked(query)
 	for id, fish := range s.entities["fish"] {
 		if fish["active"] == false || fish["deletedAt"] != nil {
 			continue
@@ -247,7 +248,7 @@ func (s *apiServer) filteredFishLocked(query map[string][]string) map[string]map
 			if batch == nil || batch["active"] == false || batch["deletedAt"] != nil {
 				continue
 			}
-			if !s.filteredBatchIDsLocked(query)[stringValue(batch["id"])] {
+			if !batchIDs[stringValue(batch["id"])] {
 				continue
 			}
 		} else if firstQuery(query, "batchId") != "" || firstQuery(query, "siteId") != "" || firstQuery(query, "operatorId") != "" || firstQuery(query, "treatmentGroupId") != "" {
@@ -555,15 +556,22 @@ func (s *apiServer) fishSurvivalLocked(query map[string][]string) []map[string]a
 			if condition == "" {
 				condition = "UNDETERMINED"
 			}
-			if groups[condition] == nil {
-				groups[condition] = map[string]map[string]any{}
+			strain, treatment := s.fishGroupLabelsLocked(fish)
+			groupKey := condition + "\x00" + strain + "\x00" + treatment
+			if groups[groupKey] == nil {
+				groups[groupKey] = map[string]map[string]any{}
 			}
-			groups[condition][id] = fish
+			groups[groupKey][id] = fish
 		}
 	}
 	items := make([]map[string]any, 0, (maxAge+1)*len(groups))
 	today := time.Now().In(bangkokLocation()).Format("2006-01-02")
-	for condition, group := range groups {
+	for groupKey, group := range groups {
+		condition, strain, treatment := "ALL", "ALL", "ALL"
+		if split {
+			parts := strings.SplitN(groupKey, "\x00", 3)
+			condition, strain, treatment = parts[0], parts[1], parts[2]
+		}
 		for age := 0; age <= maxAge; age++ {
 			atRisk, alive := 0, 0
 			statusCounts := map[string]int{"ALIVE": 0, "DEAD": 0, "FROZEN": 0, "DISCARDED": 0}
@@ -598,10 +606,34 @@ func (s *apiServer) fishSurvivalLocked(query map[string][]string) []map[string]a
 			if split {
 				row["condition"] = condition
 			}
+			row["strain"], row["treatmentGroup"] = strain, treatment
 			items = append(items, row)
 		}
 	}
 	return items
+}
+
+func (s *apiServer) fishGroupLabelsLocked(fish map[string]any) (string, string) {
+	embryo := s.entities["embryos"][stringValue(fish["embryoId"])]
+	lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+	batch := s.entities["batches"][stringValue(lot["batchId"])]
+	donor := s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]
+	treatment := s.entities["treatment-groups"][stringValue(batch["treatmentGroupId"])]
+	strain := stringValue(fish["strain"])
+	if strain == "" {
+		strain = stringValue(donor["strain"])
+	}
+	if strain == "" {
+		strain = "ALL"
+	}
+	treatmentCode := stringValue(fish["treatmentGroup"])
+	if treatmentCode == "" {
+		treatmentCode = stringValue(treatment["code"])
+	}
+	if treatmentCode == "" {
+		treatmentCode = "ALL"
+	}
+	return strain, treatmentCode
 }
 func (s *apiServer) exitAgeLocked(fish map[string]any) int {
 	return ageDaysOn(stringValue(fish["dob"]), stringValue(fish["exitDate"]))

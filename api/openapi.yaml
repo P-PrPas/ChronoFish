@@ -1563,6 +1563,9 @@ paths:
                       required: [ageDays, atRisk, alive, surv]
                       properties:
                         group: { type: [string, 'null'] }
+                        condition: { type: [string, 'null'] }
+                        strain: { type: [string, 'null'] }
+                        treatmentGroup: { type: [string, 'null'] }
                         ageDays: { type: integer }
                         atRisk: { type: integer }
                         alive: { type: integer }

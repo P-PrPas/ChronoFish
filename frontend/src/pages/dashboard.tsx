@@ -376,6 +376,10 @@ export function Dashboard({
       {data.kpi && (
         <div className="metric-grid">
           <Metric label="Activated" value={Number(stage1?.nActivated ?? 0)} />
+          <Metric label="Reached Shield" value={Number(stage1?.nReachedShield ?? 0)} />
+          <Metric label="Reached Day 1" value={Number(stage1?.nReachedDay1 ?? 0)} />
+          <Metric label="Promoted" value={Number(stage1?.nPromoted ?? 0)} />
+          <Metric label="Normal %" value={`${(Number(stage1?.pctNormal ?? 0) * 100).toFixed(2)}%`} />
           <Metric label="Fish all" value={Number(stage2?.nFish ?? 0)} />
           <Metric label="Alive fish" value={Number(stage2?.nAlive ?? 0)} />
           <Metric label="Frozen" value={Number(stage2?.nFrozen ?? 0)} />
@@ -500,6 +504,8 @@ export function Dashboard({
             <ReportTable
               headers={[
                 "Condition",
+                "Strain",
+                "Treatment",
                 "Age day",
                 "At risk",
                 "Alive",
@@ -512,6 +518,8 @@ export function Dashboard({
               ]}
               rows={data.fishSurvival.map((point) => [
                 String(point.condition ?? "All"),
+                String(point.strain ?? "All"),
+                String(point.treatmentGroup ?? "All"),
                 Number(point.ageDays ?? 0),
                 Number(point.atRisk ?? 0),
                 Number(point.alive ?? 0),
