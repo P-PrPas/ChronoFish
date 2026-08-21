@@ -80,6 +80,8 @@ func publishCommittedVersions(server *apiServer, delta *storepkg.Delta) {
 // server is discarded on a failed transaction, so uncommitted changes never
 // enter the production process projection.
 func mutationWorkingServer(source *apiServer, request *http.Request) *apiServer {
+	source.mu.RLock()
+	defer source.mu.RUnlock()
 	working := newAPIServer()
 	working.buildVersion, working.startupErr, working.store = source.buildVersion, source.startupErr, source.store
 	working.entities = make(map[string]map[string]map[string]any, len(source.entities))
