@@ -12,9 +12,22 @@ import (
 	"time"
 
 	"github.com/P-PrPas/ChronoFish/backend/internal/domain"
+	storepkg "github.com/P-PrPas/ChronoFish/backend/internal/store"
 )
 
 func (s *apiServer) dueCheckpoints(w http.ResponseWriter, r *http.Request) bool {
+	if reader, ok := s.store.(dueReader); ok {
+		overdue, upcoming, err := reader.QueryDue(r.Context(), storepkg.DueQuery{SiteID: r.URL.Query().Get("siteId"), OperatorID: r.URL.Query().Get("operatorId"), Now: time.Now().UTC()})
+		if err != nil {
+			writeAPIError(w, http.StatusServiceUnavailable, "persistence_unavailable", "due worklist is temporarily unavailable")
+			return true
+		}
+		s.mu.RLock()
+		pending := s.pendingCountLocked(time.Now().UTC())
+		s.mu.RUnlock()
+		writeJSON(w, http.StatusOK, map[string]any{"overdue": overdue, "upcoming": upcoming, "pendingPromotionCount": pending})
+		return true
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	now := time.Now().UTC()

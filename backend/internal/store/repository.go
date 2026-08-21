@@ -387,6 +387,97 @@ type AuditQuery struct {
 	Limit, Offset               int
 }
 
+type DueQuery struct {
+	SiteID, OperatorID string
+	Now                time.Time
+}
+
+// QueryDue projects the due worklist from indexed canonical joins. It avoids
+// loading every observation into the API process just to discover which
+// stage has not been recorded yet.
+func (s *SQLRepository) QueryDue(ctx context.Context, query DueQuery) (overdue, upcoming []map[string]any, err error) {
+	if query.Now.IsZero() {
+		query.Now = time.Now().UTC()
+	}
+	where := []string{
+		"l.active = " + s.placeholder(1), "l.deleted_at IS NULL",
+		"b.active = " + s.placeholder(2), "b.deleted_at IS NULL",
+		"e.active = " + s.placeholder(3), "e.deleted_at IS NULL", "e.exit_reason IS NULL",
+		"sd.stage_order BETWEEN 1 AND 26", "st.deleted_at IS NULL", "p.deleted_at IS NULL",
+		"NOT EXISTS (SELECT 1 FROM embryo_observation o WHERE o.embryo_id = e.id AND o.stage_definition_id = sd.id AND o.deleted_at IS NULL)",
+		"EXISTS (SELECT 1 FROM embryo e2 WHERE e2.injection_lot_id = l.id AND e2.active = " + s.placeholder(4) + " AND e2.deleted_at IS NULL AND e2.exit_reason IS NULL)",
+	}
+	args := []any{true, true, true, true}
+	if query.SiteID != "" {
+		where = append(where, "b.site_id = "+s.placeholder(len(args)+1))
+		args = append(args, query.SiteID)
+	}
+	if query.OperatorID != "" {
+		where = append(where, "b.operator_id = "+s.placeholder(len(args)+1))
+		args = append(args, query.OperatorID)
+	}
+	sqlText := `SELECT l.id, b.batch_code, l.lot_no, l.activated_at, sd.code, sd.label, sd.stage_order,
+       st.expected_hpa,
+       (SELECT COUNT(*) FROM embryo e3 WHERE e3.injection_lot_id = l.id AND e3.active = ` + s.placeholder(len(args)+1) + ` AND e3.deleted_at IS NULL AND e3.exit_reason IS NULL) AS embryos_remaining
+FROM injection_lot l
+JOIN experiment_batch b ON b.id = l.batch_id
+JOIN stage_timing_profile p ON p.id = b.timing_profile_id
+JOIN stage_timing st ON st.profile_id = p.id
+JOIN stage_definition sd ON sd.id = st.stage_definition_id
+JOIN embryo e ON e.injection_lot_id = l.id
+WHERE ` + strings.Join(where, " AND ") + `
+GROUP BY l.id, b.batch_code, l.lot_no, l.activated_at, sd.code, sd.stage_order, st.expected_hpa
+ORDER BY l.id, sd.stage_order`
+	args = append(args, true)
+	rows, err := s.db.QueryContext(ctx, sqlText, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	seenUpcoming := make(map[string]bool)
+	for rows.Next() {
+		var lotID, batchCode, lotNo, stageCode, stageLabel string
+		var activatedValue, expectedValue any
+		var stageOrder, embryosRemaining int
+		if err := rows.Scan(&lotID, &batchCode, &lotNo, &activatedValue, &stageCode, &stageLabel, &stageOrder, &expectedValue, &embryosRemaining); err != nil {
+			return nil, nil, err
+		}
+		activated, parseErr := parseDatabaseTime(activatedValue)
+		if parseErr != nil {
+			continue
+		}
+		dueAt := activated.Add(time.Duration(numberValue(expectedValue) * float64(time.Hour)))
+		minutes := int(query.Now.Sub(dueAt).Minutes())
+		item := map[string]any{"injectionLotId": lotID, "batchCode": batchCode, "lotNo": lotNo, "stageCode": stageCode, "stageLabel": stageLabel, "stageOrder": stageOrder, "dueAt": dueAt.Format(time.RFC3339), "minutesLate": minutes, "urgency": minutes, "embryosRemaining": embryosRemaining}
+		if minutes >= 0 {
+			overdue = append(overdue, item)
+		} else if !seenUpcoming[lotID] {
+			seenUpcoming[lotID] = true
+			upcoming = append(upcoming, item)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return overdue, upcoming, nil
+}
+
+func parseDatabaseTime(value any) (time.Time, error) {
+	switch value := value.(type) {
+	case time.Time:
+		return value.UTC(), nil
+	case []byte:
+		return parseDatabaseTime(string(value))
+	case string:
+		for _, layout := range []string{time.RFC3339Nano, "2006-01-02 15:04:05.999999999-07:00", "2006-01-02 15:04:05"} {
+			if parsed, err := time.Parse(layout, value); err == nil {
+				return parsed.UTC(), nil
+			}
+		}
+	}
+	return time.Time{}, fmt.Errorf("invalid database timestamp %v", value)
+}
+
 func (s *SQLRepository) QueryAudits(ctx context.Context, query AuditQuery) ([]map[string]any, bool, error) {
 	limit := query.Limit
 	if limit < 1 || limit > 500 {
@@ -1343,6 +1434,10 @@ func numberValue(value any) float64 {
 	case string:
 		var parsed float64
 		_, _ = fmt.Sscan(number, &parsed)
+		return parsed
+	case []byte:
+		var parsed float64
+		_, _ = fmt.Sscan(string(number), &parsed)
 		return parsed
 	default:
 		return 0

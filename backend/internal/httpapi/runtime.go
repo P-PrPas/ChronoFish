@@ -273,6 +273,10 @@ type auditReader interface {
 	QueryAudits(context.Context, storepkg.AuditQuery) ([]map[string]any, bool, error)
 }
 
+type dueReader interface {
+	QueryDue(context.Context, storepkg.DueQuery) ([]map[string]any, []map[string]any, error)
+}
+
 type canonicalReadModel interface {
 	RefreshReadModelForRequest(context.Context, *apiServer, string) error
 }
@@ -509,7 +513,7 @@ func (s *sqlStateStore) RefreshReadModelForRequest(ctx context.Context, server *
 			"treatment-groups", "control-arm-counts")
 	}
 	if resource == "due" {
-		return s.refreshResources(ctx, server, "batches", "injection-lots", "embryos", "protocols", "timing-profiles", "observations")
+		return s.refreshResources(ctx, server, "batches", "injection-lots", "embryos", "fish", "protocols", "timing-profiles", "observations", "fish-observations", "donor-cell-lines")
 	}
 	parts := strings.Split(resource, "/")
 	resources := []string{}
@@ -608,6 +612,10 @@ func (s *sqlStateStore) CommitDelta(ctx context.Context, delta *storepkg.Delta, 
 
 func (s *sqlStateStore) QueryAudits(ctx context.Context, query storepkg.AuditQuery) ([]map[string]any, bool, error) {
 	return s.repository.QueryAudits(ctx, query)
+}
+
+func (s *sqlStateStore) QueryDue(ctx context.Context, query storepkg.DueQuery) ([]map[string]any, []map[string]any, error) {
+	return s.repository.QueryDue(ctx, query)
 }
 
 func (s *sqlStateStore) OperatorActive(ctx context.Context, id string) (bool, error) {
