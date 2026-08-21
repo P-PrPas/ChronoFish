@@ -175,16 +175,21 @@ func fishMatrixColumns(fish map[string]map[string]any, observations map[string]m
 func (s *apiServer) batchExportRows(filters map[string][]string) [][]string {
 	rows := [][]string{}
 	allowed := s.filteredBatchIDsLocked(filters)
+	lotsByBatch := make(map[string][]map[string]any)
+	for _, lot := range s.entities["injection-lots"] {
+		if lot["active"] != false && lot["deletedAt"] == nil {
+			batchID := stringValue(lot["batchId"])
+			lotsByBatch[batchID] = append(lotsByBatch[batchID], lot)
+		}
+	}
 	for _, id := range sortedIDs(s.entities["batches"]) {
 		if !allowed[id] {
 			continue
 		}
 		batch := s.entities["batches"][id]
-		for _, lotID := range sortedIDs(s.entities["injection-lots"]) {
-			lot := s.entities["injection-lots"][lotID]
-			if lot["active"] == false || lot["deletedAt"] != nil || stringValue(lot["batchId"]) != id {
-				continue
-			}
+		lots := lotsByBatch[id]
+		sort.SliceStable(lots, func(i, j int) bool { return stringValue(lots[i]["id"]) < stringValue(lots[j]["id"]) })
+		for _, lot := range lots {
 			donor := s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]
 			site := s.entities["sites"][stringValue(batch["siteId"])]
 			operator := s.entities["operators"][stringValue(batch["operatorId"])]
@@ -218,6 +223,7 @@ func (s *apiServer) embryoObservationExportRows(embryos []map[string]any) [][]st
 	return rows
 }
 func (s *apiServer) embryoMatrixExportRows(embryos []map[string]any) [][]string {
+	observationsByEmbryo := s.observationIndexLocked()
 	rows := [][]string{}
 	for _, embryo := range embryos {
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
@@ -228,7 +234,7 @@ func (s *apiServer) embryoMatrixExportRows(embryos []map[string]any) [][]string 
 		row := []string{stringValue(embryo["embryoCode"]), stringValue(batch["batchCode"]), stringValue(site["code"]), stringValue(donor["strain"]), stringValue(treatment["code"])}
 		for stage := 1; stage <= 26; stage++ {
 			value := ""
-			switch s.checkpointStatusLocked(embryo, stage) {
+			switch s.checkpointStatusWithIndexLocked(embryo, stage, observationsByEmbryo) {
 			case "alive":
 				value = "1"
 			case "dead":
@@ -385,6 +391,19 @@ func (s *apiServer) specimenExportRows(fish map[string]map[string]any) [][]strin
 	return rows
 }
 func (s *apiServer) summaryExportRows(embryos []map[string]any, fish map[string]map[string]any) [][]string {
+	latestByEmbryo := make(map[string]map[string]any)
+	var latestAtByEmbryo = make(map[string]time.Time)
+	for _, observation := range s.observations {
+		if observation["deletedAt"] != nil {
+			continue
+		}
+		embryoID := stringValue(observation["embryoId"])
+		observedAt, err := time.Parse(time.RFC3339, stringValue(observation["observedAt"]))
+		if latestByEmbryo[embryoID] == nil || err != nil || observedAt.After(latestAtByEmbryo[embryoID]) {
+			latestByEmbryo[embryoID] = observation
+			latestAtByEmbryo[embryoID] = observedAt
+		}
+	}
 	groups := map[string][]map[string]any{}
 	for _, embryo := range embryos {
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
@@ -403,7 +422,7 @@ func (s *apiServer) summaryExportRows(embryos []map[string]any, fish map[string]
 				nEggs += intValue(lot["nEggs"])
 				nActivated += intValue(lot["nActivated"])
 			}
-			if observation := s.latestEmbryoObservationLocked(stringValue(embryo["id"])); observation != nil {
+			if observation := latestByEmbryo[stringValue(embryo["id"])]; observation != nil {
 				if stringValue(observation["condition"]) == "NORMAL" {
 					normal++
 				}
@@ -428,6 +447,7 @@ func (s *apiServer) summaryExportRows(embryos []map[string]any, fish map[string]
 	return rows
 }
 func (s *apiServer) rAnalysisExportRows(embryos []map[string]any) [][]string {
+	observationsByEmbryo := s.observationIndexLocked()
 	type group struct {
 		site, strain, replicate string
 		embryos                 []map[string]any
@@ -457,7 +477,7 @@ func (s *apiServer) rAnalysisExportRows(embryos []map[string]any) [][]string {
 		for stage := 1; stage <= 26; stage++ {
 			alive := 0
 			for _, embryo := range item.embryos {
-				if s.checkpointStatusLocked(embryo, stage) == "alive" {
+				if s.checkpointStatusWithIndexLocked(embryo, stage, observationsByEmbryo) == "alive" {
 					alive++
 				}
 			}
