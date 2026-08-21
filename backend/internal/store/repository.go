@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -311,7 +312,98 @@ func (s *SQLRepository) loadTimingEntries(ctx context.Context, state *State) err
 }
 
 func (s *SQLRepository) loadObservationTable(ctx context.Context, state *State, table string, target map[string]map[string]any, stageCodes map[string]string) error {
-	rows, err := s.db.QueryContext(ctx, "SELECT * FROM "+table+" WHERE deleted_at IS NULL")
+	return s.loadObservationQuery(ctx, state, table, target, stageCodes, "deleted_at IS NULL", nil)
+}
+
+// LoadObservationSubset hydrates only observations belonging to the affected
+// aggregate or client UUIDs.  Bulk writes therefore retain the prior-stage
+// context needed for validation/recalculation without materialising the whole
+// observation history after every request.
+func (s *SQLRepository) LoadObservationSubset(ctx context.Context, state *State, observationIDs, clientUUIDs, embryoIDs, fishIDs []string) error {
+	stageCodes, err := s.loadStageCodes(ctx)
+	if err != nil {
+		return fmt.Errorf("load stage definitions: %w", err)
+	}
+	if state.Observations == nil {
+		state.Observations = make(map[string]map[string]any)
+	}
+	if state.FishObservations == nil {
+		state.FishObservations = make(map[string]map[string]any)
+	}
+	if err := s.loadObservationSubsetTable(ctx, state, "embryo_observation", state.Observations, stageCodes, observationIDs, clientUUIDs, embryoIDs, "embryo_id"); err != nil {
+		return err
+	}
+	if err := s.loadObservationSubsetTable(ctx, state, "fish_observation", state.FishObservations, stageCodes, observationIDs, clientUUIDs, fishIDs, "clone_fish_id"); err != nil {
+		return err
+	}
+	// A correction/delete URL identifies only the observation.  Expand that
+	// lookup to its embryo/fish aggregate before recomputation so unrelated
+	// stages for the same subject cannot be mistaken for missing history.
+	expandedEmbryos := append([]string(nil), embryoIDs...)
+	for _, observation := range state.Observations {
+		if id := stringValue(observation["embryoId"]); id != "" {
+			expandedEmbryos = append(expandedEmbryos, id)
+		}
+	}
+	if len(expandedEmbryos) > len(embryoIDs) {
+		if err := s.loadObservationSubsetTable(ctx, state, "embryo_observation", state.Observations, stageCodes, nil, nil, expandedEmbryos, "embryo_id"); err != nil {
+			return err
+		}
+	}
+	expandedFish := append([]string(nil), fishIDs...)
+	for _, observation := range state.FishObservations {
+		if id := stringValue(observation["cloneFishId"]); id != "" {
+			expandedFish = append(expandedFish, id)
+		}
+	}
+	if len(expandedFish) > len(fishIDs) {
+		if err := s.loadObservationSubsetTable(ctx, state, "fish_observation", state.FishObservations, stageCodes, nil, nil, expandedFish, "clone_fish_id"); err != nil {
+			return err
+		}
+	}
+	hydrateDerivedFields(state, stageCodes)
+	return nil
+}
+
+func (s *SQLRepository) loadObservationSubsetTable(ctx context.Context, state *State, table string, target map[string]map[string]any, stageCodes map[string]string, observationIDs, clientUUIDs, aggregateIDs []string, aggregateColumn string) error {
+	group := func(column string, values []string, start int) (string, []any) {
+		if len(values) == 0 {
+			return "", nil
+		}
+		marks := make([]string, len(values))
+		args := make([]any, len(values))
+		for index, value := range values {
+			marks[index] = s.placeholder(start + index)
+			args[index] = value
+		}
+		return column + " IN (" + strings.Join(marks, ",") + ")", args
+	}
+	// A client UUID remains unique even after a soft delete.  Load it without
+	// the active predicate so a replay can return the original row instead of
+	// reaching the canonical unique constraint and becoming a 503.
+	if clientGroup, clientArgs := group("client_uuid", clientUUIDs, 1); clientGroup != "" {
+		if err := s.loadObservationQuery(ctx, state, table, target, stageCodes, clientGroup, clientArgs); err != nil {
+			return err
+		}
+	}
+	groups := make([]string, 0, 2)
+	args := make([]any, 0, len(observationIDs)+len(aggregateIDs))
+	if idGroup, idArgs := group("id", observationIDs, 1); idGroup != "" {
+		groups = append(groups, idGroup)
+		args = append(args, idArgs...)
+	}
+	if aggregateGroup, aggregateArgs := group(aggregateColumn, aggregateIDs, len(args)+1); aggregateGroup != "" {
+		groups = append(groups, aggregateGroup)
+		args = append(args, aggregateArgs...)
+	}
+	if len(groups) == 0 {
+		return nil
+	}
+	return s.loadObservationQuery(ctx, state, table, target, stageCodes, "deleted_at IS NULL AND ("+strings.Join(groups, " OR ")+")", args)
+}
+
+func (s *SQLRepository) loadObservationQuery(ctx context.Context, state *State, table string, target map[string]map[string]any, stageCodes map[string]string, predicate string, args []any) error {
+	rows, err := s.db.QueryContext(ctx, "SELECT * FROM "+table+" WHERE "+predicate, args...)
 	if err != nil {
 		return err
 	}
@@ -385,6 +477,43 @@ type AuditQuery struct {
 	Table, RecordID, OperatorID string
 	From, To                    time.Time
 	Limit, Offset               int
+	Cursor                      string
+}
+
+// EncodeAuditCursor is a stable, opaque keyset cursor.  Audit rows are ordered
+// newest-first by occurred_at and id; carrying both values makes pagination
+// deterministic when several writes share a timestamp.
+func EncodeAuditCursor(occurredAt, id string) string {
+	if occurredAt == "" || id == "" {
+		return ""
+	}
+	return base64.RawURLEncoding.EncodeToString([]byte(occurredAt + "\x00" + id))
+}
+
+func DecodeAuditCursor(cursor string) (occurredAt, id string, ok bool) {
+	if cursor == "" {
+		return "", "", true
+	}
+	raw, err := base64.RawURLEncoding.DecodeString(cursor)
+	if err != nil {
+		return "", "", false
+	}
+	parts := strings.SplitN(string(raw), "\x00", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", "", false
+	}
+	if _, err := time.Parse(time.RFC3339Nano, parts[0]); err != nil {
+		return "", "", false
+	}
+	return parts[0], parts[1], true
+}
+
+func NextAuditCursor(items []map[string]any) string {
+	if len(items) == 0 {
+		return ""
+	}
+	last := items[len(items)-1]
+	return EncodeAuditCursor(stringValue(last["occurredAt"]), stringValue(last["id"]))
 }
 
 type DueQuery struct {
@@ -412,15 +541,11 @@ func (s *SQLRepository) QueryEntityPage(ctx context.Context, query EntityPageQue
 	args := make([]any, 0, 8)
 	if query.Resource != "fish" {
 		where[0] = "deleted_at IS NULL"
-		if query.IncludeInactive {
-			where = []string{"1 = 1"}
-		} else {
+		if !query.IncludeInactive {
 			where = append(where, "active = TRUE")
 		}
 	} else {
-		if query.IncludeInactive {
-			where[0] = "1 = 1"
-		} else {
+		if !query.IncludeInactive {
 			where = append(where, "cf.active = TRUE")
 		}
 		if value := query.Filters["siteId"]; value != "" {
@@ -641,10 +766,25 @@ func (s *SQLRepository) QueryAudits(ctx context.Context, query AuditQuery) ([]ma
 	if !query.To.IsZero() {
 		add("occurred_at <=", query.To.UTC())
 	}
+	if occurredAt, id, ok := DecodeAuditCursor(query.Cursor); !ok {
+		return nil, false, fmt.Errorf("invalid audit cursor")
+	} else if occurredAt != "" {
+		parsed, _ := time.Parse(time.RFC3339Nano, occurredAt)
+		first := s.placeholder(len(args) + 1)
+		second := s.placeholder(len(args) + 2)
+		third := s.placeholder(len(args) + 3)
+		where = append(where, "(occurred_at < "+first+" OR (occurred_at = "+second+" AND id < "+third+"))")
+		args = append(args, parsed.UTC(), parsed.UTC(), id)
+	}
 	limitPlaceholder := s.placeholder(len(args) + 1)
-	offsetPlaceholder := s.placeholder(len(args) + 2)
-	args = append(args, limit, query.Offset)
-	sqlText := "SELECT id, table_name, record_id, action, old_values, new_values, operator_id, device_id, occurred_at FROM audit_log WHERE " + strings.Join(where, " AND ") + " ORDER BY occurred_at DESC, id DESC LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
+	sqlText := "SELECT id, table_name, record_id, action, old_values, new_values, operator_id, device_id, occurred_at FROM audit_log WHERE " + strings.Join(where, " AND ") + " ORDER BY occurred_at DESC, id DESC LIMIT " + limitPlaceholder
+	if query.Cursor == "" && query.Offset > 0 {
+		offsetPlaceholder := s.placeholder(len(args) + 2)
+		args = append(args, limit, query.Offset)
+		sqlText += " OFFSET " + offsetPlaceholder
+	} else {
+		args = append(args, limit+1)
+	}
 	rows, err := s.db.QueryContext(ctx, sqlText, args...)
 	if err != nil {
 		return nil, false, err
@@ -674,7 +814,14 @@ func (s *SQLRepository) QueryAudits(ctx context.Context, query AuditQuery) ([]ma
 	if err := rows.Err(); err != nil {
 		return nil, false, err
 	}
-	return items, len(items) == limit, nil
+	more := len(items) > limit
+	if query.Cursor == "" && query.Offset > 0 {
+		more = len(items) == limit
+	}
+	if more {
+		items = items[:limit]
+	}
+	return items, more, nil
 }
 
 func apiField(column string) string {

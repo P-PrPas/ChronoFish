@@ -249,7 +249,19 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// SQL adapter refreshes only the route's bounded dependency set; memory
 	// tests retain their in-process behavior.
 	if mutation {
-		if refresher, ok := s.store.(canonicalReadModel); ok {
+		if refresher, ok := s.store.(canonicalMutationReadModel); ok {
+			if err := refresher.RefreshMutationReadModelForRequest(r.Context(), s, r); err != nil {
+				if mutationLeaseToken != "" {
+					if aborter, canAbort := s.store.(interface {
+						Abort(context.Context, storepkg.Mutation) error
+					}); canAbort {
+						_ = aborter.Abort(context.Background(), storepkg.Mutation{Scope: requestScope, Key: idempotencyKey, RequestHash: fingerprint, LeaseToken: mutationLeaseToken})
+					}
+				}
+				writeAPIError(w, http.StatusServiceUnavailable, "persistence_unavailable", "the committed read model is temporarily unavailable")
+				return
+			}
+		} else if refresher, ok := s.store.(canonicalReadModel); ok {
 			if err := refresher.RefreshReadModelForRequest(r.Context(), s, r.URL.Path); err != nil {
 				if mutationLeaseToken != "" {
 					if aborter, canAbort := s.store.(interface {

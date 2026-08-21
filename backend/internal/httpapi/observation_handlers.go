@@ -211,6 +211,11 @@ func (s *apiServer) createEmbryoObservations(w http.ResponseWriter, r *http.Requ
 			results = append(results, oldResult)
 			continue
 		}
+		if existing := s.existingObservationClientLocked(client, false); existing != nil {
+			result := map[string]any{"clientUuid": client, "id": existing["id"], "status": "duplicate", "hpaActual": existing["hpaActual"], "hpaExpected": existing["hpaExpectedSnapshot"], "deviationH": existing["deviationH"]}
+			results = append(results, result)
+			continue
+		}
 		if existing := s.existingEmbryoObservationLocked(stringValue(item["embryoId"]), stringValue(item["stageCode"])); existing != nil {
 			results = append(results, map[string]any{"clientUuid": client, "id": existing["id"], "status": "duplicate", "hpaActual": existing["hpaActual"], "hpaExpected": existing["hpaExpectedSnapshot"], "deviationH": existing["deviationH"]})
 			continue
@@ -262,6 +267,19 @@ func (s *apiServer) createEmbryoObservations(w http.ResponseWriter, r *http.Requ
 func (s *apiServer) existingEmbryoObservationLocked(embryoID, stageCode string) map[string]any {
 	for _, observation := range s.observations {
 		if observation["deletedAt"] == nil && stringValue(observation["embryoId"]) == embryoID && stringValue(observation["stageCode"]) == stageCode {
+			return observation
+		}
+	}
+	return nil
+}
+
+func (s *apiServer) existingObservationClientLocked(client string, fish bool) map[string]any {
+	collection := s.observations
+	if fish {
+		collection = s.fishObs
+	}
+	for _, observation := range collection {
+		if stringValue(observation["clientUuid"]) == client {
 			return observation
 		}
 	}
@@ -748,6 +766,10 @@ func (s *apiServer) createFishObservations(w http.ResponseWriter, r *http.Reques
 			var result any
 			_ = json.Unmarshal(body, &result)
 			results = append(results, result)
+			continue
+		}
+		if existing := s.existingObservationClientLocked(client, true); existing != nil {
+			results = append(results, map[string]any{"clientUuid": client, "id": existing["id"], "status": "duplicate", "ageDays": existing["ageDays"], "outcome": existing["outcome"], "condition": existing["condition"]})
 			continue
 		}
 		fish, ok := s.entities["fish"][stringValue(item["cloneFishId"])]

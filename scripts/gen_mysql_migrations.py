@@ -25,6 +25,13 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / "backend/db/migrations/postgres"
 DST = ROOT / "backend/db/migrations/mysql"
 TABLE_OPTS = " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci"
+INDEX_TABLES = {
+    "ix_stage_timing_profile_stage": "stage_timing",
+    "ix_embryo_lot_active_exit": "embryo",
+    "ix_fish_observation_fish_date": "fish_observation",
+    "ix_observation_embryo_stage": "embryo_observation",
+    "ix_audit_occurred_id": "audit_log",
+}
 
 HEADER = (
     "-- ===========================================================================\n"
@@ -68,6 +75,11 @@ def convert(sql: str, upgrade: bool) -> str:
         "ALTER TABLE request_idempotency\n    DROP COLUMN IF EXISTS lease_token;",
         "ALTER TABLE request_idempotency DROP COLUMN lease_token;",
     )
+    for index_name, table_name in INDEX_TABLES.items():
+        sql = sql.replace(
+            f"DROP INDEX IF EXISTS {index_name};",
+            f"DROP INDEX {index_name} ON {table_name};",
+        )
     # 2. typed timestamp literals
     sql = re.sub(r"TIMESTAMP\s+('(?:[^']*)')", r"\1", sql)
     # 1. TIMESTAMP column type -> DATETIME(3)

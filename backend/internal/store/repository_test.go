@@ -50,6 +50,41 @@ func TestReserveSameKeyReturnsStoredWinner(t *testing.T) {
 	}
 }
 
+func TestAuditCursorRoundTripAndQueryUsesKeyset(t *testing.T) {
+	const occurred = "2026-08-21T10:00:00Z"
+	cursor := EncodeAuditCursor(occurred, "audit-1")
+	gotAt, gotID, ok := DecodeAuditCursor(cursor)
+	if !ok || gotAt != occurred || gotID != "audit-1" {
+		t.Fatalf("cursor decoded as %q/%q/%v", gotAt, gotID, ok)
+	}
+	if _, _, ok := DecodeAuditCursor("not-a-cursor"); ok {
+		t.Fatal("malformed cursor unexpectedly accepted")
+	}
+
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := NewSQLRepository(db, "postgres")
+	mock.ExpectQuery(`SELECT id, table_name, record_id, action, old_values, new_values, operator_id, device_id, occurred_at FROM audit_log WHERE 1 = 1 AND \(occurred_at < \$1 OR \(occurred_at = \$2 AND id < \$3\)\) ORDER BY occurred_at DESC, id DESC LIMIT \$4`).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), "audit-1", 3).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "table_name", "record_id", "action", "old_values", "new_values", "operator_id", "device_id", "occurred_at"}).
+			AddRow("audit-2", "site", "site-2", "INSERT", nil, `{"name":"lab"}`, nil, "ipad-1", time.Date(2026, 8, 20, 9, 0, 0, 0, time.UTC)).
+			AddRow("audit-3", "site", "site-3", "UPDATE", `{"name":"old"}`, `{"name":"new"}`, nil, "ipad-1", time.Date(2026, 8, 19, 9, 0, 0, 0, time.UTC)).
+			AddRow("audit-4", "site", "site-4", "UPDATE", nil, nil, nil, "ipad-1", time.Date(2026, 8, 18, 9, 0, 0, 0, time.UTC)))
+	items, more, err := repo.QueryAudits(context.Background(), AuditQuery{Cursor: cursor, Limit: 2})
+	if err != nil || !more || len(items) != 2 {
+		t.Fatalf("query = %d items, more=%v, err=%v", len(items), more, err)
+	}
+	if got := NextAuditCursor(items); got == "" {
+		t.Fatal("next audit cursor is empty")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestReserveRejectsHashMismatch(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

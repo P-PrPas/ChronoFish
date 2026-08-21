@@ -285,6 +285,10 @@ type canonicalReadModel interface {
 	RefreshReadModelForRequest(context.Context, *apiServer, string) error
 }
 
+type canonicalMutationReadModel interface {
+	RefreshMutationReadModelForRequest(context.Context, *apiServer, *http.Request) error
+}
+
 type operatorReader interface {
 	OperatorActive(context.Context, string) (bool, error)
 }
@@ -561,6 +565,67 @@ func (s *sqlStateStore) RefreshReadModelForRequest(ctx context.Context, server *
 		return nil
 	}
 	return s.refreshResources(ctx, server, resources...)
+}
+
+// RefreshMutationReadModelForRequest keeps mutation validation request-scoped.
+// In particular, observation replay/monotonic checks need only the submitted
+// client UUIDs and affected embryo/fish aggregates, never the full history.
+func (s *sqlStateStore) RefreshMutationReadModelForRequest(ctx context.Context, server *apiServer, request *http.Request) error {
+	path := strings.Trim(strings.TrimPrefix(request.URL.Path, "/api/v1/"), "/")
+	parts := strings.Split(path, "/")
+	if len(parts) == 0 || parts[0] != "observations" {
+		return s.RefreshReadModelForRequest(ctx, server, request.URL.Path)
+	}
+	resources := []string{"embryos", "injection-lots", "batches", "protocols", "timing-profiles", "operators", "donor-cell-lines", "fish"}
+	state := storepkg.State{Entities: make(map[string]map[string]map[string]any), Observations: make(map[string]map[string]any), FishObservations: make(map[string]map[string]any)}
+	if err := s.repository.LoadResources(ctx, &state, resources...); err != nil {
+		return err
+	}
+	clientUUIDs, embryoIDs, fishIDs, observationIDs := []string{}, []string{}, []string{}, []string{}
+	if len(parts) >= 3 {
+		observationIDs = append(observationIDs, parts[2])
+	}
+	body, err := io.ReadAll(request.Body)
+	if err != nil {
+		return err
+	}
+	request.Body = io.NopCloser(strings.NewReader(string(body)))
+	var value any
+	if json.Unmarshal(body, &value) == nil {
+		var collect func(any)
+		collect = func(node any) {
+			switch current := node.(type) {
+			case map[string]any:
+				if id := stringValue(current["clientUuid"]); id != "" {
+					clientUUIDs = append(clientUUIDs, id)
+				}
+				if id := stringValue(current["embryoId"]); id != "" {
+					embryoIDs = append(embryoIDs, id)
+				}
+				if id := stringValue(current["cloneFishId"]); id != "" {
+					fishIDs = append(fishIDs, id)
+				}
+				for _, child := range current {
+					collect(child)
+				}
+			case []any:
+				for _, child := range current {
+					collect(child)
+				}
+			}
+		}
+		collect(value)
+	}
+	if err := s.repository.LoadObservationSubset(ctx, &state, observationIDs, clientUUIDs, embryoIDs, fishIDs); err != nil {
+		return err
+	}
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	for resource, loaded := range state.Entities {
+		server.entities[resource] = loaded
+	}
+	server.observations, server.fishObs = state.Observations, state.FishObservations
+	return nil
 }
 
 func (s *sqlStateStore) refreshResources(ctx context.Context, server *apiServer, resources ...string) error {

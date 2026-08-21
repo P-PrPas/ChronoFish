@@ -69,15 +69,34 @@ func (s *apiServer) auditLog(w http.ResponseWriter, r *http.Request) bool {
 	if value, err := strconv.Atoi(query.Get("cursor")); err == nil && value > 0 {
 		offset = value
 	}
+	if cursor := query.Get("cursor"); cursor != "" {
+		if _, _, ok := storepkg.DecodeAuditCursor(cursor); !ok {
+			// Keep the old numeric cursor accepted for memory/dev fixtures, but
+			// reject malformed production keyset cursors at the HTTP boundary.
+			if _, err := strconv.Atoi(cursor); err != nil {
+				writeAPIError(w, http.StatusBadRequest, "invalid_query", "cursor is invalid")
+				return true
+			}
+		}
+	}
+	auditCursor := query.Get("cursor")
+	if auditCursor != "" {
+		if _, _, ok := storepkg.DecodeAuditCursor(auditCursor); !ok {
+			// Numeric cursors were emitted by older API versions.  They remain
+			// supported for an in-place upgrade and are used only by the memory
+			// adapter; SQL requests use keyset cursors.
+			auditCursor = ""
+		}
+	}
 	if reader, ok := s.store.(auditReader); ok {
-		items, more, err := reader.QueryAudits(r.Context(), storepkg.AuditQuery{Table: query.Get("table"), RecordID: query.Get("recordId"), OperatorID: query.Get("operatorId"), From: from, To: to, Limit: limit, Offset: offset})
+		items, more, err := reader.QueryAudits(r.Context(), storepkg.AuditQuery{Table: query.Get("table"), RecordID: query.Get("recordId"), OperatorID: query.Get("operatorId"), From: from, To: to, Limit: limit, Cursor: auditCursor, Offset: offset})
 		if err != nil {
 			writeAPIError(w, http.StatusServiceUnavailable, "persistence_unavailable", "audit history is temporarily unavailable")
 			return true
 		}
 		var nextCursor any
 		if more {
-			nextCursor = strconv.Itoa(offset + len(items))
+			nextCursor = storepkg.NextAuditCursor(items)
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"items": items, "nextCursor": nextCursor})
 		return true
@@ -85,6 +104,14 @@ func (s *apiServer) auditLog(w http.ResponseWriter, r *http.Request) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	filtered := make([]map[string]any, 0, len(s.audits))
+	var cursorAt time.Time
+	var cursorID string
+	if cursor := query.Get("cursor"); cursor != "" {
+		if decodedAt, decodedID, ok := storepkg.DecodeAuditCursor(cursor); ok && decodedAt != "" {
+			cursorAt = parseAuditTime(decodedAt)
+			cursorID = decodedID
+		}
+	}
 	for index := len(s.audits) - 1; index >= 0; index-- {
 		item := s.audits[index]
 		if value := query.Get("table"); value != "" && stringValue(item["tableName"]) != value {
@@ -97,6 +124,9 @@ func (s *apiServer) auditLog(w http.ResponseWriter, r *http.Request) bool {
 			continue
 		}
 		occurred := parseAuditTime(stringValue(item["occurredAt"]))
+		if !cursorAt.IsZero() && (occurred.After(cursorAt) || (occurred.Equal(cursorAt) && stringValue(item["id"]) >= cursorID)) {
+			continue
+		}
 		if !from.IsZero() && (occurred.IsZero() || occurred.Before(from)) {
 			continue
 		}
@@ -116,7 +146,7 @@ func (s *apiServer) auditLog(w http.ResponseWriter, r *http.Request) bool {
 	items := filtered[offset:end]
 	var nextCursor any
 	if end < len(filtered) {
-		nextCursor = strconv.Itoa(end)
+		nextCursor = storepkg.NextAuditCursor(items)
 	}
 	writeJSON(w, 200, map[string]any{"items": items, "nextCursor": nextCursor})
 	return true

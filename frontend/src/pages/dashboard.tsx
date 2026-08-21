@@ -279,6 +279,28 @@ export function DeviationChart({ points }: { points: ApiItem[] }) {
   );
 }
 
+export function FishSurvivalChart({ points }: { points: ApiItem[] }) {
+  if (points.length === 0) return null
+  const width = 560
+  const height = 190
+  const maxAge = Math.max(1, ...points.map((point) => Number(point.ageDays ?? 0)))
+  const groups = new Map<string, ApiItem[]>()
+  for (const point of points) {
+    const key = `${String(point.strain ?? 'All')} / ${String(point.treatmentGroup ?? 'All')} / ${String(point.condition ?? 'All')}`
+    groups.set(key, [...(groups.get(key) ?? []), point])
+  }
+  const colors = ['#ef9f67', '#78c7b5', '#caa7f7', '#f2d479', '#8ab6ed']
+  return <svg className="chart" role="img" aria-label="Stage 2 survival curves by strain and treatment" viewBox={`0 0 ${width} ${height}`}>
+    <line x1="18" y1={height - 22} x2={width - 12} y2={height - 22} stroke="currentColor" opacity=".35" />
+    <line x1="18" y1="12" x2="18" y2={height - 22} stroke="currentColor" opacity=".35" />
+    {Array.from(groups.entries()).map(([key, values], index) => {
+      const sorted = [...values].sort((left, right) => Number(left.ageDays ?? 0) - Number(right.ageDays ?? 0))
+      const path = sorted.map((point) => `${18 + (Number(point.ageDays ?? 0) / maxAge) * (width - 30)},${height - 22 - Math.max(0, Math.min(1, Number(point.surv ?? 0))) * (height - 36)}`).join(' ')
+      return <g key={key}><polyline fill="none" stroke={colors[index % colors.length]} strokeWidth="2.5" points={path} /><text x="24" y={24 + index * 14} fill={colors[index % colors.length]}>{key}</text></g>
+    })}
+  </svg>
+}
+
 export function Dashboard({
   onNavigate,
   t,
@@ -501,6 +523,7 @@ export function Dashboard({
       {tab === "stage2" && (
         <>
           <ReportPanel title="Fish survival by age">
+            <FishSurvivalChart points={data.fishSurvival} />
             <ReportTable
               headers={[
                 "Condition",

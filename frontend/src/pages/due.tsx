@@ -11,6 +11,20 @@ const outcomeCycle: EmbryoOutcome[] = ['ALIVE', 'DEAD', 'DEGENERATED']
 
 export type CheckpointTiming = { actual: number | null; expected: number; deviation: number | null; observedMinutes: number | null; liveMinutes: number | null; label: string }
 
+function hpaClock(hours: number): string {
+  const totalMinutes = Math.max(0, Math.round(hours * 60))
+  return `${Math.floor(totalMinutes / 60)}:${String(totalMinutes % 60).padStart(2, '0')}`
+}
+
+export function deviationDisplay(value: number | null): string {
+  if (value === null || Math.abs(value) < 1 / 60) return 'ตรงกับสากล'
+  const totalMinutes = Math.round(Math.abs(value) * 60)
+  const direction = value < 0 ? 'เร็วกว่า' : 'ช้ากว่า'
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  return hours > 0 ? `${direction}สากล ${hours} ชม. ${minutes} นาที` : `${direction}สากล ${minutes} นาที`
+}
+
 /** Pure preview calculation used by the checkpoint and browser tests. */
 export function checkpointTiming(activatedAt: string, observedAt: string, expectedHpa: number, now = Date.now()): CheckpointTiming {
   const activatedMs = Date.parse(activatedAt)
@@ -20,7 +34,7 @@ export function checkpointTiming(activatedAt: string, observedAt: string, expect
   const liveMinutes = Number.isNaN(activatedMs) ? null : Math.max(0, Math.floor((now - activatedMs) / 60_000))
   const actual = observedMinutes === null ? null : observedMinutes / 60
   const deviation = actual === null ? null : actual - expectedHpa
-  const label = deviation === null || Math.abs(deviation) < 1 / 60 ? 'ตรงกับสากล' : `${deviation < 0 ? 'เร็วกว่า' : 'ช้ากว่า'}สากล ${Math.floor(Math.abs(deviation))} ชม. ${Math.round((Math.abs(deviation) % 1) * 60)} นาที`
+  const label = deviationDisplay(deviation)
   return { actual, expected: expectedHpa, deviation, observedMinutes, liveMinutes, label }
 }
 
@@ -86,14 +100,13 @@ function Checkpoint({ due, t, onBack }: { due: ApiItem; t: AppText; onBack: () =
   const expected = Number(entry?.expectedHpa ?? 0)
   const actual = elapsedMinutes === null ? null : elapsedMinutes / 60
   const deviation = actual === null ? null : actual - expected
-  const deviationLabel = deviation === null || Math.abs(deviation) < 1 / 60 ? 'ตรงกับสากล' : `${deviation < 0 ? 'เร็วกว่า' : 'ช้ากว่า'}สากล ${Math.floor(Math.abs(deviation))} ชม. ${Math.round((Math.abs(deviation) % 1) * 60)} นาที`
-  const displayDeviationLabel = deviation === null || Math.abs(deviation) < 1 / 60 ? 'ตรงกับสากล' : `${deviation < 0 ? 'เร็วกว่า' : 'ช้ากว่า'}สากล ${Math.floor(Math.abs(deviation))} ชม. ${Math.round((Math.abs(deviation) % 1) * 60)} นาที`
+  const deviationLabel = deviationDisplay(deviation)
   const stageOrder = Number((entry?.stage as ApiItem | undefined)?.stageOrder ?? due.stageOrder ?? 0)
   const progressLabel = `Checkpoint ${stageOrder || '?'} / 26 · Survivors ${alive} / ${total}`
   const timeLabel = elapsedMinutes === null ? 'T+—' : `T+${String(Math.floor(elapsedMinutes / 60)).padStart(2, '0')}:${String(elapsedMinutes % 60).padStart(2, '0')}`
 
   const liveTimeLabel = liveElapsedMinutes === null ? 'T+—' : `T+${String(Math.floor(liveElapsedMinutes / 60)).padStart(2, '0')}:${String(liveElapsedMinutes % 60).padStart(2, '0')}`
-  const timingLabel = actual === null ? '—' : `จริง ${String(Math.floor(actual)).padStart(2, '0')}:${String(Math.round((actual % 1) * 60)).padStart(2, '0')} · สากล ${expected.toFixed(2)} · ${displayDeviationLabel}`
+  const timingLabel = actual === null ? '—' : `จริง ${hpaClock(actual)} · สากล ${hpaClock(expected)} · ${deviationLabel}`
   const setAll = (outcome: EmbryoOutcome) => setOutcomes(Object.fromEntries(embryos.map((embryo: ApiItem) => [String(embryo.embryoId), outcome])))
   const cycle = (id: string) => {
     const current = outcomes[id] ?? 'ALIVE'

@@ -115,6 +115,7 @@ jobs:
           psql "$upgrade_url" -v ON_ERROR_STOP=1 -f backend/db/migrations/postgres/000004_idempotency_lease.up.sql
           psql "$upgrade_url" -v ON_ERROR_STOP=1 -f backend/db/migrations/postgres/000005_row_versions.up.sql
           psql "$upgrade_url" -v ON_ERROR_STOP=1 -f backend/db/migrations/postgres/000006_fish_running_sequence.up.sql
+          psql "$upgrade_url" -v ON_ERROR_STOP=1 -f backend/db/migrations/postgres/000007_query_path_indexes.up.sql
           psql "$upgrade_url" -v ON_ERROR_STOP=1 -c "SELECT lease_until,lease_token FROM request_idempotency WHERE scope='upgrade' AND idempotency_key='01900000-0000-7000-8000-000000000301'"
           psql "$upgrade_url" -v ON_ERROR_STOP=1 -c "SELECT next_running_no FROM fish_running_sequence WHERE id='00000000-0000-7000-8000-000000000006'"
       - name: Boot API and apply PostgreSQL migrations
@@ -230,6 +231,7 @@ jobs:
           mysql -h 127.0.0.1 -uroot -proot chronofish_upgrade < backend/db/migrations/mysql/000004_idempotency_lease.up.sql
           mysql -h 127.0.0.1 -uroot -proot chronofish_upgrade < backend/db/migrations/mysql/000005_row_versions.up.sql
           mysql -h 127.0.0.1 -uroot -proot chronofish_upgrade < backend/db/migrations/mysql/000006_fish_running_sequence.up.sql
+          mysql -h 127.0.0.1 -uroot -proot chronofish_upgrade < backend/db/migrations/mysql/000007_query_path_indexes.up.sql
           mysql -h 127.0.0.1 -uroot -proot chronofish_upgrade -e "SELECT lease_until,lease_token FROM request_idempotency WHERE scope='upgrade' AND idempotency_key='01900000-0000-7000-8000-000000000302'"
           mysql -h 127.0.0.1 -uroot -proot chronofish_upgrade -e "SELECT next_running_no FROM fish_running_sequence WHERE id='00000000-0000-7000-8000-000000000006'"
       - name: Boot API and apply MySQL migrations
