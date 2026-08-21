@@ -51,8 +51,20 @@ func (s *apiServer) auditLog(w http.ResponseWriter, r *http.Request) bool {
 	query := r.URL.Query()
 	from := parseAuditTime(query.Get("from"))
 	to := parseAuditTime(query.Get("to"))
-	items := make([]map[string]any, 0, len(s.audits))
-	for _, item := range s.audits {
+	limit := 100
+	if value, err := strconv.Atoi(query.Get("limit")); err == nil && value > 0 {
+		if value > 500 {
+			value = 500
+		}
+		limit = value
+	}
+	offset := 0
+	if value, err := strconv.Atoi(query.Get("cursor")); err == nil && value > 0 {
+		offset = value
+	}
+	filtered := make([]map[string]any, 0, len(s.audits))
+	for index := len(s.audits) - 1; index >= 0; index-- {
+		item := s.audits[index]
 		if value := query.Get("table"); value != "" && stringValue(item["tableName"]) != value {
 			continue
 		}
@@ -69,9 +81,22 @@ func (s *apiServer) auditLog(w http.ResponseWriter, r *http.Request) bool {
 		if !to.IsZero() && (occurred.IsZero() || occurred.After(to)) {
 			continue
 		}
-		items = append(items, cloneMap(item))
+		filtered = append(filtered, cloneMap(item))
 	}
-	writeJSON(w, 200, map[string]any{"items": items})
+	if offset >= len(filtered) {
+		writeJSON(w, 200, map[string]any{"items": []map[string]any{}, "nextCursor": nil})
+		return true
+	}
+	end := offset + limit
+	if end > len(filtered) {
+		end = len(filtered)
+	}
+	items := filtered[offset:end]
+	var nextCursor any
+	if end < len(filtered) {
+		nextCursor = strconv.Itoa(end)
+	}
+	writeJSON(w, 200, map[string]any{"items": items, "nextCursor": nextCursor})
 	return true
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -115,6 +116,10 @@ func (s *apiServer) entity(w http.ResponseWriter, r *http.Request, resource stri
 }
 
 func (s *apiServer) listEntity(w http.ResponseWriter, r *http.Request, resource string) bool {
+	if resource == "timing-profiles" && !isUUID(strings.TrimSpace(r.URL.Query().Get("protocolId"))) {
+		writeAPIError(w, http.StatusBadRequest, "invalid_query", "protocolId is required")
+		return true
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	includeInactive := r.URL.Query().Get("includeInactive") == "true"
@@ -146,7 +151,30 @@ func (s *apiServer) listEntity(w http.ResponseWriter, r *http.Request, resource 
 	} else {
 		sortItems(items)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	limit := 100
+	if value, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && value > 0 {
+		if value > 500 {
+			value = 500
+		}
+		limit = value
+	}
+	offset := 0
+	if value, err := strconv.Atoi(r.URL.Query().Get("cursor")); err == nil && value > 0 {
+		offset = value
+	}
+	if offset > len(items) {
+		offset = len(items)
+	}
+	end := offset + limit
+	if end > len(items) {
+		end = len(items)
+	}
+	page := items[offset:end]
+	var nextCursor any
+	if end < len(items) {
+		nextCursor = strconv.Itoa(end)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": page, "nextCursor": nextCursor})
 	return true
 }
 

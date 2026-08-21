@@ -309,6 +309,15 @@ func (s *apiServer) survivalLocked(embryos []map[string]any) []map[string]any {
 
 func (s *apiServer) stageSurvivalLocked(embryos []map[string]any) []map[string]any {
 	items := make([]map[string]any, 0, 26)
+	observationsByEmbryo := make(map[string][]map[string]any, len(embryos))
+	for _, observation := range s.observations {
+		if observation["deletedAt"] == nil {
+			embryoID := stringValue(observation["embryoId"])
+			if embryoID != "" {
+				observationsByEmbryo[embryoID] = append(observationsByEmbryo[embryoID], observation)
+			}
+		}
+	}
 	previousAlive := 0
 	surv := 1.0
 	for stage := 1; stage <= 26; stage++ {
@@ -318,7 +327,7 @@ func (s *apiServer) stageSurvivalLocked(embryos []map[string]any) []map[string]a
 				continue
 			}
 			risk++
-			if s.checkpointStatusLocked(embryo, stage) == "alive" {
+			if s.checkpointStatusWithIndexLocked(embryo, stage, observationsByEmbryo) == "alive" {
 				alive++
 			}
 		}
@@ -356,8 +365,19 @@ func (s *apiServer) checkpointDueLocked(embryo map[string]any, stage int) bool {
 }
 
 func (s *apiServer) checkpointStatusLocked(embryo map[string]any, stage int) string {
+	observationsByEmbryo := map[string][]map[string]any{}
 	embryoID := stringValue(embryo["id"])
-	if observation := s.observationAtStageLocked(embryoID, stage); observation != nil {
+	for _, observation := range s.observations {
+		if observation["deletedAt"] == nil && stringValue(observation["embryoId"]) == embryoID {
+			observationsByEmbryo[embryoID] = append(observationsByEmbryo[embryoID], observation)
+		}
+	}
+	return s.checkpointStatusWithIndexLocked(embryo, stage, observationsByEmbryo)
+}
+
+func (s *apiServer) checkpointStatusWithIndexLocked(embryo map[string]any, stage int, observationsByEmbryo map[string][]map[string]any) string {
+	embryoID := stringValue(embryo["id"])
+	if observation := observationAtStageFromIndex(observationsByEmbryo[embryoID], stage); observation != nil {
 		switch stringValue(observation["outcome"]) {
 		case "ALIVE":
 			return "alive"
@@ -377,8 +397,8 @@ func (s *apiServer) checkpointStatusLocked(embryo map[string]any, stage int) str
 		return "dead"
 	}
 	highestAlive := 0
-	for _, observation := range s.observations {
-		if observation["deletedAt"] == nil && stringValue(observation["embryoId"]) == embryoID && stringValue(observation["outcome"]) == "ALIVE" {
+	for _, observation := range observationsByEmbryo[embryoID] {
+		if stringValue(observation["outcome"]) == "ALIVE" {
 			if order := stageNumber(stringValue(observation["stageCode"])); order > highestAlive {
 				highestAlive = order
 			}
@@ -389,17 +409,32 @@ func (s *apiServer) checkpointStatusLocked(embryo map[string]any, stage int) str
 	}
 	return "blank"
 }
+
+func observationAtStageFromIndex(observations []map[string]any, stage int) map[string]any {
+	for _, observation := range observations {
+		if stageNumber(stringValue(observation["stageCode"])) == stage {
+			return observation
+		}
+	}
+	return nil
+}
 func (s *apiServer) deviationLocked(embryos []map[string]any) []map[string]any {
 	groups := map[string][]float64{}
 	expected := map[string]float64{}
 	groupMeta := map[string]map[string]any{}
+	observationsByEmbryo := make(map[string][]map[string]any, len(embryos))
+	for _, observation := range s.observations {
+		if observation["deletedAt"] == nil {
+			observationsByEmbryo[stringValue(observation["embryoId"])] = append(observationsByEmbryo[stringValue(observation["embryoId"])], observation)
+		}
+	}
 	for _, embryo := range embryos {
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
 		batch := s.entities["batches"][stringValue(lot["batchId"])]
 		donor := s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]
 		treatment := s.entities["treatment-groups"][stringValue(batch["treatmentGroupId"])]
-		for _, observation := range s.observations {
-			if observation["deletedAt"] == nil && stringValue(observation["embryoId"]) == stringValue(embryo["id"]) {
+		for _, observation := range observationsByEmbryo[stringValue(embryo["id"])] {
+			if observation["deletedAt"] == nil {
 				stage := stageNumber(stringValue(observation["stageCode"]))
 				key := fmt.Sprintf("%s|%s|%s|%d", stringValue(batch["siteId"]), stringValue(donor["strain"]), stringValue(treatment["code"]), stage)
 				groups[key] = append(groups[key], floatValue(observation["deviationH"]))

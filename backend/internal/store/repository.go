@@ -843,6 +843,13 @@ func (s *SQLRepository) syncTimingProfiles(ctx context.Context, tx *sql.Tx, stat
 		if protocolID == "" {
 			return fmt.Errorf("timing profile %s has no protocol", id)
 		}
+		// Serialize version/current transitions per protocol across API
+		// instances. The row lock is held until the enclosing mutation commits.
+		lockProtocol := "SELECT id FROM protocol WHERE id = " + s.placeholder(1) + " FOR UPDATE"
+		var lockedProtocol string
+		if err := tx.QueryRowContext(ctx, lockProtocol, protocolID).Scan(&lockedProtocol); err != nil {
+			return fmt.Errorf("lock timing protocol %s: %w", protocolID, err)
+		}
 		clearCurrent := "UPDATE stage_timing_profile SET is_current = " + s.placeholder(1) + " WHERE protocol_id = " + s.placeholder(2)
 		if _, err := tx.ExecContext(ctx, clearCurrent, false, protocolID); err != nil {
 			return err
