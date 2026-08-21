@@ -1336,9 +1336,11 @@ export interface components {
             /** Format: uuid */
             createdByOperatorId?: string | null;
             entries: {
-                stageOrder: number;
+                /** @description Derived from stageCode when omitted. */
+                stageOrder?: number;
                 stageCode: string;
-                stageLabel: string;
+                /** @description Derived from the canonical stage when omitted. */
+                stageLabel?: string;
                 /** @example 2.5 */
                 expectedHpa: number;
             }[];

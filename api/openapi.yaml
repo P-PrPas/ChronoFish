@@ -2091,11 +2091,11 @@ components:
           type: array
           items:
             type: object
-            required: [stageOrder, stageCode, stageLabel, expectedHpa]
+            required: [stageCode, expectedHpa]
             properties:
-              stageOrder: { type: integer }
+              stageOrder: { type: integer, description: Derived from stageCode when omitted. }
               stageCode: { type: string }
-              stageLabel: { type: string }
+              stageLabel: { type: string, description: Derived from the canonical stage when omitted. }
               expectedHpa: { type: number, examples: [2.5] }
 
     # ---- experiments --------------------------------------------------------
