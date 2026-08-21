@@ -179,6 +179,7 @@ func mutationWorkingServer(source *apiServer, request *http.Request) *apiServer 
 		cloneMapForWrite("batches")
 		cloneMapForWrite("injection-lots")
 		cloneMapForWrite("embryos")
+		cloneMapForWrite("control-arm-counts")
 	case "injection-lots":
 		cloneMapForWrite("injection-lots")
 		cloneMapForWrite("embryos")
