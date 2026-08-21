@@ -165,13 +165,12 @@ export function SurvivalChart({ points }: { points: ApiItem[] }) {
   if (points.length === 0) return null;
   const width = 560;
   const height = 180;
-  const max = Math.max(1, ...points.map((point) => Number(point.surv ?? 0)));
-  const path = points
-    .map(
-      (point, index) =>
-        `${(index / Math.max(1, points.length - 1)) * (width - 24) + 12},${height - 18 - (Number(point.surv ?? 0) / max) * (height - 36)}`,
-    )
-    .join(" ");
+  const groups = new Map<string, ApiItem[]>();
+  for (const point of points) {
+    const key = `${String(point.siteId ?? "All")} / ${String(point.strain ?? "All")} / ${String(point.treatmentGroup ?? "All")}`;
+    groups.set(key, [...(groups.get(key) ?? []), point]);
+  }
+  const colors = ["#ef9f67", "#78c7b5", "#caa7f7", "#f2d479", "#8ab6ed"];
   return (
     <svg
       className="chart"
@@ -187,15 +186,11 @@ export function SurvivalChart({ points }: { points: ApiItem[] }) {
         stroke="currentColor"
         opacity=".35"
       />
-      <polyline
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="3"
-        points={path}
-      />
-      <text x="12" y="14">
-        Survival
-      </text>
+      {Array.from(groups.entries()).map(([key, values], groupIndex) => {
+        const sorted = [...values].sort((left, right) => Number(left.stageOrder ?? 0) - Number(right.stageOrder ?? 0));
+        const path = sorted.map((point, index) => `${(index / Math.max(1, sorted.length - 1)) * (width - 24) + 12},${height - 18 - Math.max(0, Math.min(1, Number(point.surv ?? 0))) * (height - 36)}`).join(" ");
+        return <g key={key}><polyline fill="none" stroke={colors[groupIndex % colors.length]} strokeWidth="2.5" points={path} /><text x="18" y={16 + groupIndex * 13} fill={colors[groupIndex % colors.length]}>{key}</text></g>;
+      })}
     </svg>
   );
 }
@@ -449,6 +444,7 @@ export function Dashboard({
               headers={[
                 "Site",
                 "Strain",
+                "Treatment",
                 "Stage",
                 "Risk set",
                 "Alive",
@@ -457,6 +453,7 @@ export function Dashboard({
               rows={data.survival.map((point) => [
                 String(point.siteId ?? "All"),
                 String(point.strain ?? "All"),
+                String(point.treatmentGroup ?? "All"),
                 String(point.stageLabel ?? point.stageOrder),
                 Number(point.riskSet ?? 0),
                 Number(point.alive ?? 0),
