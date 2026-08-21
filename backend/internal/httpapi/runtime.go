@@ -318,8 +318,11 @@ func (s *sqlStateStore) RefreshReadModelForRequest(ctx context.Context, server *
 		// The audit handler uses QueryAudits directly with filters/pagination.
 		return nil
 	}
-	if strings.HasPrefix(resource, "analytics") || strings.HasPrefix(resource, "exports") || resource == "due" {
+	if strings.HasPrefix(resource, "analytics") || strings.HasPrefix(resource, "exports") {
 		return s.Load(ctx, server)
+	}
+	if resource == "due" {
+		return s.refreshResources(ctx, server, "batches", "injection-lots", "embryos", "protocols", "timing-profiles", "observations")
 	}
 	parts := strings.Split(resource, "/")
 	resources := []string{}
@@ -348,6 +351,10 @@ func (s *sqlStateStore) RefreshReadModelForRequest(ctx context.Context, server *
 	default:
 		return nil
 	}
+	return s.refreshResources(ctx, server, resources...)
+}
+
+func (s *sqlStateStore) refreshResources(ctx context.Context, server *apiServer, resources ...string) error {
 	state := storepkg.State{Entities: make(map[string]map[string]map[string]any), Observations: make(map[string]map[string]any), FishObservations: make(map[string]map[string]any)}
 	if err := s.repository.LoadResources(ctx, &state, resources...); err != nil {
 		return err
