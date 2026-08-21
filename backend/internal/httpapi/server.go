@@ -12,11 +12,11 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/P-PrPas/ChronoFish/backend/internal/domain"
 	"github.com/P-PrPas/ChronoFish/backend/internal/service"
 	storepkg "github.com/P-PrPas/ChronoFish/backend/internal/store"
 )
@@ -90,31 +90,15 @@ func (s *apiServer) seedProtocol() {
 }
 
 func stageLabel(order int) string {
-	if order <= 26 {
-		return fmt.Sprintf("Stage %d", order)
-	}
-	return fmt.Sprintf("Day %d", order-21)
+	return domain.StageLabel(order)
 }
 
 func stageCode(order int) string {
-	codes := []string{"1C", "2C", "4C", "8C", "16C", "32C", "64C", "128C", "256C", "512C", "1K", "HI", "OB", "SPH", "DO", "30EPI", "50EPI", "GR", "SH", "75EPI", "90EPI", "1D", "2D", "3D", "4D", "5D", "6D", "7D", "8D", "9D", "10D", "11D", "12D", "13D", "14D", "15D"}
-	if order < 1 || order > len(codes) {
-		return fmt.Sprintf("stage_%02d", order)
-	}
-	return fmt.Sprintf("stage_%02d_%s", order, codes[order-1])
+	return domain.StageCode(order)
 }
 
 func expectedHPA(code string) float64 {
-	n := 0
-	if suffix := strings.TrimPrefix(code, "stage_"); suffix != code {
-		stageNo := strings.SplitN(suffix, "_", 2)[0]
-		n, _ = strconv.Atoi(strings.TrimLeft(stageNo, "0"))
-	}
-	values := []float64{0, .75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.33, 3.66, 4, 4.33, 4.66, 5.25, 5.66, 6, 8, 9, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240, 264, 288, 312, 336, 360}
-	if n >= 1 && n <= len(values) {
-		return values[n-1]
-	}
-	return 0
+	return domain.DefaultExpectedHPA(code)
 }
 
 func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -248,9 +232,22 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// A write must validate and derive from the latest committed aggregate. The
 	// SQL adapter refreshes only the route's bounded dependency set; memory
 	// tests retain their in-process behavior.
+	var routeServer *apiServer
 	if mutation {
+		if _, ok := s.store.(canonicalMutationReadModel); ok {
+			// Refresh into a request-local projection. Publishing a fresh SQL
+			// snapshot on the shared server before the write commits would expose
+			// committed rows from another request and make rollback unsafe.
+			routeServer = mutationWorkingServer(s, r)
+		}
+	}
+	if mutation {
+		refreshTarget := s
+		if routeServer != nil {
+			refreshTarget = routeServer
+		}
 		if refresher, ok := s.store.(canonicalMutationReadModel); ok {
-			if err := refresher.RefreshMutationReadModelForRequest(r.Context(), s, r); err != nil {
+			if err := refresher.RefreshMutationReadModelForRequest(r.Context(), refreshTarget, r); err != nil {
 				if mutationLeaseToken != "" {
 					if aborter, canAbort := s.store.(interface {
 						Abort(context.Context, storepkg.Mutation) error
@@ -262,7 +259,7 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else if refresher, ok := s.store.(canonicalReadModel); ok {
-			if err := refresher.RefreshReadModelForRequest(r.Context(), s, r.URL.Path); err != nil {
+			if err := refresher.RefreshReadModelForRequest(r.Context(), refreshTarget, r.URL.Path); err != nil {
 				if mutationLeaseToken != "" {
 					if aborter, canAbort := s.store.(interface {
 						Abort(context.Context, storepkg.Mutation) error
@@ -309,9 +306,13 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if mutation {
 		w = recorded
 	}
-	routeServer := s
+	if routeServer == nil {
+		routeServer = s
+	}
 	if mutation && deltaStore != nil {
-		routeServer = mutationWorkingServer(s, r)
+		if routeServer == s {
+			routeServer = mutationWorkingServer(s, r)
+		}
 	}
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
@@ -343,7 +344,9 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				_ = atomicStore.Abort(context.Background(), mutationResult)
 			}
 			if deltaStore != nil {
-				restoreDelta(s, work.Delta())
+				// The request-local projection was never published before the
+				// transaction. There is no shared map to roll back; dropping it is
+				// what prevents a failed request from overwriting a newer commit.
 				restoreMutationCache(s, cacheBefore)
 			} else {
 				applyState(s, before)

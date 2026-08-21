@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"reflect"
 	"sort"
@@ -333,27 +332,8 @@ func (s *apiServer) validateEmbryoObservation(item map[string]any) error {
 	return nil
 }
 
-func legacyDeviationLabel(value float64) string {
-	minutes := int(value * 60)
-	if minutes >= 0 {
-		return fmt.Sprintf("ช้ากว่าสากล %d นาที", minutes)
-	}
-	return fmt.Sprintf("เร็วกว่าสากล %d นาที", -minutes)
-}
-
 func deviationLabel(value float64) string {
-	if math.Abs(value) < 1.0/60.0 {
-		return "ตรงกับสากล"
-	}
-	minutes := int(math.Round(math.Abs(value) * 60))
-	direction := "ช้ากว่าสากล"
-	if value < 0 {
-		direction = "เร็วกว่าสากล"
-	}
-	if minutes < 60 {
-		return fmt.Sprintf("%s %d นาที", direction, minutes)
-	}
-	return fmt.Sprintf("%s %d ชม. %d นาที", direction, minutes/60, minutes%60)
+	return domain.DeviationLabel(value)
 }
 
 func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Request, id string, fish bool) bool {
@@ -521,6 +501,31 @@ func (s *apiServer) expectedHPAForEmbryoLocked(observation map[string]any) float
 	return s.expectedHPAForLotLocked(lot, stringValue(observation["stageCode"]))
 }
 
+// stageDefinitionForEmbryoLocked resolves the canonical stage belonging to
+// the embryo's protocol. Stage IDs are protocol-scoped; the seeded default ID
+// is only a fallback for memory fixtures that do not carry stage metadata.
+func (s *apiServer) stageDefinitionForEmbryoLocked(embryo map[string]any, code string) string {
+	if embryo != nil {
+		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+		batch := s.entities["batches"][stringValue(lot["batchId"])]
+		profile := s.entities["timing-profiles"][stringValue(batch["timingProfileId"])]
+		if entries, ok := profile["entries"].([]any); ok {
+			for _, value := range entries {
+				entry, ok := value.(map[string]any)
+				if ok && stringValue(entry["stageCode"]) == code {
+					if id := stringValue(entry["stageDefinitionId"]); id != "" {
+						return id
+					}
+					if id := stringValue(entry["id"]); id != "" {
+						return id
+					}
+				}
+			}
+		}
+	}
+	return stageDefinitionID(code)
+}
+
 func (s *apiServer) expectedHPAForLotLocked(lot map[string]any, stageCode string) float64 {
 	batch := s.entities["batches"][stringValue(lot["batchId"])]
 	profile := s.entities["timing-profiles"][stringValue(batch["timingProfileId"])]
@@ -677,7 +682,7 @@ func (s *apiServer) recomputeEmbryoLocked(embryoID string) {
 	} else {
 		embryo["firstAbnormalObservationId"] = firstAbnormal["id"]
 		embryo["firstAbnormalStageCode"] = firstAbnormal["stageCode"]
-		embryo["firstAbnormalStageId"] = stageDefinitionID(stringValue(firstAbnormal["stageCode"]))
+		embryo["firstAbnormalStageId"] = s.stageDefinitionForEmbryoLocked(embryo, stringValue(firstAbnormal["stageCode"]))
 		embryo["firstAbnormalOn"] = firstAbnormalAt.In(bangkokLocation()).Format("2006-01-02")
 		if lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]; lot != nil {
 			if activated, err := time.Parse(time.RFC3339, stringValue(lot["activatedAt"])); err == nil {
@@ -692,7 +697,7 @@ func (s *apiServer) recomputeEmbryoLocked(embryoID string) {
 	} else {
 		embryo["exitReason"], embryo["exitAt"] = latest["outcome"], latest["observedAt"]
 		embryo["exitStageCode"] = latest["stageCode"]
-		embryo["exitStageId"] = stageDefinitionID(stringValue(latest["stageCode"]))
+		embryo["exitStageId"] = s.stageDefinitionForEmbryoLocked(embryo, stringValue(latest["stageCode"]))
 	}
 }
 
@@ -871,11 +876,11 @@ func bangkokDateStart(value time.Time) time.Time {
 }
 
 func round4(value float64) float64 {
-	return math.Round(value*10000) / 10000
+	return domain.Round4(value)
 }
 
 func isBackdated(observed, received time.Time) bool {
-	return math.Abs(received.Sub(observed).Minutes()) > 15
+	return domain.IsBackdated(observed, received)
 }
 
 func fishDateBackdated(observed, received time.Time) bool {

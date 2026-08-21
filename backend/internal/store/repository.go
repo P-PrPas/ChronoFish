@@ -147,7 +147,11 @@ func hydrateDerivedFields(state *State, stageCodes map[string]string) {
 		}
 		embryo["firstAbnormalObservationId"] = first["id"]
 		embryo["firstAbnormalStageCode"] = first["stageCode"]
-		embryo["firstAbnormalStageId"] = stageDefinitionID(stringValue(first["stageCode"]))
+		stageID := stringValue(first["stageDefinitionId"])
+		if stageID == "" {
+			stageID = stageDefinitionID(stringValue(first["stageCode"]))
+		}
+		embryo["firstAbnormalStageId"] = stageID
 		embryo["firstAbnormalOn"] = firstAt.In(time.FixedZone("Asia/Bangkok", 7*60*60)).Format("2006-01-02")
 	}
 	for _, fish := range state.Entities["fish"] {
@@ -717,6 +721,16 @@ ORDER BY l.id, sd.stage_order`
 	if err := rows.Err(); err != nil {
 		return nil, nil, err
 	}
+	sort.SliceStable(overdue, func(i, j int) bool {
+		left, right := intValue(overdue[i]["minutesLate"]), intValue(overdue[j]["minutesLate"])
+		if left != right {
+			return left > right
+		}
+		return stringValue(overdue[i]["dueAt"]) < stringValue(overdue[j]["dueAt"])
+	})
+	sort.SliceStable(upcoming, func(i, j int) bool {
+		return stringValue(upcoming[i]["dueAt"]) < stringValue(upcoming[j]["dueAt"])
+	})
 	return overdue, upcoming, nil
 }
 
@@ -1470,8 +1484,8 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 		}
 	}
 	for id, item := range changes.Observations {
-		stageID := stageDefinitionID(stringValue(item["stageCode"]))
-		if stageID == "" || !s.referencesAvailableTx(ctx, tx, item, "embryoId", "operatorId") {
+		stageID, stageErr := s.observationStageIDTx(ctx, tx, item)
+		if stageErr != nil || stageID == "" || !s.referencesAvailableTx(ctx, tx, item, "embryoId", "operatorId") {
 			return fmt.Errorf("embryo observation %s has an invalid stage or foreign-key reference", id)
 		}
 		if err := s.upsertCanonical(ctx, tx, "embryo_observation", []string{"id", "client_uuid", "embryo_id", "stage_definition_id", "observed_at", "hpa_actual", "hpa_expected_snapshot", "deviation_h", "outcome", "biological_condition", "operator_id", "device_id", "is_backdated", "override_reason", "notes", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["clientUuid"]), stringValue(item["embryoId"]), stageID, timestampValue(item["observedAt"]), numberValue(item["hpaActual"]), numberValue(item["hpaExpectedSnapshot"]), numberValue(item["deviationH"]), stringValue(item["outcome"]), stringValue(item["condition"]), stringValue(item["operatorId"]), nullableString(item["deviceId"]), item["isBackdated"] == true, nullableString(item["overrideReason"]), nullableString(item["notes"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
@@ -1494,9 +1508,9 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 		}
 	}
 	for id, item := range changes.Entities["control-arm-counts"] {
-		stageID := stageDefinitionID(stringValue(item["stageCode"]))
+		stageID, stageErr := s.batchStageIDTx(ctx, tx, item)
 		arm := stringValue(item["armType"])
-		if (arm != "NATURAL_BREEDING" && arm != "IVF") || !nonNegativeIntegerValue(item["nNormal"]) || !nonNegativeIntegerValue(item["nAbnormal"]) || stageID == "" || !s.referencesAvailableTx(ctx, tx, item, "batchId") {
+		if stageErr != nil || (arm != "NATURAL_BREEDING" && arm != "IVF") || !nonNegativeIntegerValue(item["nNormal"]) || !nonNegativeIntegerValue(item["nAbnormal"]) || stageID == "" || !s.referencesAvailableTx(ctx, tx, item, "batchId") {
 			return fmt.Errorf("control count %s has an invalid stage or foreign-key reference", id)
 		}
 		if err := s.upsertCanonical(ctx, tx, "control_arm_count", []string{"id", "batch_id", "arm_type", "stage_definition_id", "n_normal", "n_abnormal", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["batchId"]), stringValue(item["armType"]), stageID, intValue(item["nNormal"]), intValue(item["nAbnormal"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
@@ -1553,9 +1567,12 @@ func (s *SQLRepository) syncTimingProfiles(ctx context.Context, tx *sql.Tx, stat
 			if !ok {
 				continue
 			}
-			stageID := stageDefinitionID(stringValueOr(entry["stageCode"], stringValue(entry["code"])))
-			if stageID == "" {
-				continue
+			stageID, stageErr := s.stageIDTx(ctx, tx, protocolID, stringValueOr(entry["stageCode"], stringValue(entry["code"])))
+			if stageErr != nil || stageID == "" {
+				if stageErr != nil {
+					return fmt.Errorf("timing profile %s has an invalid stage: %w", id, stageErr)
+				}
+				return fmt.Errorf("timing profile %s has an invalid stage", id)
 			}
 			entryID := stringValue(entry["id"])
 			if entryID == "" {
@@ -1585,6 +1602,46 @@ func (s *SQLRepository) syncTimingProfiles(ctx context.Context, tx *sql.Tx, stat
 		}
 	}
 	return nil
+}
+
+// stageIDTx resolves a stage in the protocol owning the aggregate. Stage IDs
+// are not globally portable: a second protocol may use the same stage code
+// with a different canonical stage_definition row. The old fixed seed-ID
+// fallback is retained only for the in-memory/dev path and legacy fixtures.
+func (s *SQLRepository) stageIDTx(ctx context.Context, tx *sql.Tx, protocolID, code string) (string, error) {
+	code = strings.TrimSpace(code)
+	if protocolID == "" || code == "" {
+		return "", errors.New("protocol and stage code are required")
+	}
+	order := domain.StageNumber(code)
+	query := "SELECT id FROM stage_definition WHERE protocol_id = " + s.placeholder(1) + " AND deleted_at IS NULL AND (code = " + s.placeholder(2) + " OR stage_order = " + s.placeholder(3) + ")"
+	var id string
+	if err := tx.QueryRowContext(ctx, query, protocolID, code, order).Scan(&id); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func (s *SQLRepository) observationStageIDTx(ctx context.Context, tx *sql.Tx, item map[string]any) (string, error) {
+	code := stringValue(item["stageCode"])
+	order := domain.StageNumber(code)
+	query := "SELECT sd.id FROM stage_definition sd JOIN experiment_batch b ON b.protocol_id = sd.protocol_id JOIN injection_lot l ON l.batch_id = b.id JOIN embryo e ON e.injection_lot_id = l.id WHERE e.id = " + s.placeholder(1) + " AND sd.deleted_at IS NULL AND (sd.code = " + s.placeholder(2) + " OR sd.stage_order = " + s.placeholder(3) + ")"
+	var id string
+	if err := tx.QueryRowContext(ctx, query, stringValue(item["embryoId"]), code, order).Scan(&id); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func (s *SQLRepository) batchStageIDTx(ctx context.Context, tx *sql.Tx, item map[string]any) (string, error) {
+	code := stringValue(item["stageCode"])
+	order := domain.StageNumber(code)
+	query := "SELECT sd.id FROM stage_definition sd JOIN experiment_batch b ON b.protocol_id = sd.protocol_id WHERE b.id = " + s.placeholder(1) + " AND sd.deleted_at IS NULL AND (sd.code = " + s.placeholder(2) + " OR sd.stage_order = " + s.placeholder(3) + ")"
+	var id string
+	if err := tx.QueryRowContext(ctx, query, stringValue(item["batchId"]), code, order).Scan(&id); err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
 func (s *SQLRepository) upsertCanonical(ctx context.Context, tx *sql.Tx, table string, columns []string, values []any, conflict []string) error {

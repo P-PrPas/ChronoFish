@@ -18,6 +18,46 @@ func TestStageNumberAndCalendarAge(t *testing.T) {
 	}
 }
 
+func TestProtocolStageAndTimingDefaults(t *testing.T) {
+	if got := StageCode(1); got != "stage_01_1C" {
+		t.Fatalf("stage code = %q", got)
+	}
+	if got := StageCode(36); got != "stage_36_15D" {
+		t.Fatalf("last stage code = %q", got)
+	}
+	if got := StageLabel(27); got != "Day 6" {
+		t.Fatalf("day label = %q", got)
+	}
+	if got := DefaultExpectedHPA("stage_26_1D"); got != 120 {
+		t.Fatalf("default expected HPA = %v", got)
+	}
+	if got := DefaultExpectedHPA("not-a-stage"); got != 0 {
+		t.Fatalf("invalid expected HPA = %v", got)
+	}
+}
+
+func TestTimingAndDeviationBoundaries(t *testing.T) {
+	if got := Round4(1.23456); got != 1.2346 {
+		t.Fatalf("round4 = %v", got)
+	}
+	observed := time.Date(2026, 8, 21, 10, 0, 0, 0, time.UTC)
+	if IsBackdated(observed, observed.Add(15*time.Minute)) {
+		t.Fatal("exactly 15 minutes must not be backdated")
+	}
+	if !IsBackdated(observed, observed.Add(15*time.Minute+time.Nanosecond)) {
+		t.Fatal("more than 15 minutes must be backdated")
+	}
+	if got := DeviationLabel(0); got != "ตรงกับสากล" {
+		t.Fatalf("zero deviation label = %q", got)
+	}
+	if got := DeviationLabel(1.5); got != "ช้ากว่าสากล 1 ชม. 30 นาที" {
+		t.Fatalf("positive deviation label = %q", got)
+	}
+	if got := DeviationLabel(-0.25); got != "เร็วกว่าสากล 15 นาที" {
+		t.Fatalf("negative deviation label = %q", got)
+	}
+}
+
 func TestPromotionDecision(t *testing.T) {
 	if !PromotionEligible(false, true, 5, 5) {
 		t.Fatal("eligible embryo rejected")

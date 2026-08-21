@@ -88,13 +88,35 @@ func mutationWorkingServer(source *apiServer, request *http.Request) *apiServer 
 	for resource, records := range source.entities {
 		working.entities[resource] = records
 	}
-	working.observations = source.observations
-	working.fishObs = source.fishObs
-	working.audits = source.audits
-	working.idempotency = source.idempotency
-	working.idempotencyStatus = source.idempotencyStatus
-	working.idempotencyBinary = source.idempotencyBinary
-	working.idempotencyHash = source.idempotencyHash
+	// Never share mutable collection headers with the production projection.
+	// Handlers append observations/audits and consult idempotency during a
+	// request; independent maps/slices keep those operations request-local even
+	// before the SQL transaction has committed.
+	working.observations = make(map[string]map[string]any, len(source.observations))
+	for id, item := range source.observations {
+		working.observations[id] = item
+	}
+	working.fishObs = make(map[string]map[string]any, len(source.fishObs))
+	for id, item := range source.fishObs {
+		working.fishObs[id] = item
+	}
+	working.audits = append([]map[string]any(nil), source.audits...)
+	working.idempotency = make(map[string]json.RawMessage, len(source.idempotency))
+	for key, body := range source.idempotency {
+		working.idempotency[key] = append(json.RawMessage(nil), body...)
+	}
+	working.idempotencyStatus = make(map[string]int, len(source.idempotencyStatus))
+	for key, status := range source.idempotencyStatus {
+		working.idempotencyStatus[key] = status
+	}
+	working.idempotencyBinary = make(map[string]bool, len(source.idempotencyBinary))
+	for key, binary := range source.idempotencyBinary {
+		working.idempotencyBinary[key] = binary
+	}
+	working.idempotencyHash = make(map[string]string, len(source.idempotencyHash))
+	for key, hash := range source.idempotencyHash {
+		working.idempotencyHash[key] = hash
+	}
 	working.fishNo = source.fishNo
 
 	ids := make(map[string]map[string]bool)
@@ -141,6 +163,9 @@ func mutationWorkingServer(source *apiServer, request *http.Request) *apiServer 
 				case map[string]any:
 					addID("embryos", stringValue(current["embryoId"]))
 					addID("fish", stringValue(current["cloneFishId"]))
+					// Roll-call payloads use fishId while observation payloads use
+					// cloneFishId. Both are request-scoped aggregate keys.
+					addID("fish", stringValue(current["fishId"]))
 					for _, child := range current {
 						collect(child)
 					}
@@ -202,14 +227,33 @@ func mutationWorkingServer(source *apiServer, request *http.Request) *apiServer 
 		cloneMapForWrite("fish")
 		cloneMapForWrite("embryos")
 	}
+	// Nested routes identify their child record after the first resource
+	// segment. Capture those IDs so PATCH/DELETE never edits a shared map value.
+	if len(parts) >= 4 && parts[0] == "fish" && parts[2] == "specimens" {
+		addID("specimens", parts[3])
+	}
 	for resource, records := range source.entities {
 		if !cloneAll[resource] && len(ids[resource]) == 0 {
 			continue
 		}
 		copyRecords := make(map[string]map[string]any, len(records))
 		for id, item := range records {
-			if cloneAll[resource] || ids[resource][id] {
+			if ids[resource][id] {
+				// Route/body-selected rows are always copy-on-write, even when
+				// the surrounding aggregate collection is refreshed as a whole.
 				copyRecords[id] = cloneMap(item)
+			} else if cloneAll[resource] && (resource == "timing-profiles" || resource == "control-arm-counts") {
+				// These two handlers may revise multiple existing rows (current
+				// timing profile transition and PUT replacement). They are bounded
+				// reference/configuration collections, so deep-copying them keeps
+				// the copy-on-write guarantee without touching operational data.
+				copyRecords[id] = cloneMap(item)
+			} else if cloneAll[resource] {
+				// Clone the index, not every row.  Business handlers only mutate
+				// rows named by the route/body; read-only rows remain shared and
+				// are never exposed to a write path. This keeps request setup
+				// proportional to the affected aggregate at five-year scale.
+				copyRecords[id] = item
 			} else {
 				copyRecords[id] = item
 			}
@@ -573,7 +617,34 @@ func (s *sqlStateStore) RefreshReadModelForRequest(ctx context.Context, server *
 func (s *sqlStateStore) RefreshMutationReadModelForRequest(ctx context.Context, server *apiServer, request *http.Request) error {
 	path := strings.Trim(strings.TrimPrefix(request.URL.Path, "/api/v1/"), "/")
 	parts := strings.Split(path, "/")
-	if len(parts) == 0 || parts[0] != "observations" {
+	if len(parts) == 0 {
+		return nil
+	}
+	if parts[0] != "observations" {
+		// Create/update validation must begin from committed rows even when the
+		// route is a collection endpoint. The old read optimisation returned
+		// early for /batches and /sites, leaving a second API instance with a
+		// stale uniqueness/reference view.
+		if len(parts) == 1 && request.Method != http.MethodGet {
+			switch parts[0] {
+			case "sites", "operators", "donor-cell-lines", "recipient-egg-lots", "csof-lots", "treatment-groups", "fish-boxes":
+				return s.refreshResources(ctx, server, parts[0])
+			case "batches":
+				return s.refreshResources(ctx, server, "batches", "sites", "operators", "protocols", "timing-profiles", "treatment-groups")
+			case "timing-profiles":
+				return s.refreshResources(ctx, server, "protocols", "timing-profiles")
+			case "fish":
+				return s.refreshResources(ctx, server, "fish", "embryos", "injection-lots", "batches", "donor-cell-lines", "sites", "fish-boxes")
+			case "injection-lots":
+				return s.refreshResources(ctx, server, "injection-lots", "batches", "donor-cell-lines", "embryos")
+			case "embryos":
+				return s.refreshResources(ctx, server, "embryos", "injection-lots", "batches")
+			case "specimens":
+				return s.refreshResources(ctx, server, "specimens", "fish")
+			case "control-arm-counts":
+				return s.refreshResources(ctx, server, "control-arm-counts", "batches", "protocols", "timing-profiles")
+			}
+		}
 		return s.RefreshReadModelForRequest(ctx, server, request.URL.Path)
 	}
 	resources := []string{"embryos", "injection-lots", "batches", "protocols", "timing-profiles", "operators", "donor-cell-lines", "fish"}

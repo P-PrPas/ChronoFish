@@ -2,6 +2,8 @@ package domain
 
 import (
 	"errors"
+	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -36,6 +38,51 @@ func StageNumber(code string) int {
 		return 0
 	}
 	return number
+}
+
+func StageCode(order int) string {
+	codes := []string{"1C", "2C", "4C", "8C", "16C", "32C", "64C", "128C", "256C", "512C", "1K", "HI", "OB", "SPH", "DO", "30EPI", "50EPI", "GR", "SH", "75EPI", "90EPI", "1D", "2D", "3D", "4D", "5D", "6D", "7D", "8D", "9D", "10D", "11D", "12D", "13D", "14D", "15D"}
+	if order < 1 || order > len(codes) {
+		return fmt.Sprintf("stage_%02d", order)
+	}
+	return fmt.Sprintf("stage_%02d_%s", order, codes[order-1])
+}
+
+func StageLabel(order int) string {
+	if order <= 26 {
+		return fmt.Sprintf("Stage %d", order)
+	}
+	return fmt.Sprintf("Day %d", order-21)
+}
+
+func DefaultExpectedHPA(code string) float64 {
+	values := []float64{0, .75, 1, 1.25, 1.5, 1.75, 2, 2.25, 2.5, 2.75, 3, 3.33, 3.66, 4, 4.33, 4.66, 5.25, 5.66, 6, 8, 9, 24, 48, 72, 96, 120, 144, 168, 192, 216, 240, 264, 288, 312, 336, 360}
+	order := StageNumber(code)
+	if order < 1 || order > len(values) {
+		return 0
+	}
+	return values[order-1]
+}
+
+func Round4(value float64) float64 { return math.Round(value*10000) / 10000 }
+
+func IsBackdated(observed, received time.Time) bool {
+	return math.Abs(received.Sub(observed).Minutes()) > 15
+}
+
+func DeviationLabel(value float64) string {
+	if math.Abs(value) < 1.0/60.0 {
+		return "ตรงกับสากล"
+	}
+	minutes := int(math.Round(math.Abs(value) * 60))
+	direction := "ช้ากว่าสากล"
+	if value < 0 {
+		direction = "เร็วกว่าสากล"
+	}
+	if minutes < 60 {
+		return fmt.Sprintf("%s %d นาที", direction, minutes)
+	}
+	return fmt.Sprintf("%s %d ชม. %d นาที", direction, minutes/60, minutes%60)
 }
 
 func AgeDaysOn(dob, observed string, location *time.Location) int {

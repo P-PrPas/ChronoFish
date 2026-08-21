@@ -23,7 +23,7 @@ func (s *apiServer) analytics(w http.ResponseWriter, r *http.Request, p []string
 	case "funnel":
 		writeJSON(w, 200, map[string]any{"items": s.funnelLocked(embryos)})
 	case "survival":
-		writeJSON(w, 200, map[string]any{"items": s.survivalLocked(embryos)})
+		writeJSON(w, 200, map[string]any{"items": s.survivalLocked(embryos, r.URL.Query())})
 	case "timing-deviation":
 		writeJSON(w, 200, map[string]any{"items": s.deviationLocked(embryos)})
 	case "abnormality-onset":
@@ -303,22 +303,61 @@ func (s *apiServer) funnelLocked(embryos []map[string]any) []map[string]any {
 	}
 	return items
 }
-func (s *apiServer) survivalLocked(embryos []map[string]any) []map[string]any {
+func (s *apiServer) survivalLocked(embryos []map[string]any, queries ...map[string][]string) []map[string]any {
 	observationsByEmbryo := s.observationIndexLocked()
 	groups := map[string][]map[string]any{}
+	groupBy := []string{"site", "strain", "treatmentGroup"}
+	if len(queries) > 0 {
+		if values := queries[0]["groupBy"]; len(values) > 0 {
+			requested := make([]string, 0, len(values))
+			for _, value := range values {
+				for _, dimension := range strings.Split(value, ",") {
+					dimension = strings.TrimSpace(dimension)
+					if (dimension == "site" || dimension == "strain" || dimension == "treatmentGroup") && !containsDimension(requested, dimension) {
+						requested = append(requested, dimension)
+					}
+				}
+			}
+			if len(requested) > 0 {
+				groupBy = requested
+			}
+		}
+	}
 	for _, embryo := range embryos {
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
 		batch := s.entities["batches"][stringValue(lot["batchId"])]
 		donor := s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]
 		site := stringValue(batch["siteId"])
 		strain := stringValue(donor["strain"])
-		groups[site+"\x00"+strain] = append(groups[site+"\x00"+strain], embryo)
+		treatmentID := stringValue(batch["treatmentGroupId"])
+		values := map[string]string{"site": site, "strain": strain, "treatmentGroup": treatmentID}
+		parts := make([]string, 0, len(groupBy))
+		for _, dimension := range groupBy {
+			parts = append(parts, values[dimension])
+		}
+		key := strings.Join(parts, "\x00")
+		groups[key] = append(groups[key], embryo)
 	}
 	items := make([]map[string]any, 0, len(groups)*26)
 	for key, group := range groups {
-		parts := strings.SplitN(key, "\x00", 2)
+		parts := strings.Split(key, "\x00")
 		for _, point := range s.stageSurvivalWithIndexLocked(group, observationsByEmbryo) {
-			point["siteId"], point["strain"] = parts[0], parts[1]
+			for index, dimension := range groupBy {
+				if index >= len(parts) {
+					continue
+				}
+				switch dimension {
+				case "site":
+					point["siteId"] = parts[index]
+				case "strain":
+					point["strain"] = parts[index]
+				case "treatmentGroup":
+					point["treatmentGroupId"] = parts[index]
+					if treatment := s.entities["treatment-groups"][parts[index]]; treatment != nil {
+						point["treatmentGroup"] = treatment["code"]
+					}
+				}
+			}
 			items = append(items, point)
 		}
 	}
@@ -329,9 +368,21 @@ func (s *apiServer) survivalLocked(embryos []map[string]any) []map[string]any {
 		if stringValue(items[i]["strain"]) != stringValue(items[j]["strain"]) {
 			return stringValue(items[i]["strain"]) < stringValue(items[j]["strain"])
 		}
+		if stringValue(items[i]["treatmentGroupId"]) != stringValue(items[j]["treatmentGroupId"]) {
+			return stringValue(items[i]["treatmentGroupId"]) < stringValue(items[j]["treatmentGroupId"])
+		}
 		return intValue(items[i]["stageOrder"]) < intValue(items[j]["stageOrder"])
 	})
 	return items
+}
+
+func containsDimension(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *apiServer) stageSurvivalLocked(embryos []map[string]any) []map[string]any {
