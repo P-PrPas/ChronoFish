@@ -143,12 +143,12 @@ jobs:
           key=01900000-0000-7000-8000-000000000201
           headers=(-H "X-Operator-Id: $operator" -H "X-Device-Id: ci-postgres" -H "X-Idempotency-Key: $key" -H 'Content-Type: application/json')
           status=$(curl --silent --show-error -o /tmp/postgres-create.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-postgres-site","name":"CI PostgreSQL"}')
-          test "$status" = 201
+          if [ "$status" != 201 ]; then echo "::error title=PostgreSQL create response::$status $(base64 -w0 /tmp/postgres-create.json)"; cat /tmp/postgres-create.json; exit 1; fi
           retry=$(curl --silent --show-error -o /tmp/postgres-retry.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-postgres-site","name":"CI PostgreSQL"}')
-          test "$retry" = 201
+          if [ "$retry" != 201 ]; then echo "::error title=PostgreSQL retry response::$retry $(base64 -w0 /tmp/postgres-retry.json)"; cat /tmp/postgres-retry.json; exit 1; fi
           conflict=$(curl --silent --show-error -o /tmp/postgres-conflict.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-postgres-site-other","name":"Conflict"}')
-          test "$conflict" = 409
-          cmp -s /tmp/postgres-create.json /tmp/postgres-retry.json
+          if [ "$conflict" != 409 ]; then echo "::error title=PostgreSQL conflict response::$conflict $(base64 -w0 /tmp/postgres-conflict.json)"; cat /tmp/postgres-conflict.json; exit 1; fi
+          if ! cmp -s /tmp/postgres-create.json /tmp/postgres-retry.json; then echo "::error title=PostgreSQL replay mismatch::create=$(base64 -w0 /tmp/postgres-create.json) retry=$(base64 -w0 /tmp/postgres-retry.json)"; diff -u /tmp/postgres-create.json /tmp/postgres-retry.json || true; exit 1; fi
       - name: Run repository and API integration suite on PostgreSQL
         working-directory: backend
         env:
@@ -245,12 +245,12 @@ jobs:
           key=01900000-0000-7000-8000-000000000202
           headers=(-H "X-Operator-Id: $operator" -H "X-Device-Id: ci-mysql" -H "X-Idempotency-Key: $key" -H 'Content-Type: application/json')
           status=$(curl --silent --show-error -o /tmp/mysql-create.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-mysql-site","name":"CI MySQL"}')
-          test "$status" = 201
+          if [ "$status" != 201 ]; then echo "::error title=MySQL create response::$status $(base64 -w0 /tmp/mysql-create.json)"; cat /tmp/mysql-create.json; exit 1; fi
           retry=$(curl --silent --show-error -o /tmp/mysql-retry.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-mysql-site","name":"CI MySQL"}')
-          test "$retry" = 201
+          if [ "$retry" != 201 ]; then echo "::error title=MySQL retry response::$retry $(base64 -w0 /tmp/mysql-retry.json)"; cat /tmp/mysql-retry.json; exit 1; fi
           conflict=$(curl --silent --show-error -o /tmp/mysql-conflict.json -w '%{http_code}' -X POST "http://127.0.0.1:8080/api/v1/sites" "${headers[@]}" --data '{"code":"ci-mysql-site-other","name":"Conflict"}')
-          test "$conflict" = 409
-          cmp -s /tmp/mysql-create.json /tmp/mysql-retry.json
+          if [ "$conflict" != 409 ]; then echo "::error title=MySQL conflict response::$conflict $(base64 -w0 /tmp/mysql-conflict.json)"; cat /tmp/mysql-conflict.json; exit 1; fi
+          if ! cmp -s /tmp/mysql-create.json /tmp/mysql-retry.json; then echo "::error title=MySQL replay mismatch::create=$(base64 -w0 /tmp/mysql-create.json) retry=$(base64 -w0 /tmp/mysql-retry.json)"; diff -u /tmp/mysql-create.json /tmp/mysql-retry.json || true; exit 1; fi
       - name: Run repository and API integration suite on MySQL
         working-directory: backend
         env:
