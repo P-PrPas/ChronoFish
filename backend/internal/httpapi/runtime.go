@@ -516,7 +516,7 @@ func (s *sqlStateStore) RefreshReadModelForRequest(ctx context.Context, server *
 			"sites", "fish-boxes", "protocols", "timing-profiles",
 			"treatment-groups", "control-arm-counts")
 	}
-	if resource == "due" {
+	if resource == "due" || resource == "due-checkpoints" {
 		return s.refreshResources(ctx, server, "batches", "injection-lots", "embryos", "fish", "protocols", "timing-profiles", "observations", "fish-observations", "donor-cell-lines")
 	}
 	parts := strings.Split(resource, "/")
