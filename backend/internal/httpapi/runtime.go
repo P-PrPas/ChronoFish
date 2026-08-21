@@ -226,6 +226,10 @@ func (s *sqlStateStore) WaitForCompletion(ctx context.Context, mutation storepkg
 	return s.repository.WaitForCompletion(ctx, mutation)
 }
 
+func (s *sqlStateStore) Renew(ctx context.Context, mutation storepkg.Mutation) error {
+	return s.repository.Renew(ctx, mutation)
+}
+
 func (s *sqlStateStore) Abort(ctx context.Context, mutation storepkg.Mutation) error {
 	return s.repository.Abort(ctx, mutation)
 }
