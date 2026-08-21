@@ -409,6 +409,36 @@ func (s *apiServer) controlCounts(w http.ResponseWriter, r *http.Request, batchI
 		writeAPIError(w, 404, "not_found", "batch not found")
 		return true
 	}
+	// Validate the complete replacement before touching any canonical row. A
+	// malformed later item must not leave earlier rows from the same PUT
+	// partially applied.
+	validatedKeys := make(map[string]bool, len(raw))
+	for _, v := range raw {
+		item, ok := v.(map[string]any)
+		if !ok {
+			writeAPIError(w, 422, "validation_error", "each control count must be an object")
+			return true
+		}
+		arm, stage := stringValue(item["armType"]), stringValue(item["stageCode"])
+		if arm != "NATURAL_BREEDING" && arm != "IVF" {
+			writeAPIError(w, 422, "validation_error", "armType must be NATURAL_BREEDING or IVF")
+			return true
+		}
+		if stageNumber(stage) < 1 || stageNumber(stage) > 36 {
+			writeAPIError(w, 422, "validation_error", "stageCode is invalid")
+			return true
+		}
+		if !nonNegativeWhole(item["nNormal"]) || !nonNegativeWhole(item["nAbnormal"]) {
+			writeAPIError(w, 422, "validation_error", "counts must be non-negative integers")
+			return true
+		}
+		naturalKey := arm + "|" + stage
+		if validatedKeys[naturalKey] {
+			writeAPIError(w, 422, "validation_error", "duplicate armType and stageCode")
+			return true
+		}
+		validatedKeys[naturalKey] = true
+	}
 	seen := make(map[string]bool)
 	result := make([]map[string]any, 0, len(raw))
 	for _, v := range raw {

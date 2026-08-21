@@ -89,6 +89,20 @@ func TestDuplicateBatchAssignsNextSeriesDayNotCalendarDay(t *testing.T) {
 	}
 }
 
+func TestControlCountsValidatesWholePutBeforeMutation(t *testing.T) {
+	server := newAPIServer()
+	server.entities["batches"]["batch-control"] = map[string]any{"id": "batch-control", "active": true}
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/batches/batch-control/control-arm-counts", strings.NewReader(`{"items":[{"armType":"IVF","stageCode":"stage_01_1C","nNormal":3,"nAbnormal":1},{"armType":"INVALID","stageCode":"stage_02_2C","nNormal":1,"nAbnormal":0}]}`))
+	recorder := httptest.NewRecorder()
+	server.controlCounts(recorder, request, "batch-control")
+	if recorder.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, want 422", recorder.Code)
+	}
+	if len(server.entities["control-arm-counts"]) != 0 {
+		t.Fatalf("invalid PUT partially mutated control rows: %#v", server.entities["control-arm-counts"])
+	}
+}
+
 func TestCORS(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodOptions, "/api/v1/health", nil)
