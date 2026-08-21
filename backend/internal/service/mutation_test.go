@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/P-PrPas/ChronoFish/backend/internal/store"
 )
@@ -76,6 +77,7 @@ type fakePersistence struct {
 	commitCalls    int
 	abortCalls     int
 	committedDelta *store.Delta
+	renewed        chan struct{}
 }
 
 func (f *fakePersistence) Reserve(context.Context, store.Mutation) (store.Mutation, bool, error) {
@@ -96,6 +98,12 @@ func (f *fakePersistence) Abort(context.Context, store.Mutation) error {
 }
 
 func (f *fakePersistence) Renew(context.Context, store.Mutation) error {
+	if f.renewed != nil {
+		select {
+		case f.renewed <- struct{}{}:
+		default:
+		}
+	}
 	return f.renewErr
 }
 
@@ -183,4 +191,21 @@ func TestMutationRejectsIncompleteCommit(t *testing.T) {
 	if _, _, err := Acquire(context.Background(), nil, store.Mutation{}); err == nil {
 		t.Fatal("nil persistence must fail")
 	}
+}
+
+func TestStartLeaseHeartbeatRenewsAndStops(t *testing.T) {
+	fake := &fakePersistence{renewed: make(chan struct{}, 1)}
+	stop := startLeaseHeartbeat(context.Background(), fake, store.Mutation{LeaseToken: "lease-token"}, time.Millisecond)
+	select {
+	case <-fake.renewed:
+	case <-time.After(250 * time.Millisecond):
+		stop()
+		t.Fatal("lease heartbeat did not renew")
+	}
+	stop()
+}
+
+func TestStartLeaseHeartbeatNoopsWithoutLease(t *testing.T) {
+	stop := StartLeaseHeartbeat(context.Background(), &fakePersistence{}, store.Mutation{})
+	stop()
 }

@@ -24,13 +24,17 @@ type Persistence interface {
 // owner. The returned stop function is idempotent and must be called after
 // the use case has produced its response.
 func StartLeaseHeartbeat(ctx context.Context, persistence Persistence, mutation store.Mutation) func() {
+	return startLeaseHeartbeat(ctx, persistence, mutation, 10*time.Second)
+}
+
+func startLeaseHeartbeat(ctx context.Context, persistence Persistence, mutation store.Mutation, interval time.Duration) func() {
 	if persistence == nil || mutation.LeaseToken == "" {
 		return func() {}
 	}
 	stop := make(chan struct{})
 	done := make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		defer close(done)
 		for {
