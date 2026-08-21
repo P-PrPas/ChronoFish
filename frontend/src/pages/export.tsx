@@ -7,6 +7,7 @@ import {
   withFilters,
 } from "../filters";
 import { ErrorMessage, Metric, ReportPanel, ReportTable } from "../components";
+import { type AppText, text } from "../types";
 import {
   DeviationChart,
   FilterBar,
@@ -27,7 +28,7 @@ type PrintableReport = {
   error: string;
 };
 
-export function Export() {
+export function Export({ t = text.en }: { t?: AppText } = {}) {
   const [filters, setFilters] = useState<DashboardFilters>(() =>
     parseFilters(),
   );
@@ -60,7 +61,7 @@ export function Export() {
         <div className="page-heading">
           <div>
             <p className="eyebrow">SCR-17 / 14 SHEETS</p>
-            <h1>Export</h1>
+            <h1>{t.export}</h1>
             <p className="muted">
               The workbook and printable report use the same URL filters.
             </p>
@@ -76,12 +77,12 @@ export function Export() {
         <div className="action-grid">
           <button className="action-card" onClick={download}>
             <span className="action-icon">↓</span>
-            <strong>Download Excel</strong>
+            <strong>{t.downloadExcel}</strong>
             <span>14 flat sheets with raw n and R analysis shape.</span>
           </button>
           <button className="action-card" onClick={() => window.print()}>
             <span className="action-icon">▣</span>
-            <strong>Print / PDF</strong>
+            <strong>{t.printPDF}</strong>
             <span>
               Print all analytical panels, not only the export controls.
             </span>

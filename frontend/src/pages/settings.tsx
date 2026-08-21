@@ -9,10 +9,11 @@ import { type ApiItem, get, request } from "../api/client";
 import { putQueue, type QueuedWrite } from "../offline";
 import { Empty, ErrorMessage } from "../components";
 import { uuidv7 } from "../uuidv7";
+import { type AppText, text } from "../types";
 
 const seedProtocolId = "01900000-0000-7000-8000-000000000001";
 
-export function Timing() {
+export function Timing({ t = text.en }: { t?: AppText } = {}) {
   const [profile, setProfile] = useState<ApiItem | null>(null);
   const [entries, setEntries] = useState<ApiItem[]>([]);
   const [protocols, setProtocols] = useState<ApiItem[]>([]);
@@ -150,7 +151,7 @@ export function Timing() {
               ))}
             </select>
           </label>
-          <h1>Timing profile</h1>
+          <h1>{t.timing}</h1>
           <p className="muted">
             Edit expected HPA values and save one complete new version. Existing
             batches keep their snapshot.
@@ -158,10 +159,10 @@ export function Timing() {
         </div>
         <div className="button-row">
           <button className="button button--secondary" onClick={download}>
-            Download CSV
+            {t.downloadCSV}
           </button>
           <label className="button button--secondary">
-            {importing ? "Importing…" : "Import CSV"}
+            {importing ? t.importing : t.importCSV}
             <input
               className="sr-only"
               type="file"
@@ -215,7 +216,7 @@ export function Timing() {
             </table>
           </div>
           <button className="button button--primary" disabled={saving}>
-            {saving ? "Saving…" : "Save new timing version"}
+            {saving ? t.saving : t.saveTimingVersion}
           </button>
         </form>
       )}
@@ -223,7 +224,7 @@ export function Timing() {
   );
 }
 
-export function Promotions() {
+export function Promotions({ t = text.en }: { t?: AppText } = {}) {
   const [items, setItems] = useState<ApiItem[]>([]);
   const [message, setMessage] = useState("");
   const [queued, setQueued] = useState<string[]>([]);
@@ -261,7 +262,7 @@ export function Promotions() {
         setQueued([]);
         setMessage(
           detail.lastError ??
-            "Promotion was rejected; review the candidate again",
+            t.promotionRejected,
         );
       }
     };
@@ -305,7 +306,7 @@ export function Promotions() {
       <div className="page-heading">
         <div>
           <p className="eyebrow">SCR-07 / CONFIRMATION REQUIRED</p>
-          <h1>Promotion</h1>
+          <h1>{t.promotions}</h1>
           <p className="muted">
             Review strain, first abnormality, fish code, and optional box before
             confirmation.
@@ -313,20 +314,20 @@ export function Promotions() {
         </div>
         <div className="button-row">
           <button className="button button--secondary" onClick={load}>
-            Refresh
+            {t.refresh}
           </button>
           <button
             className="button button--primary"
             disabled={!eligibleSelected.length}
             onClick={() => void promote(eligibleSelected)}
           >
-            Confirm selected ({eligibleSelected.length})
+            {t.confirmSelected} ({eligibleSelected.length})
           </button>
         </div>
       </div>
       {message && <ErrorMessage message={message} />}
       {items.length === 0 ? (
-        <Empty message="No eligible embryo promotions" />
+        <Empty message={t.noEligiblePromotions} />
       ) : (
         <div className="list">
           {items.map((item) => {
@@ -392,7 +393,7 @@ export function Promotions() {
                   disabled={isQueued}
                   onClick={() => void promote([item])}
                 >
-                  {isQueued ? "Queued" : "Confirm"}
+                  {isQueued ? t.queued : t.confirm}
                 </button>
               </div>
             );
@@ -409,7 +410,7 @@ type ControlRow = {
   nNormal: number;
   nAbnormal: number;
 };
-export function Controls() {
+export function Controls({ t = text.en }: { t?: AppText } = {}) {
   const [batchId, setBatchId] = useState("");
   const [batches, setBatches] = useState<ApiItem[]>([]);
   const [protocols, setProtocols] = useState<ApiItem[]>([]);
@@ -459,7 +460,7 @@ export function Controls() {
     event.preventDefault();
     try {
       await putQueue(`/batches/${batchId}/control-arm-counts`, { items: rows });
-      setMessage("Control counts saved");
+      setMessage(t.controlCountsSaved);
     } catch (e) {
       setMessage((e as Error).message);
     }
@@ -469,7 +470,7 @@ export function Controls() {
       <div className="page-heading">
         <div>
           <p className="eyebrow">SCR-11 / CONTROL ARMS</p>
-          <h1>Control counts</h1>
+          <h1>{t.controls}</h1>
           <p className="muted">
             Record multiple natural-breeding and IVF rows against real batch and
             stage data.

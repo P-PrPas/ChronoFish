@@ -174,11 +174,11 @@ function App() {
           {page === "batches" && <Batches t={t} />}
           {page === "fish" && <Fish t={t} onPendingChange={setPending} />}
           {page === "master" && <Master t={t} />}
-          {page === "timing" && <Timing />}
-          {page === "promotions" && <Promotions />}
-          {page === "controls" && <Controls />}
-          {page === "audit" && <Audit />}
-          {page === "export" && <Export />}
+          {page === "timing" && <Timing t={t} />}
+          {page === "promotions" && <Promotions t={t} />}
+          {page === "controls" && <Controls t={t} />}
+          {page === "audit" && <Audit t={t} />}
+          {page === "export" && <Export t={t} />}
         </main>
       </div>
     </div>
