@@ -973,7 +973,9 @@ func (s *SQLRepository) upsertCanonical(ctx context.Context, tx *sql.Tx, table s
 				updates = append(updates, column+" = EXCLUDED."+column)
 			}
 		}
-		updates = append(updates, "row_version = "+table+".row_version + 1")
+		if table != "audit_log" {
+			updates = append(updates, "row_version = "+table+".row_version + 1")
+		}
 		query += " ON CONFLICT (" + strings.Join(conflict, ", ") + ") DO UPDATE SET " + strings.Join(updates, ", ")
 	} else {
 		updates := make([]string, 0, len(columns)-len(conflict))
@@ -982,7 +984,9 @@ func (s *SQLRepository) upsertCanonical(ctx context.Context, tx *sql.Tx, table s
 				updates = append(updates, column+" = VALUES("+column+")")
 			}
 		}
-		updates = append(updates, "row_version = row_version + 1")
+		if table != "audit_log" {
+			updates = append(updates, "row_version = row_version + 1")
+		}
 		query += " ON DUPLICATE KEY UPDATE " + strings.Join(updates, ", ")
 	}
 	_, err := tx.ExecContext(ctx, query, values...)
