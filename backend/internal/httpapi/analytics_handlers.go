@@ -566,6 +566,9 @@ func (s *apiServer) fishSurvivalLocked(query map[string][]string) []map[string]a
 	for condition, group := range groups {
 		for age := 0; age <= maxAge; age++ {
 			atRisk, alive := 0, 0
+			statusCounts := map[string]int{"ALIVE": 0, "DEAD": 0, "FROZEN": 0, "DISCARDED": 0}
+			sexCounts := map[string]int{"M": 0, "F": 0, "UNKNOWN": 0}
+			boxes := map[string]bool{}
 			for _, fish := range group {
 				observedAge := ageDaysOn(stringValue(fish["dob"]), today)
 				if observedAge == 0 && stringValue(fish["dob"]) != today {
@@ -576,9 +579,22 @@ func (s *apiServer) fishSurvivalLocked(query map[string][]string) []map[string]a
 					if stringValue(fish["status"]) == "ALIVE" || s.exitAgeLocked(fish) > age {
 						alive++
 					}
+					status := strings.ToUpper(stringValue(fish["status"]))
+					if _, known := statusCounts[status]; !known {
+						status = "ALIVE"
+					}
+					statusCounts[status]++
+					sex := strings.ToUpper(stringValue(fish["sex"]))
+					if _, known := sexCounts[sex]; !known {
+						sex = "UNKNOWN"
+					}
+					sexCounts[sex]++
+					if box := stringValue(fish["fishBoxId"]); box != "" {
+						boxes[box] = true
+					}
 				}
 			}
-			row := map[string]any{"ageDays": age, "atRisk": atRisk, "alive": alive, "surv": percentage(alive, atRisk) / 100}
+			row := map[string]any{"ageDays": age, "atRisk": atRisk, "alive": alive, "nAlive": statusCounts["ALIVE"], "nDead": statusCounts["DEAD"], "nFrozen": statusCounts["FROZEN"], "nDiscarded": statusCounts["DISCARDED"], "nMale": sexCounts["M"], "nFemale": sexCounts["F"], "nUnknownSex": sexCounts["UNKNOWN"], "nBoxes": len(boxes), "surv": percentage(alive, atRisk) / 100}
 			if split {
 				row["condition"] = condition
 			}

@@ -1566,6 +1566,14 @@ paths:
                         ageDays: { type: integer }
                         atRisk: { type: integer }
                         alive: { type: integer }
+                        nAlive: { type: integer }
+                        nDead: { type: integer }
+                        nFrozen: { type: integer }
+                        nDiscarded: { type: integer }
+                        nMale: { type: integer }
+                        nFemale: { type: integer }
+                        nUnknownSex: { type: integer }
+                        nBoxes: { type: integer }
                         surv: { type: number }
 
   /analytics/observation-gaps:

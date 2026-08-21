@@ -438,7 +438,7 @@ func (s *apiServer) summaryExportRows(embryos []map[string]any, fish map[string]
 		if nActivated == 0 {
 			nActivated = len(group)
 		}
-		rows = append(rows, []string{strain, strconv.Itoa(len(batches)), strconv.Itoa(nEggs), strconv.Itoa(nActivated), strconv.Itoa(s.reachedStageCountLocked(group, 19)), strconv.Itoa(s.reachedStageCountLocked(group, 22)), strconv.Itoa(promoted), strconv.Itoa(normal), strconv.Itoa(abnormal), fmt.Sprint(percentage(normal, len(group))), fmt.Sprint(percentage(abnormal, len(group)))})
+		rows = append(rows, []string{strain, strconv.Itoa(len(batches)), strconv.Itoa(nEggs), strconv.Itoa(nActivated), strconv.Itoa(s.reachedStageCountLocked(group, 19)), strconv.Itoa(s.reachedStageCountLocked(group, 22)), strconv.Itoa(promoted), strconv.Itoa(normal), strconv.Itoa(abnormal), fmt.Sprint(percentage(normal, len(group)) / 100), fmt.Sprint(percentage(abnormal, len(group)) / 100)})
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i][0] < rows[j][0] })
 	return rows

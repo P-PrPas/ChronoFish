@@ -3910,6 +3910,14 @@ export interface operations {
                             ageDays: number;
                             atRisk: number;
                             alive: number;
+                            nAlive?: number;
+                            nDead?: number;
+                            nFrozen?: number;
+                            nDiscarded?: number;
+                            nMale?: number;
+                            nFemale?: number;
+                            nUnknownSex?: number;
+                            nBoxes?: number;
                             surv: number;
                         }[];
                     };
