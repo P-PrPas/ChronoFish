@@ -44,7 +44,7 @@ func (s *apiServer) createBatch(w http.ResponseWriter, r *http.Request) bool {
 		return true
 	}
 	key := idempotencyKey(r, input)
-	if body, ok := s.idempotency["batch:"+key]; key != "" && ok {
+	if body, ok := s.mutationCacheGet(r, "batch:"+key); key != "" && ok {
 		writeRaw(w, http.StatusOK, body)
 		return true
 	}

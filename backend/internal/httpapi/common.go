@@ -30,15 +30,23 @@ func mutationCacheJournalFromRequest(r *http.Request) *mutationCacheJournal {
 	return nil
 }
 
+func (s *apiServer) mutationCacheGet(r *http.Request, key string) ([]byte, bool) {
+	if journal := mutationCacheJournalFromRequest(r); journal != nil {
+		if body, ok := journal.pending[key]; ok {
+			return append([]byte(nil), body...), true
+		}
+	}
+	body, ok := s.idempotency[key]
+	return append([]byte(nil), body...), ok
+}
+
 // setMutationCache records only the feature-idempotency key touched by this
 // request. It avoids taking a whole-process cache snapshot and lets rollback
 // preserve unrelated concurrent writes.
 func (s *apiServer) setMutationCache(r *http.Request, key string, body []byte) {
 	if journal := mutationCacheJournalFromRequest(r); journal != nil {
-		if _, recorded := journal.before[key]; !recorded {
-			previous, exists := s.idempotency[key]
-			journal.before[key] = mutationCacheValue{body: append(json.RawMessage(nil), previous...), present: exists}
-		}
+		journal.pending[key] = append(json.RawMessage(nil), body...)
+		return
 	}
 	s.idempotency[key] = append(json.RawMessage(nil), body...)
 }
@@ -134,10 +142,11 @@ func (s *apiServer) auditLocked(r *http.Request, action, table, id string, old, 
 		newValue = cloneMap(newValue)
 	}
 	entry := map[string]any{"id": uuidV7(), "tableName": table, "recordId": id, "action": action, "oldValues": old, "newValues": newValue, "operatorId": r.Header.Get("X-Operator-Id"), "deviceId": r.Header.Get("X-Device-Id"), "occurredAt": time.Now().UTC().Format(time.RFC3339)}
-	s.audits = append(s.audits, entry)
 	if work := mutationWorkFromRequest(r); work != nil {
 		work.RecordAudit(entry, table, id, old, newValue)
+		return
 	}
+	s.audits = append(s.audits, entry)
 }
 
 func idempotencyKey(r *http.Request, input map[string]any) string {

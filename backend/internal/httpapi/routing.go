@@ -348,7 +348,7 @@ func (s *apiServer) createEntity(w http.ResponseWriter, r *http.Request, resourc
 			}
 		}
 	}
-	if body, ok := s.idempotency[key]; key != "" && ok {
+	if body, ok := s.mutationCacheGet(r, key); key != "" && ok {
 		writeRaw(w, http.StatusOK, body)
 		return true
 	}

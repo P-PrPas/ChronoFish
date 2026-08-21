@@ -315,6 +315,7 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if deltaStore != nil {
 			publishCommittedVersions(s, work.Delta())
+			publishMutationCache(s, cacheBefore)
 		}
 		s.mu.Lock()
 		if strings.Contains(contentType, "spreadsheetml") {

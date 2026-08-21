@@ -72,7 +72,7 @@ func (s *apiServer) dueCheckpoints(w http.ResponseWriter, r *http.Request) bool 
 			_, observed := observedStages[stringValue(lot["id"])][code]
 			if !observed {
 				minutes := int(now.Sub(due).Minutes())
-					embryosRemaining := activeEmbryosByLot[lotID]
+				embryosRemaining := activeEmbryosByLot[lotID]
 				if minutes >= 0 {
 					items = append(items, map[string]any{"injectionLotId": lot["id"], "batchCode": batch["batchCode"], "lotNo": lot["lotNo"], "stageCode": code, "stageLabel": stageLabel(stage), "stageOrder": stage, "dueAt": due.Format(time.RFC3339), "minutesLate": minutes, "urgency": minutes, "embryosRemaining": embryosRemaining})
 				} else if len(upcoming) == 0 || stringValue(upcoming[len(upcoming)-1]["injectionLotId"]) != stringValue(lot["id"]) {
@@ -184,7 +184,7 @@ func (s *apiServer) createEmbryoObservations(w http.ResponseWriter, r *http.Requ
 			results = append(results, map[string]any{"status": "rejected", "error": map[string]any{"message": "ต้องระบุ clientUuid"}})
 			continue
 		}
-		if old, ok := s.idempotency["embryo:"+client]; ok {
+		if old, ok := s.mutationCacheGet(r, "embryo:"+client); ok {
 			var oldResult any
 			_ = json.Unmarshal(old, &oldResult)
 			results = append(results, oldResult)
@@ -703,7 +703,7 @@ func (s *apiServer) createFishObservations(w http.ResponseWriter, r *http.Reques
 			results = append(results, map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "clientUuid, cloneFishId, observedOn, outcome และ condition เป็นข้อมูลบังคับ"}})
 			continue
 		}
-		if body, ok := s.idempotency["fish:"+client]; ok {
+		if body, ok := s.mutationCacheGet(r, "fish:"+client); ok {
 			var result any
 			_ = json.Unmarshal(body, &result)
 			results = append(results, result)

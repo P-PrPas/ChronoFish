@@ -79,7 +79,7 @@ func (s *apiServer) createPromotions(w http.ResponseWriter, r *http.Request) boo
 			results = append(results, map[string]any{"clientUuid": client, "status": "rejected", "error": map[string]any{"message": "clientUuid ต้องเป็น UUID"}})
 			continue
 		}
-		if body, ok := s.idempotency["promotion:"+client]; ok {
+		if body, ok := s.mutationCacheGet(r, "promotion:"+client); ok {
 			var result any
 			_ = json.Unmarshal(body, &result)
 			results = append(results, result)

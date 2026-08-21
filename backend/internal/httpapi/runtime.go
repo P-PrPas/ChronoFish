@@ -50,6 +50,9 @@ func publishCommittedVersions(server *apiServer, delta *storepkg.Delta) {
 			bump(current, delta.Before.FishObservations[id])
 		}
 	}
+	for _, audit := range delta.Audits {
+		server.audits = append(server.audits, cloneMap(audit))
+	}
 }
 
 func int64Value(value any) int64 {
@@ -96,7 +99,8 @@ type mutationCacheValue struct {
 }
 
 type mutationCacheJournal struct {
-	before map[string]mutationCacheValue
+	before  map[string]mutationCacheValue
+	pending map[string]json.RawMessage
 }
 
 type memoryStateStore struct{}
@@ -181,7 +185,18 @@ func restoreDelta(server *apiServer, delta *storepkg.Delta) {
 }
 
 func snapshotMutationCache(server *apiServer) *mutationCacheJournal {
-	return &mutationCacheJournal{before: make(map[string]mutationCacheValue)}
+	return &mutationCacheJournal{before: make(map[string]mutationCacheValue), pending: make(map[string]json.RawMessage)}
+}
+
+func publishMutationCache(server *apiServer, journal *mutationCacheJournal) {
+	if server == nil || journal == nil || len(journal.pending) == 0 {
+		return
+	}
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	for key, body := range journal.pending {
+		server.idempotency[key] = append(json.RawMessage(nil), body...)
+	}
 }
 
 func restoreMutationCache(server *apiServer, journal *mutationCacheJournal) {
