@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	storepkg "github.com/P-PrPas/ChronoFish/backend/internal/store"
 )
 
 func (s *apiServer) route(w http.ResponseWriter, r *http.Request, p []string) bool {
@@ -118,6 +120,28 @@ func (s *apiServer) entity(w http.ResponseWriter, r *http.Request, resource stri
 func (s *apiServer) listEntity(w http.ResponseWriter, r *http.Request, resource string) bool {
 	if resource == "timing-profiles" && !isUUID(strings.TrimSpace(r.URL.Query().Get("protocolId"))) {
 		writeAPIError(w, http.StatusBadRequest, "invalid_query", "protocolId is required")
+		return true
+	}
+	if reader, ok := s.store.(entityPageReader); ok && resource != "timing-profiles" {
+		filters := make(map[string]string)
+		for _, key := range []string{"siteId", "boxId", "fishBoxId", "status", "strain", "treatmentGroupId", "dobFrom", "dobTo"} {
+			if value := r.URL.Query().Get(key); value != "" {
+				filters[key] = value
+			}
+		}
+		limit := 100
+		if value, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && value > 0 {
+			if value > 500 {
+				value = 500
+			}
+			limit = value
+		}
+		items, next, err := reader.QueryEntityPage(r.Context(), storepkg.EntityPageQuery{Resource: resource, IncludeInactive: r.URL.Query().Get("includeInactive") == "true", Cursor: r.URL.Query().Get("cursor"), Limit: limit, Filters: filters})
+		if err == nil {
+			writeJSON(w, http.StatusOK, map[string]any{"items": items, "nextCursor": next})
+			return true
+		}
+		writeAPIError(w, http.StatusServiceUnavailable, "persistence_unavailable", "entity list is temporarily unavailable")
 		return true
 	}
 	s.mu.RLock()

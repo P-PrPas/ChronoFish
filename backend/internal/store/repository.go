@@ -392,6 +392,141 @@ type DueQuery struct {
 	Now                time.Time
 }
 
+type EntityPageQuery struct {
+	Resource        string
+	IncludeInactive bool
+	Cursor          string
+	Limit           int
+	Filters         map[string]string
+}
+
+func (s *SQLRepository) QueryEntityPage(ctx context.Context, query EntityPageQuery) ([]map[string]any, *string, error) {
+	table := canonicalTable(query.Resource)
+	if table == "" || query.Resource == "timing-profiles" {
+		return nil, nil, fmt.Errorf("entity page is not supported for %s", query.Resource)
+	}
+	if query.Limit < 1 || query.Limit > 500 {
+		query.Limit = 100
+	}
+	where := []string{"cf.deleted_at IS NULL"}
+	args := make([]any, 0, 8)
+	if query.Resource != "fish" {
+		where[0] = "deleted_at IS NULL"
+		if query.IncludeInactive {
+			where = []string{"1 = 1"}
+		} else {
+			where = append(where, "active = TRUE")
+		}
+	} else {
+		if query.IncludeInactive {
+			where[0] = "1 = 1"
+		} else {
+			where = append(where, "cf.active = TRUE")
+		}
+		if value := query.Filters["siteId"]; value != "" {
+			where = append(where, "cf.site_id = "+s.placeholder(len(args)+1))
+			args = append(args, value)
+		}
+		if value := query.Filters["boxId"]; value == "" {
+			value = query.Filters["fishBoxId"]
+			if value != "" {
+				where = append(where, "cf.fish_box_id = "+s.placeholder(len(args)+1))
+				args = append(args, value)
+			}
+		} else {
+			where = append(where, "cf.fish_box_id = "+s.placeholder(len(args)+1))
+			args = append(args, value)
+		}
+		for _, filter := range []string{"status"} {
+			if value := query.Filters[filter]; value != "" {
+				where = append(where, "cf."+filter+" = "+s.placeholder(len(args)+1))
+				args = append(args, value)
+			}
+		}
+		if value := query.Filters["dobFrom"]; value != "" {
+			where = append(where, "cf.dob >= "+s.placeholder(len(args)+1))
+			args = append(args, value)
+		}
+		if value := query.Filters["dobTo"]; value != "" {
+			where = append(where, "cf.dob <= "+s.placeholder(len(args)+1))
+			args = append(args, value)
+		}
+		if value := query.Filters["strain"]; value != "" {
+			where = append(where, "LOWER(dl.strain) LIKE LOWER("+s.placeholder(len(args)+1)+")")
+			args = append(args, "%"+value+"%")
+		}
+		if value := query.Filters["treatmentGroupId"]; value != "" {
+			where = append(where, "b.treatment_group_id = "+s.placeholder(len(args)+1))
+			args = append(args, value)
+		}
+	}
+	if query.Cursor != "" {
+		if query.Resource == "fish" {
+			where = append(where, "cf.id > "+s.placeholder(len(args)+1))
+		} else {
+			where = append(where, "id > "+s.placeholder(len(args)+1))
+		}
+		args = append(args, query.Cursor)
+	}
+	limitPlaceholder := s.placeholder(len(args) + 1)
+	args = append(args, query.Limit+1)
+	selectText := "SELECT * FROM " + table
+	if query.Resource == "fish" {
+		selectText = "SELECT cf.*, dl.strain AS fish_strain, b.treatment_group_id AS fish_treatment_group_id FROM clone_fish cf LEFT JOIN donor_cell_line dl ON dl.id = cf.donor_cell_line_id LEFT JOIN embryo e ON e.id = cf.embryo_id LEFT JOIN injection_lot l ON l.id = e.injection_lot_id LEFT JOIN experiment_batch b ON b.id = l.batch_id"
+	}
+	rows, err := s.db.QueryContext(ctx, selectText+" WHERE "+strings.Join(where, " AND ")+" ORDER BY "+map[bool]string{true: "cf.id", false: "id"}[query.Resource == "fish"]+" LIMIT "+limitPlaceholder, args...)
+	if err != nil {
+		return nil, nil, err
+	}
+	defer rows.Close()
+	items, err := scanEntityRows(rows, query.Resource)
+	if err != nil {
+		return nil, nil, err
+	}
+	var next *string
+	if len(items) > query.Limit {
+		items = items[:query.Limit]
+		last := stringValue(items[len(items)-1]["id"])
+		next = &last
+	}
+	return items, next, nil
+}
+
+func scanEntityRows(rows *sql.Rows, resource string) ([]map[string]any, error) {
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+	items := make([]map[string]any, 0)
+	for rows.Next() {
+		values := make([]any, len(columns))
+		pointers := make([]any, len(columns))
+		for i := range values {
+			pointers[i] = &values[i]
+		}
+		if err := rows.Scan(pointers...); err != nil {
+			return nil, err
+		}
+		item := make(map[string]any, len(columns))
+		for i, column := range columns {
+			value := databaseValueFor(column, values[i])
+			if resource == "fish" && column == "fish_strain" {
+				item["strain"] = value
+				continue
+			}
+			if resource == "fish" && column == "fish_treatment_group_id" {
+				item["treatmentGroupId"] = value
+				continue
+			}
+			item[apiField(column)] = value
+		}
+		if id := stringValue(item["id"]); id != "" {
+			items = append(items, item)
+		}
+	}
+	return items, rows.Err()
+}
+
 // QueryDue projects the due worklist from indexed canonical joins. It avoids
 // loading every observation into the API process just to discover which
 // stage has not been recorded yet.

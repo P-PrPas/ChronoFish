@@ -277,6 +277,10 @@ type dueReader interface {
 	QueryDue(context.Context, storepkg.DueQuery) ([]map[string]any, []map[string]any, error)
 }
 
+type entityPageReader interface {
+	QueryEntityPage(context.Context, storepkg.EntityPageQuery) ([]map[string]any, *string, error)
+}
+
 type canonicalReadModel interface {
 	RefreshReadModelForRequest(context.Context, *apiServer, string) error
 }
@@ -516,6 +520,14 @@ func (s *sqlStateStore) RefreshReadModelForRequest(ctx context.Context, server *
 		return s.refreshResources(ctx, server, "batches", "injection-lots", "embryos", "fish", "protocols", "timing-profiles", "observations", "fish-observations", "donor-cell-lines")
 	}
 	parts := strings.Split(resource, "/")
+	if len(parts) == 1 {
+		switch parts[0] {
+		case "sites", "operators", "donor-cell-lines", "recipient-egg-lots", "csof-lots", "treatment-groups", "fish-boxes", "batches", "fish":
+			// SQL list handlers page directly from canonical tables. Detail and
+			// analytical routes still hydrate their bounded read projections.
+			return nil
+		}
+	}
 	resources := []string{}
 	add := func(values ...string) { resources = append(resources, values...) }
 	switch parts[0] {
@@ -616,6 +628,10 @@ func (s *sqlStateStore) QueryAudits(ctx context.Context, query storepkg.AuditQue
 
 func (s *sqlStateStore) QueryDue(ctx context.Context, query storepkg.DueQuery) ([]map[string]any, []map[string]any, error) {
 	return s.repository.QueryDue(ctx, query)
+}
+
+func (s *sqlStateStore) QueryEntityPage(ctx context.Context, query storepkg.EntityPageQuery) ([]map[string]any, *string, error) {
+	return s.repository.QueryEntityPage(ctx, query)
 }
 
 func (s *sqlStateStore) OperatorActive(ctx context.Context, id string) (bool, error) {
