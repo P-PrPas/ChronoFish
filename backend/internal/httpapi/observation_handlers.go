@@ -542,7 +542,7 @@ func (s *apiServer) recomputeFishLocked(fishID string) {
 	if latestCondition != "" {
 		fish["condition"] = latestCondition
 	}
-	if latestOutcome == "ALIVE" || latestDate == "" {
+	if latestOutcome == "ALIVE" || latestOutcome == "NOT_OBSERVED" || latestDate == "" {
 		fish["status"] = "ALIVE"
 		delete(fish, "exitDate")
 		delete(fish, "exitReason")

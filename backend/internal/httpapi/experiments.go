@@ -323,11 +323,7 @@ func (s *apiServer) createBatchLocked(w http.ResponseWriter, r *http.Request, in
 	delete(batch, "copyInjectionLots")
 	dayNo := intValue(batch["dayNo"])
 	if dayNo < 1 {
-		if date, err := time.Parse("2006-01-02", stringValue(batch["experimentDate"])); err == nil {
-			dayNo = date.Day()
-		} else {
-			dayNo = 1
-		}
+		dayNo = s.nextBatchDayNoLocked(batch)
 	}
 	operatorPart := sanitizeBatchPart(stringValue(s.entities["operators"][stringValue(batch["operatorId"])]["name"]))
 	treatmentPart := sanitizeBatchPart(stringValue(s.entities["treatment-groups"][stringValue(batch["treatmentGroupId"])]["code"]))
@@ -361,6 +357,26 @@ func (s *apiServer) createBatchLocked(w http.ResponseWriter, r *http.Request, in
 	}
 	writeJSON(w, 201, batch)
 	return true
+}
+
+// nextBatchDayNoLocked returns the next sequence number in the experiment
+// series. It must not derive day_no from the calendar day of experimentDate.
+func (s *apiServer) nextBatchDayNoLocked(input map[string]any) int {
+	next := 1
+	for _, existing := range s.entities["batches"] {
+		if existing["deletedAt"] != nil || existing["active"] == false {
+			continue
+		}
+		if stringValue(existing["operatorId"]) != stringValue(input["operatorId"]) ||
+			stringValue(existing["protocolId"]) != stringValue(input["protocolId"]) ||
+			stringValue(existing["treatmentGroupId"]) != stringValue(input["treatmentGroupId"]) {
+			continue
+		}
+		if candidate := intValue(existing["dayNo"]) + 1; candidate > next {
+			next = candidate
+		}
+	}
+	return next
 }
 
 func (s *apiServer) controlCounts(w http.ResponseWriter, r *http.Request, batchID string) bool {

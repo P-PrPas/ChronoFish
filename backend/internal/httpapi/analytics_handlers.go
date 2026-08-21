@@ -102,6 +102,17 @@ func (s *apiServer) kpiLocked(embryos []map[string]any, query map[string][]strin
 		}
 	}
 	fish := s.filteredFishLocked(query)
+	fishNormal, fishAbnormal, fishUndetermined := 0, 0, 0
+	for _, item := range fish {
+		switch strings.ToUpper(stringValue(item["condition"])) {
+		case "NORMAL":
+			fishNormal++
+		case "ABNORMAL":
+			fishAbnormal++
+		default:
+			fishUndetermined++
+		}
+	}
 	nEggs, nActivated := 0, 0
 	countedLots := make(map[string]bool)
 	for _, embryo := range embryos {
@@ -116,7 +127,7 @@ func (s *apiServer) kpiLocked(embryos []map[string]any, query map[string][]strin
 	if nActivated == 0 {
 		nActivated = len(embryos)
 	}
-	return map[string]any{"stage1": map[string]any{"nBatches": len(s.filteredBatchIDsLocked(query)), "nEggs": nEggs, "nActivated": nActivated, "nReachedShield": s.reachedStageCountLocked(embryos, 19), "nReachedDay1": s.reachedStageCountLocked(embryos, 22), "nPromoted": len(fish), "pctNormal": percentage(normal, len(embryos)), "pctAbnormal": percentage(abnormal, len(embryos)), "controlComparison": s.controlComparisonLocked(embryos, query)}, "stage2": map[string]any{"nFish": len(fish), "nAlive": countFish(fish, "ALIVE"), "nDead": countFish(fish, "DEAD"), "nFrozen": countFish(fish, "FROZEN"), "nDiscarded": countFish(fish, "DISCARDED"), "meanAgeDaysAlive": meanFishAge(fish, "ALIVE")}}
+	return map[string]any{"stage1": map[string]any{"nBatches": len(s.filteredBatchIDsLocked(query)), "nEggs": nEggs, "nActivated": nActivated, "nReachedShield": s.reachedStageCountLocked(embryos, 19), "nReachedDay1": s.reachedStageCountLocked(embryos, 22), "nPromoted": len(fish), "pctNormal": percentage(normal, len(embryos)) / 100, "pctAbnormal": percentage(abnormal, len(embryos)) / 100, "controlComparison": s.controlComparisonLocked(embryos, query)}, "stage2": map[string]any{"nFish": len(fish), "nAlive": countFish(fish, "ALIVE"), "nDead": countFish(fish, "DEAD"), "nFrozen": countFish(fish, "FROZEN"), "nDiscarded": countFish(fish, "DISCARDED"), "nNormal": fishNormal, "nAbnormal": fishAbnormal, "nUndetermined": fishUndetermined, "meanAgeDaysAlive": meanFishAge(fish, "ALIVE")}}
 }
 
 // controlComparisonLocked returns the three experimental arms used in the
@@ -160,7 +171,7 @@ func (s *apiServer) controlComparisonLocked(embryos []map[string]any, query map[
 
 func controlComparisonRow(arm string, stage, normal, abnormal int) map[string]any {
 	total := normal + abnormal
-	return map[string]any{"armType": arm, "stageOrder": stage, "stageCode": stageCode(stage), "stageLabel": stageLabel(stage), "nNormal": normal, "nAbnormal": abnormal, "n": total, "pctNormal": percentage(normal, total), "pctAbnormal": percentage(abnormal, total)}
+	return map[string]any{"armType": arm, "stageOrder": stage, "stageCode": stageCode(stage), "stageLabel": stageLabel(stage), "nNormal": normal, "nAbnormal": abnormal, "n": total, "pctNormal": percentage(normal, total) / 100, "pctAbnormal": percentage(abnormal, total) / 100}
 }
 
 func (s *apiServer) filteredBatchIDsLocked(query map[string][]string) map[string]bool {
@@ -439,7 +450,7 @@ func (s *apiServer) deviationLocked(embryos []map[string]any) []map[string]any {
 				key := fmt.Sprintf("%s|%s|%s|%d", stringValue(batch["siteId"]), stringValue(donor["strain"]), stringValue(treatment["code"]), stage)
 				groups[key] = append(groups[key], floatValue(observation["deviationH"]))
 				expected[key] = numberValue(observation["hpaExpectedSnapshot"])
-				groupMeta[key] = map[string]any{"siteId": batch["siteId"], "site": stringValue(s.entities["sites"][stringValue(batch["siteId"])] ["code"]), "strain": donor["strain"], "treatmentGroupId": treatment["id"], "treatmentGroup": treatment["code"], "stageOrder": stage}
+				groupMeta[key] = map[string]any{"siteId": batch["siteId"], "site": stringValue(s.entities["sites"][stringValue(batch["siteId"])]["code"]), "strain": donor["strain"], "treatmentGroupId": treatment["id"], "treatmentGroup": treatment["code"], "stageOrder": stage}
 			}
 		}
 	}

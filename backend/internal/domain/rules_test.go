@@ -63,7 +63,7 @@ func TestDomainRulesRejectMalformedAndUnsupportedValues(t *testing.T) {
 }
 
 func TestDomainRulesValidOutcomesConditionsAndAges(t *testing.T) {
-	for _, outcome := range []string{"ALIVE", "DEAD", "FROZEN", "DISCARDED"} {
+	for _, outcome := range []string{"ALIVE", "DEAD", "FROZEN", "DISCARDED", "NOT_OBSERVED"} {
 		if !FishOutcomeValid(outcome) {
 			t.Fatalf("outcome %q rejected", outcome)
 		}

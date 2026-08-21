@@ -46,7 +46,7 @@ func PromotionEligibleAt(hasExit, latestAlive bool, activatedAt, now time.Time, 
 }
 
 func FishOutcomeValid(value string) bool {
-	return value == "ALIVE" || value == "DEAD" || value == "FROZEN" || value == "DISCARDED"
+	return value == "ALIVE" || value == "DEAD" || value == "FROZEN" || value == "DISCARDED" || value == "NOT_OBSERVED"
 }
 
 func ConditionValid(value string) bool {

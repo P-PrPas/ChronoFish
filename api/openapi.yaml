@@ -2558,6 +2558,9 @@ components:
             nDead: { type: integer }
             nFrozen: { type: integer }
             nDiscarded: { type: integer }
+            nNormal: { type: integer }
+            nAbnormal: { type: integer }
+            nUndetermined: { type: integer }
             meanAgeDaysAlive: { type: [number, 'null'] }
 
     FunnelStep:

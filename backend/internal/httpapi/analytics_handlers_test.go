@@ -100,3 +100,22 @@ func TestPromotedEmbryoCountsAsReachedAtLaterStage(t *testing.T) {
 		t.Fatalf("promoted reached count = %d, want 1", got)
 	}
 }
+
+func TestKpiReportsFishConditionCountsAndFractionalPercentages(t *testing.T) {
+	s := newAPIServer()
+	s.entities["fish"]["fish-normal"] = map[string]any{"id": "fish-normal", "status": "ALIVE", "condition": "NORMAL", "dob": "2026-08-01", "active": true}
+	s.entities["fish"]["fish-abnormal"] = map[string]any{"id": "fish-abnormal", "status": "ALIVE", "condition": "ABNORMAL", "dob": "2026-08-01", "active": true}
+	embryos := []map[string]any{{"id": "embryo-1"}, {"id": "embryo-2"}}
+	result := s.kpiLocked(embryos, nil)
+	stage1 := result["stage1"].(map[string]any)
+	stage2 := result["stage2"].(map[string]any)
+	if got := stage1["pctNormal"].(float64); got != 0 {
+		t.Fatalf("pctNormal = %v, want fractional zero for unobserved embryos", got)
+	}
+	if got := intValue(stage2["nNormal"]); got != 1 {
+		t.Fatalf("nNormal = %d, want 1", got)
+	}
+	if got := intValue(stage2["nAbnormal"]); got != 1 {
+		t.Fatalf("nAbnormal = %d, want 1", got)
+	}
+}

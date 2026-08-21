@@ -67,6 +67,28 @@ func TestDuplicateBatchHonoursDateAndCopiesLotSettingsWithoutActivation(t *testi
 	}
 }
 
+func TestDuplicateBatchAssignsNextSeriesDayNotCalendarDay(t *testing.T) {
+	server := newAPIServer()
+	operatorID := "00000000-0000-7000-8000-000000000001"
+	protocolID := "01900000-0000-7000-8000-000000000001"
+	profileID := "01900000-0000-7000-8000-000000000002"
+	server.entities["treatment-groups"]["treatment-1"] = map[string]any{"id": "treatment-1", "code": "SCNT", "active": true}
+	server.entities["batches"]["batch-original"] = map[string]any{"id": "batch-original", "batchCode": "3_demo_scnt", "experimentDate": "2026-08-20", "dayNo": 3, "operatorId": operatorID, "treatmentGroupId": "treatment-1", "protocolId": protocolID, "timingProfileId": profileID, "active": true}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/batches/batch-original/duplicate", strings.NewReader(`{"experimentDate":"2026-08-28","copyInjectionLots":false}`))
+	recorder := httptest.NewRecorder()
+	server.duplicateBatch(recorder, request, "batch-original")
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	var batch map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &batch); err != nil {
+		t.Fatal(err)
+	}
+	if got := intValue(batch["dayNo"]); got != 4 {
+		t.Fatalf("dayNo = %d, want next series day 4 (not calendar day 28)", got)
+	}
+}
+
 func TestCORS(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodOptions, "/api/v1/health", nil)

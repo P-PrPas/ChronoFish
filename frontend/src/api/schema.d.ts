@@ -1813,6 +1813,9 @@ export interface components {
                 nDead: number;
                 nFrozen: number;
                 nDiscarded: number;
+                nNormal?: number;
+                nAbnormal?: number;
+                nUndetermined?: number;
                 meanAgeDaysAlive?: number | null;
             };
         };
