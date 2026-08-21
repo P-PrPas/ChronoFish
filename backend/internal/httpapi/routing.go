@@ -365,8 +365,7 @@ func (s *apiServer) createEntity(w http.ResponseWriter, r *http.Request, resourc
 	item["id"], item["active"], item["createdAt"], item["updatedAt"] = id, true, now, now
 	if resource == "fish" {
 		if _, ok := item["runningNo"]; !ok {
-			item["runningNo"] = s.fishNo
-			s.fishNo++
+			item["runningNo"] = s.nextFishRunningNoLocked()
 		}
 		if _, ok := item["status"]; !ok {
 			item["status"] = "ALIVE"
