@@ -103,6 +103,61 @@ func TestControlCountsValidatesWholePutBeforeMutation(t *testing.T) {
 	}
 }
 
+func TestControlCountsRevivesDeletedNaturalKey(t *testing.T) {
+	server := newAPIServer()
+	server.entities["batches"]["batch-control"] = map[string]any{"id": "batch-control", "active": true}
+	server.entities["control-arm-counts"]["control-1"] = map[string]any{"id": "control-1", "batchId": "batch-control", "armType": "IVF", "stageCode": "stage_01_1C", "nNormal": 1, "nAbnormal": 0, "active": true, "deletedAt": "2026-08-20T00:00:00Z"}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPut, "/api/v1/batches/batch-control/control-arm-counts", strings.NewReader(`{"items":[{"armType":"IVF","stageCode":"stage_01_1C","nNormal":4,"nAbnormal":2}]}`))
+	server.controlCounts(recorder, request, "batch-control")
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	item := server.entities["control-arm-counts"]["control-1"]
+	if item["deletedAt"] != nil || item["active"] == false || intValue(item["nNormal"]) != 4 || intValue(item["nAbnormal"]) != 2 {
+		t.Fatalf("revived control row = %#v", item)
+	}
+}
+
+func TestCreateLotWarnsWhenENUFinishesAfterActivation(t *testing.T) {
+	server := newAPIServer()
+	server.entities["batches"]["batch-lot"] = map[string]any{"id": "batch-lot", "batchCode": "B-1", "active": true}
+	server.entities["donor-cell-lines"]["donor-lot"] = map[string]any{"id": "donor-lot", "strain": "AB", "active": true}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/batches/batch-lot/injection-lots", strings.NewReader(`{"lotNo":"1","donorCellLineId":"donor-lot","activatedAt":"2026-08-20T00:00:00Z","enuFinishAt":"2026-08-20T08:00:01+07:00","nActivated":0}`))
+	server.createLot(recorder, request, "batch-lot")
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	warnings, ok := response["warnings"].([]any)
+	if !ok || len(warnings) != 1 {
+		t.Fatalf("warnings = %#v, want one AC-307 warning", response["warnings"])
+	}
+}
+
+func TestCreateLotAllowsENUFinishAtActivationWithoutWarning(t *testing.T) {
+	server := newAPIServer()
+	server.entities["batches"]["batch-lot"] = map[string]any{"id": "batch-lot", "batchCode": "B-1", "active": true}
+	server.entities["donor-cell-lines"]["donor-lot"] = map[string]any{"id": "donor-lot", "strain": "AB", "active": true}
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/batches/batch-lot/injection-lots", strings.NewReader(`{"lotNo":"1","donorCellLineId":"donor-lot","activatedAt":"2026-08-20T00:00:00Z","enuFinishAt":"2026-08-20T00:00:00+07:00","nActivated":0}`))
+	server.createLot(recorder, request, "batch-lot")
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if warnings, ok := response["warnings"].([]any); ok && len(warnings) != 0 {
+		t.Fatalf("warnings = %#v, want none at boundary", warnings)
+	}
+}
+
 func TestCORS(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodOptions, "/api/v1/health", nil)

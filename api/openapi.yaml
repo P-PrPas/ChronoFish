@@ -2203,6 +2203,10 @@ components:
             embryos:
               type: array
               items: { $ref: '#/components/schemas/Embryo' }
+            warnings:
+              type: array
+              description: Non-blocking business-rule warnings raised while creating the lot (AC-307).
+              items: { type: string }
 
     Embryo:
       type: object

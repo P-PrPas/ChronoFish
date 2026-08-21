@@ -154,7 +154,7 @@ func (s *apiServer) createLot(w http.ResponseWriter, r *http.Request, batchID st
 	}
 	if finish := stringValue(input["enuFinishAt"]); finish != "" {
 		finishAt, finishErr := parseBangkokInstant(finish)
-		if finishErr != nil || !finishAt.After(activated) {
+		if finishErr != nil {
 			writeAPIError(w, 422, "validation_error", "enuFinishAt must be after activatedAt")
 			return true
 		}
@@ -211,6 +211,11 @@ func (s *apiServer) createLot(w http.ResponseWriter, r *http.Request, batchID st
 	}
 	result := cloneMap(lot)
 	result["embryos"] = embryos
+	if finish := stringValue(input["enuFinishAt"]); finish != "" {
+		if finishAt, finishErr := parseBangkokInstant(finish); finishErr == nil && finishAt.After(activated) {
+			result["warnings"] = []string{"enuFinishAt is later than activatedAt; verify the ENU timing before analysis"}
+		}
+	}
 	_ = activated
 	writeJSON(w, 201, result)
 	return true
@@ -385,7 +390,7 @@ func (s *apiServer) controlCounts(w http.ResponseWriter, r *http.Request, batchI
 		defer s.mu.RUnlock()
 		items := []map[string]any{}
 		for _, item := range s.entities["control-arm-counts"] {
-			if stringValue(item["batchId"]) == batchID {
+			if stringValue(item["batchId"]) == batchID && item["deletedAt"] == nil && item["active"] != false {
 				items = append(items, cloneMap(item))
 			}
 		}
@@ -442,34 +447,14 @@ func (s *apiServer) controlCounts(w http.ResponseWriter, r *http.Request, batchI
 	seen := make(map[string]bool)
 	result := make([]map[string]any, 0, len(raw))
 	for _, v := range raw {
-		item, ok := v.(map[string]any)
-		if !ok {
-			writeAPIError(w, 422, "validation_error", "each control count must be an object")
-			return true
-		}
+		item := v.(map[string]any)
 		arm := stringValue(item["armType"])
 		stage := stringValue(item["stageCode"])
-		if arm != "NATURAL_BREEDING" && arm != "IVF" {
-			writeAPIError(w, 422, "validation_error", "armType must be NATURAL_BREEDING or IVF")
-			return true
-		}
-		if stageNumber(stage) < 1 || stageNumber(stage) > 36 {
-			writeAPIError(w, 422, "validation_error", "stageCode is invalid")
-			return true
-		}
-		if !nonNegativeWhole(item["nNormal"]) || !nonNegativeWhole(item["nAbnormal"]) {
-			writeAPIError(w, 422, "validation_error", "counts must be non-negative integers")
-			return true
-		}
 		naturalKey := arm + "|" + stage
-		if seen[naturalKey] {
-			writeAPIError(w, 422, "validation_error", "duplicate armType and stageCode")
-			return true
-		}
 		seen[naturalKey] = true
 		var existing map[string]any
 		for _, candidate := range s.entities["control-arm-counts"] {
-			if candidate["deletedAt"] == nil && stringValue(candidate["batchId"]) == batchID && stringValue(candidate["armType"]) == arm && stringValue(candidate["stageCode"]) == stage {
+			if stringValue(candidate["batchId"]) == batchID && stringValue(candidate["armType"]) == arm && stringValue(candidate["stageCode"]) == stage {
 				existing = candidate
 				break
 			}
@@ -482,7 +467,7 @@ func (s *apiServer) controlCounts(w http.ResponseWriter, r *http.Request, batchI
 			s.auditLocked(r, "INSERT", "control_arm_count", stringValue(item["id"]), nil, item)
 		} else {
 			before := cloneMap(existing)
-			existing["nNormal"], existing["nAbnormal"], existing["updatedAt"] = intValue(item["nNormal"]), intValue(item["nAbnormal"]), now
+			existing["nNormal"], existing["nAbnormal"], existing["updatedAt"], existing["deletedAt"], existing["active"] = intValue(item["nNormal"]), intValue(item["nAbnormal"]), now, nil, true
 			s.auditLocked(r, "UPDATE", "control_arm_count", stringValue(existing["id"]), before, existing)
 			item = existing
 		}

@@ -63,15 +63,22 @@ function Checkpoint({ due, t, onBack }: { due: ApiItem; t: AppText; onBack: () =
   const alive = Object.values(outcomes).filter((outcome) => outcome === 'ALIVE').length
   const activatedAt = String(entry?.activatedAt ?? due.activatedAt ?? '')
   const activatedMs = Date.parse(activatedAt)
-  const elapsedMinutes = Number.isNaN(activatedMs) ? null : Math.max(0, Math.floor((now - activatedMs) / 60_000))
+  const liveElapsedMinutes = Number.isNaN(activatedMs) ? null : Math.max(0, Math.floor((now - activatedMs) / 60_000))
+  const observedMs = (() => { try { return Date.parse(dateTimeLocalToRFC3339(observedAt)) } catch { return Number.NaN } })()
+  // Persisted checkpoint metrics use the editable observation time. Live T+ is
+  // displayed separately and must never change the scientific measurement.
+  const elapsedMinutes = Number.isNaN(activatedMs) || Number.isNaN(observedMs) ? null : Math.max(0, Math.floor((observedMs - activatedMs) / 60_000))
   const expected = Number(entry?.expectedHpa ?? 0)
   const actual = elapsedMinutes === null ? null : elapsedMinutes / 60
   const deviation = actual === null ? null : actual - expected
   const deviationLabel = deviation === null || Math.abs(deviation) < 1 / 60 ? 'ตรงกับสากล' : `${deviation < 0 ? 'เร็วกว่า' : 'ช้ากว่า'}สากล ${Math.floor(Math.abs(deviation))} ชม. ${Math.round((Math.abs(deviation) % 1) * 60)} นาที`
+  const displayDeviationLabel = deviation === null || Math.abs(deviation) < 1 / 60 ? 'ตรงกับสากล' : `${deviation < 0 ? 'เร็วกว่า' : 'ช้ากว่า'}สากล ${Math.floor(Math.abs(deviation))} ชม. ${Math.round((Math.abs(deviation) % 1) * 60)} นาที`
   const stageOrder = Number((entry?.stage as ApiItem | undefined)?.stageOrder ?? due.stageOrder ?? 0)
   const progressLabel = `Checkpoint ${stageOrder || '?'} / 26 · Survivors ${alive} / ${total}`
   const timeLabel = elapsedMinutes === null ? 'T+—' : `T+${String(Math.floor(elapsedMinutes / 60)).padStart(2, '0')}:${String(elapsedMinutes % 60).padStart(2, '0')}`
 
+  const liveTimeLabel = liveElapsedMinutes === null ? 'T+—' : `T+${String(Math.floor(liveElapsedMinutes / 60)).padStart(2, '0')}:${String(liveElapsedMinutes % 60).padStart(2, '0')}`
+  const timingLabel = actual === null ? '—' : `จริง ${String(Math.floor(actual)).padStart(2, '0')}:${String(Math.round((actual % 1) * 60)).padStart(2, '0')} · สากล ${expected.toFixed(2)} · ${displayDeviationLabel}`
   const setAll = (outcome: EmbryoOutcome) => setOutcomes(Object.fromEntries(embryos.map((embryo: ApiItem) => [String(embryo.embryoId), outcome])))
   const cycle = (id: string) => {
     const current = outcomes[id] ?? 'ALIVE'
@@ -97,6 +104,7 @@ function Checkpoint({ due, t, onBack }: { due: ApiItem; t: AppText; onBack: () =
     <button className="back" onClick={onBack}>← {t.due}</button>
     <div className="page-heading"><div><p className="eyebrow">{String(due.batchCode)} / LOT {String(due.lotNo)}</p><h1>{String(due.stageLabel)}</h1><p className="muted">{progressLabel} · {timeLabel}</p></div><button className="button button--primary" disabled={saving || !entry} onClick={save}>{saving ? 'Saving…' : 'Save checkpoint'}</button></div>
     {error && <ErrorMessage message={error} />}
+    <p className="timing-preview" data-testid="checkpoint-timing-preview">{timingLabel} · {liveTimeLabel}</p>
     <div className="metric-grid"><div className="metric"><span>Actual HPA</span><strong>{actual === null ? '—' : actual.toFixed(4)}</strong></div><div className="metric"><span>Expected HPA</span><strong>{expected.toFixed(4)}</strong></div><div className="metric"><span>Deviation</span><strong>{deviation === null ? '—' : `${deviation >= 0 ? '+' : ''}${deviation.toFixed(4)} h · ${deviationLabel}`}</strong></div></div>
     <div className="button-row checkpoint-shortcuts"><button className="button button--secondary" type="button" onClick={() => setAll('ALIVE')}>All alive</button><button className="button button--secondary" type="button" onClick={() => setAll('DEAD')}>All remaining dead</button></div>
     <label className="form-card">Observed at<input type="datetime-local" value={observedAt} onChange={(event) => setObservedAt(event.target.value)} /></label>
