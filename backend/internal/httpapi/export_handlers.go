@@ -115,26 +115,6 @@ func (s *apiServer) buildWorkbook(query ...map[string][]string) ([]byte, error) 
 	return export.Build(exportSheets, s.buildVersion)
 }
 
-func (s *apiServer) exportProfileLocked(embryos []map[string]any) map[string]any {
-	for _, embryo := range embryos {
-		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
-		batch := s.entities["batches"][stringValue(lot["batchId"])]
-		if profile := s.entities["timing-profiles"][stringValue(batch["timingProfileId"])]; profile != nil {
-			return profile
-		}
-	}
-	for _, id := range sortedIDs(s.entities["timing-profiles"]) {
-		profile := s.entities["timing-profiles"][id]
-		if profile["isCurrent"] == true {
-			return profile
-		}
-	}
-	for _, id := range sortedIDs(s.entities["timing-profiles"]) {
-		return s.entities["timing-profiles"][id]
-	}
-	return map[string]any{}
-}
-
 func (s *apiServer) exportProfilesLocked(embryos []map[string]any) []map[string]any {
 	seen := make(map[string]bool)
 	profiles := make([]map[string]any, 0)
@@ -145,11 +125,6 @@ func (s *apiServer) exportProfilesLocked(embryos []map[string]any) []map[string]
 		id := stringValue(profile["id"])
 		if profile != nil && id != "" && !seen[id] {
 			seen[id] = true
-			profiles = append(profiles, profile)
-		}
-	}
-	if len(profiles) == 0 {
-		if profile := s.exportProfileLocked(embryos); len(profile) > 0 {
 			profiles = append(profiles, profile)
 		}
 	}
