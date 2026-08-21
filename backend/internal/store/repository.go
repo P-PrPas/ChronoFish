@@ -229,7 +229,15 @@ func (s *SQLRepository) Load(ctx context.Context, state *State) error {
 }
 
 func (s *SQLRepository) loadTable(ctx context.Context, state *State, table, resource string) error {
-	rows, err := s.db.QueryContext(ctx, "SELECT * FROM "+table+" WHERE deleted_at IS NULL")
+	query := "SELECT * FROM " + table + " WHERE deleted_at IS NULL"
+	// PUT /control-arm-counts is a natural-key replacement.  The request
+	// projection must retain a soft-deleted pair so the write can revive that
+	// canonical row instead of creating a second row that violates the unique
+	// (batch, arm, stage) constraint.
+	if resource == "control-arm-counts" {
+		query = "SELECT * FROM " + table
+	}
+	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
 		return err
 	}
@@ -518,6 +526,29 @@ func intValue(value any) int {
 		return result
 	default:
 		return 0
+	}
+}
+
+func nonNegativeIntegerValue(value any) bool {
+	switch number := value.(type) {
+	case int:
+		return number >= 0
+	case int8:
+		return number >= 0
+	case int16:
+		return number >= 0
+	case int32:
+		return number >= 0
+	case int64:
+		return number >= 0
+	case uint, uint8, uint16, uint32, uint64:
+		return true
+	case float32:
+		return number >= 0 && number == float32(int(number))
+	case float64:
+		return number >= 0 && number == float64(int(number))
+	default:
+		return false
 	}
 }
 
@@ -1080,7 +1111,8 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 	}
 	for id, item := range changes.Entities["control-arm-counts"] {
 		stageID := stageDefinitionID(stringValue(item["stageCode"]))
-		if stageID == "" || !s.referencesAvailableTx(ctx, tx, item, "batchId") {
+		arm := stringValue(item["armType"])
+		if (arm != "NATURAL_BREEDING" && arm != "IVF") || !nonNegativeIntegerValue(item["nNormal"]) || !nonNegativeIntegerValue(item["nAbnormal"]) || stageID == "" || !s.referencesAvailableTx(ctx, tx, item, "batchId") {
 			return fmt.Errorf("control count %s has an invalid stage or foreign-key reference", id)
 		}
 		if err := s.upsertCanonical(ctx, tx, "control_arm_count", []string{"id", "batch_id", "arm_type", "stage_definition_id", "n_normal", "n_abnormal", "created_at", "updated_at", "deleted_at"}, []any{id, stringValue(item["batchId"]), stringValue(item["armType"]), stageID, intValue(item["nNormal"]), intValue(item["nAbnormal"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
