@@ -346,7 +346,13 @@ func (s *sqlStateStore) RefreshReadModelForRequest(ctx context.Context, server *
 		add("specimens", "fish")
 	case "control-arm-counts":
 		add("control-arm-counts", "batches", "protocols", "timing-profiles")
-	case "sites", "operators", "donor-cell-lines", "recipient-egg-lots", "csof-lots", "treatment-groups", "fish-boxes", "protocols":
+	case "sites":
+		add(parts[0])
+	case "operators":
+		add("operators", "sites")
+	case "fish-boxes":
+		add("fish-boxes", "sites")
+	case "donor-cell-lines", "recipient-egg-lots", "csof-lots", "treatment-groups", "protocols":
 		add(parts[0])
 	default:
 		return nil
