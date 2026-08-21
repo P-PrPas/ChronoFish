@@ -412,6 +412,8 @@ type ControlRow = {
 export function Controls() {
   const [batchId, setBatchId] = useState("");
   const [batches, setBatches] = useState<ApiItem[]>([]);
+  const [protocols, setProtocols] = useState<ApiItem[]>([]);
+  const [protocolId, setProtocolId] = useState("");
   const [stages, setStages] = useState<ApiItem[]>([]);
   const [rows, setRows] = useState<ControlRow[]>([
     {
@@ -424,7 +426,19 @@ export function Controls() {
   const [message, setMessage] = useState("");
   useEffect(() => {
     void get("/batches").then((data) => setBatches(data.items ?? []));
-    void get(`/protocols/${seedProtocolId}/stages`)
+    void get("/protocols")
+      .then((data) => {
+        const items = data.items ?? [];
+        setProtocols(items);
+        setProtocolId(
+          (current) => current || String(items[0]?.id ?? seedProtocolId),
+        );
+      })
+      .catch(() => setProtocolId(seedProtocolId));
+  }, []);
+  useEffect(() => {
+    if (!protocolId) return;
+    void get(`/protocols/${protocolId}/stages`)
       .then((data) => setStages(data.items ?? []))
       .catch(() =>
         setStages(
@@ -434,7 +448,7 @@ export function Controls() {
           })),
         ),
       );
-  }, []);
+  }, [protocolId]);
   const update = (index: number, value: Partial<ControlRow>) =>
     setRows((current) =>
       current.map((row, position) =>
@@ -463,6 +477,24 @@ export function Controls() {
         </div>
       </div>
       <form className="form-card" onSubmit={save}>
+        <label>
+          Protocol
+          <select
+            required
+            value={protocolId}
+            onChange={(event) => setProtocolId(event.target.value)}
+          >
+            <option value="">Select protocol</option>
+            {protocols.length === 0 && protocolId && (
+              <option value={protocolId}>Default protocol</option>
+            )}
+            {protocols.map((protocol) => (
+              <option key={String(protocol.id)} value={String(protocol.id)}>
+                {String(protocol.name ?? protocol.code ?? protocol.id)}
+              </option>
+            ))}
+          </select>
+        </label>
         <label>
           Batch
           <select
