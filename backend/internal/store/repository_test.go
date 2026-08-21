@@ -314,8 +314,9 @@ func TestSQLRepositoryConcurrentSameKey(t *testing.T) {
 		OperatorID: "00000000-0000-7000-8000-000000000001", DeviceID: "test-device",
 	}
 	results := make(chan struct {
-		created bool
-		err     error
+		created  bool
+		mutation Mutation
+		err      error
 	}, 2)
 	start := make(chan struct{})
 	var wg sync.WaitGroup
@@ -324,17 +325,19 @@ func TestSQLRepositoryConcurrentSameKey(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			_, created, reserveErr := repo.Reserve(ctx, request)
+			reserved, created, reserveErr := repo.Reserve(ctx, request)
 			results <- struct {
-				created bool
-				err     error
-			}{created: created, err: reserveErr}
+				created  bool
+				mutation Mutation
+				err      error
+			}{created: created, mutation: reserved, err: reserveErr}
 		}()
 	}
 	close(start)
 	wg.Wait()
 	close(results)
 	createdCount := 0
+	winningMutation := request
 	for result := range results {
 		if result.err != nil {
 			t.Fatal(result.err)
@@ -342,11 +345,14 @@ func TestSQLRepositoryConcurrentSameKey(t *testing.T) {
 		if result.created {
 			createdCount++
 		}
+		if result.mutation.LeaseToken != "" {
+			winningMutation = result.mutation
+		}
 	}
 	if createdCount != 1 {
 		t.Fatalf("created count = %d, want exactly one", createdCount)
 	}
-	if err := repo.Abort(ctx, request); err != nil {
+	if err := repo.Abort(ctx, winningMutation); err != nil {
 		t.Fatal(err)
 	}
 }
