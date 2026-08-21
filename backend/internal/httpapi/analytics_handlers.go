@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"fmt"
 	"math"
 	"net/http"
 	"sort"
@@ -115,7 +116,51 @@ func (s *apiServer) kpiLocked(embryos []map[string]any, query map[string][]strin
 	if nActivated == 0 {
 		nActivated = len(embryos)
 	}
-	return map[string]any{"stage1": map[string]any{"nBatches": len(s.filteredBatchIDsLocked(query)), "nEggs": nEggs, "nActivated": nActivated, "nReachedShield": s.reachedStageCountLocked(embryos, 19), "nReachedDay1": s.reachedStageCountLocked(embryos, 22), "nPromoted": len(fish), "pctNormal": percentage(normal, len(embryos)), "pctAbnormal": percentage(abnormal, len(embryos))}, "stage2": map[string]any{"nFish": len(fish), "nAlive": countFish(fish, "ALIVE"), "nDead": countFish(fish, "DEAD"), "nFrozen": countFish(fish, "FROZEN"), "nDiscarded": countFish(fish, "DISCARDED"), "meanAgeDaysAlive": meanFishAge(fish, "ALIVE")}}
+	return map[string]any{"stage1": map[string]any{"nBatches": len(s.filteredBatchIDsLocked(query)), "nEggs": nEggs, "nActivated": nActivated, "nReachedShield": s.reachedStageCountLocked(embryos, 19), "nReachedDay1": s.reachedStageCountLocked(embryos, 22), "nPromoted": len(fish), "pctNormal": percentage(normal, len(embryos)), "pctAbnormal": percentage(abnormal, len(embryos)), "controlComparison": s.controlComparisonLocked(embryos, query)}, "stage2": map[string]any{"nFish": len(fish), "nAlive": countFish(fish, "ALIVE"), "nDead": countFish(fish, "DEAD"), "nFrozen": countFish(fish, "FROZEN"), "nDiscarded": countFish(fish, "DISCARDED"), "meanAgeDaysAlive": meanFishAge(fish, "ALIVE")}}
+}
+
+// controlComparisonLocked returns the three experimental arms used in the
+// dashboard and printable report. SCNT is derived from the filtered embryo
+// observations; NATURAL_BREEDING and IVF come from their canonical control
+// count rows. No arm is relabelled as a normal/abnormal condition.
+func (s *apiServer) controlComparisonLocked(embryos []map[string]any, query map[string][]string) []map[string]any {
+	rows := make([]map[string]any, 0)
+	for _, stage := range []int{19, 22} {
+		normal, abnormal := 0, 0
+		for _, embryo := range embryos {
+			observation := s.observationAtStageLocked(stringValue(embryo["id"]), stage)
+			if observation == nil {
+				continue
+			}
+			switch stringValue(observation["condition"]) {
+			case "NORMAL":
+				normal++
+			case "ABNORMAL":
+				abnormal++
+			}
+		}
+		rows = append(rows, controlComparisonRow("SCNT", stage, normal, abnormal))
+	}
+	batchIDs := s.filteredBatchIDsLocked(query)
+	for _, id := range sortedIDs(s.entities["control-arm-counts"]) {
+		item := s.entities["control-arm-counts"][id]
+		if item["deletedAt"] != nil || !batchIDs[stringValue(item["batchId"])] {
+			continue
+		}
+		rows = append(rows, controlComparisonRow(stringValue(item["armType"]), stageNumber(stringValue(item["stageCode"])), intValue(item["nNormal"]), intValue(item["nAbnormal"])))
+	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		if intValue(rows[i]["stageOrder"]) != intValue(rows[j]["stageOrder"]) {
+			return intValue(rows[i]["stageOrder"]) < intValue(rows[j]["stageOrder"])
+		}
+		return stringValue(rows[i]["armType"]) < stringValue(rows[j]["armType"])
+	})
+	return rows
+}
+
+func controlComparisonRow(arm string, stage, normal, abnormal int) map[string]any {
+	total := normal + abnormal
+	return map[string]any{"armType": arm, "stageOrder": stage, "stageCode": stageCode(stage), "stageLabel": stageLabel(stage), "nNormal": normal, "nAbnormal": abnormal, "n": total, "pctNormal": percentage(normal, total), "pctAbnormal": percentage(abnormal, total)}
 }
 
 func (s *apiServer) filteredBatchIDsLocked(query map[string][]string) map[string]bool {
@@ -211,6 +256,10 @@ func percentage(value, total int) float64 {
 func (s *apiServer) reachedStageCountLocked(embryos []map[string]any, stage int) int {
 	count := 0
 	for _, embryo := range embryos {
+		if stringValue(embryo["exitReason"]) == "PROMOTED" {
+			count++
+			continue
+		}
 		for _, observation := range s.observations {
 			if observation["deletedAt"] == nil && stringValue(observation["embryoId"]) == stringValue(embryo["id"]) && stageNumber(stringValue(observation["stageCode"])) >= stage {
 				count++
@@ -341,19 +390,27 @@ func (s *apiServer) checkpointStatusLocked(embryo map[string]any, stage int) str
 	return "blank"
 }
 func (s *apiServer) deviationLocked(embryos []map[string]any) []map[string]any {
-	groups := map[int][]float64{}
-	expected := map[int]float64{}
+	groups := map[string][]float64{}
+	expected := map[string]float64{}
+	groupMeta := map[string]map[string]any{}
 	for _, embryo := range embryos {
+		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+		batch := s.entities["batches"][stringValue(lot["batchId"])]
+		donor := s.entities["donor-cell-lines"][stringValue(lot["donorCellLineId"])]
+		treatment := s.entities["treatment-groups"][stringValue(batch["treatmentGroupId"])]
 		for _, observation := range s.observations {
 			if observation["deletedAt"] == nil && stringValue(observation["embryoId"]) == stringValue(embryo["id"]) {
 				stage := stageNumber(stringValue(observation["stageCode"]))
-				groups[stage] = append(groups[stage], floatValue(observation["deviationH"]))
-				expected[stage] = s.expectedHPAForEmbryoLocked(observation)
+				key := fmt.Sprintf("%s|%s|%s|%d", stringValue(batch["siteId"]), stringValue(donor["strain"]), stringValue(treatment["code"]), stage)
+				groups[key] = append(groups[key], floatValue(observation["deviationH"]))
+				expected[key] = numberValue(observation["hpaExpectedSnapshot"])
+				groupMeta[key] = map[string]any{"siteId": batch["siteId"], "site": stringValue(s.entities["sites"][stringValue(batch["siteId"])] ["code"]), "strain": donor["strain"], "treatmentGroupId": treatment["id"], "treatmentGroup": treatment["code"], "stageOrder": stage}
 			}
 		}
 	}
 	items := make([]map[string]any, 0, len(groups))
-	for stage, values := range groups {
+	for key, values := range groups {
+		stage := intValue(groupMeta[key]["stageOrder"])
 		sort.Float64s(values)
 		sum := 0.0
 		for _, value := range values {
@@ -372,9 +429,16 @@ func (s *apiServer) deviationLocked(embryos []map[string]any) []map[string]any {
 		if len(values) > 1 {
 			sd = math.Sqrt(variance / float64(len(values)-1))
 		}
-		items = append(items, map[string]any{"stageOrder": stage, "stageLabel": stageLabel(stage), "expectedHpa": expected[stage], "n": len(values), "meanDeviationH": mean, "medianDeviationH": median, "sdDeviationH": sd, "minDeviationH": values[0], "maxDeviationH": values[len(values)-1]})
+		row := cloneMap(groupMeta[key])
+		row["stageLabel"], row["expectedHpa"], row["n"], row["meanDeviationH"], row["medianDeviationH"], row["sdDeviationH"], row["minDeviationH"], row["maxDeviationH"] = stageLabel(stage), expected[key], len(values), round4(mean), round4(median), sd, round4(values[0]), round4(values[len(values)-1])
+		items = append(items, row)
 	}
-	sort.Slice(items, func(i, j int) bool { return intValue(items[i]["stageOrder"]) < intValue(items[j]["stageOrder"]) })
+	sort.Slice(items, func(i, j int) bool {
+		if intValue(items[i]["stageOrder"]) != intValue(items[j]["stageOrder"]) {
+			return intValue(items[i]["stageOrder"]) < intValue(items[j]["stageOrder"])
+		}
+		return stringValue(items[i]["treatmentGroup"]) < stringValue(items[j]["treatmentGroup"])
+	})
 	return items
 }
 func (s *apiServer) abnormalityLocked(embryos []map[string]any) []map[string]any {

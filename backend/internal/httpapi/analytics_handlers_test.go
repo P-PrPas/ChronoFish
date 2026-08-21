@@ -83,3 +83,20 @@ func TestCorrectionExpectedSnapshotUsesPinnedTimingProfile(t *testing.T) {
 		t.Fatalf("expected profile HPA = %v, want 42", got)
 	}
 }
+
+func TestIntervalMetricsUsesNearestEarlierCheckpointAndRounds(t *testing.T) {
+	s := newAPIServer()
+	s.observations["previous"] = map[string]any{"id": "previous", "embryoId": "embryo-1", "stageCode": stageCode(2), "hpaActual": 1.23456, "hpaExpectedSnapshot": 1.0}
+	actual, expected, deviation, ok := s.intervalMetricsLocked("embryo-1", 5, 4.56789, 3.0, "")
+	if !ok || actual != 3.3333 || expected != 2 || deviation != 1.3333 {
+		t.Fatalf("interval = %v, %v, %v, ok=%v; want 3.3333, 2, 1.3333, true", actual, expected, deviation, ok)
+	}
+}
+
+func TestPromotedEmbryoCountsAsReachedAtLaterStage(t *testing.T) {
+	s := newAPIServer()
+	embryo := map[string]any{"id": "promoted", "exitReason": "PROMOTED"}
+	if got := s.reachedStageCountLocked([]map[string]any{embryo}, 22); got != 1 {
+		t.Fatalf("promoted reached count = %d, want 1", got)
+	}
+}

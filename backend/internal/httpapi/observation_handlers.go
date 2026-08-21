@@ -197,6 +197,10 @@ func (s *apiServer) createEmbryoObservations(w http.ResponseWriter, r *http.Requ
 		obs := cloneMap(item)
 		now := time.Now().UTC()
 		obs["id"], obs["injectionLotId"], obs["hpaActual"], obs["hpaExpectedSnapshot"], obs["deviationH"], obs["operatorId"], obs["deviceId"], obs["isBackdated"], obs["createdAt"] = id, lot["id"], actual, expected, deviation, r.Header.Get("X-Operator-Id"), r.Header.Get("X-Device-Id"), isBackdated(observedAt, now), now.Format(time.RFC3339)
+		if intervalActual, intervalExpected, intervalDeviation, ok := s.intervalMetricsLocked(stringValue(embryo["id"]), stageNumber(stringValue(item["stageCode"])), actual, expected, ""); ok {
+			obs["intervalActual"], obs["intervalExpected"], obs["intervalDeviationH"] = intervalActual, intervalExpected, intervalDeviation
+			result["intervalActual"], result["intervalExpected"], result["intervalDeviationH"] = intervalActual, intervalExpected, intervalDeviation
+		}
 		staged = append(staged, obs)
 		results = append(results, result)
 	}
@@ -419,6 +423,13 @@ func (s *apiServer) updateOrDeleteObservation(w http.ResponseWriter, r *http.Req
 					actual := round4(observedAt.Sub(activated).Hours())
 					old["hpaActual"] = actual
 					old["deviationH"] = round4(actual - numberValue(old["hpaExpectedSnapshot"]))
+					if intervalActual, intervalExpected, intervalDeviation, ok := s.intervalMetricsLocked(stringValue(old["embryoId"]), stageNumber(stringValue(old["stageCode"])), actual, numberValue(old["hpaExpectedSnapshot"]), stringValue(old["id"])); ok {
+						old["intervalActual"], old["intervalExpected"], old["intervalDeviationH"] = intervalActual, intervalExpected, intervalDeviation
+					} else {
+						delete(old, "intervalActual")
+						delete(old, "intervalExpected")
+						delete(old, "intervalDeviationH")
+					}
 				}
 			}
 		}
@@ -470,6 +481,31 @@ func (s *apiServer) expectedHPAForLotLocked(lot map[string]any, stageCode string
 		}
 	}
 	return expectedHPA(stageCode)
+}
+
+// intervalMetricsLocked returns the difference from the nearest earlier
+// recorded checkpoint for the same embryo. Missing checkpoints do not invent
+// an interval; the next observed checkpoint is compared with the last one
+// that actually exists.
+func (s *apiServer) intervalMetricsLocked(embryoID string, stage int, actual, expected float64, excludeID string) (float64, float64, float64, bool) {
+	var previous map[string]any
+	previousStage := 0
+	for _, observation := range s.observations {
+		if observation["deletedAt"] != nil || stringValue(observation["embryoId"]) != embryoID || stringValue(observation["id"]) == excludeID {
+			continue
+		}
+		candidateStage := stageNumber(stringValue(observation["stageCode"]))
+		if candidateStage < 1 || candidateStage >= stage || candidateStage <= previousStage {
+			continue
+		}
+		previous, previousStage = observation, candidateStage
+	}
+	if previous == nil {
+		return 0, 0, 0, false
+	}
+	intervalActual := round4(actual - numberValue(previous["hpaActual"]))
+	intervalExpected := round4(expected - numberValue(previous["hpaExpectedSnapshot"]))
+	return intervalActual, intervalExpected, round4(intervalActual - intervalExpected), true
 }
 
 func (s *apiServer) recomputeFishLocked(fishID string) {
