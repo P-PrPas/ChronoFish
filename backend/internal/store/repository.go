@@ -418,7 +418,7 @@ func (s *SQLRepository) QueryDue(ctx context.Context, query DueQuery) (overdue, 
 	}
 	sqlText := `SELECT l.id, b.batch_code, l.lot_no, l.activated_at, sd.code, sd.label, sd.stage_order,
        st.expected_hpa,
-       (SELECT COUNT(*) FROM embryo e3 WHERE e3.injection_lot_id = l.id AND e3.active = ` + s.placeholder(len(args)+1) + ` AND e3.deleted_at IS NULL AND e3.exit_reason IS NULL) AS embryos_remaining
+	       (SELECT COUNT(*) FROM embryo e3 WHERE e3.injection_lot_id = l.id AND e3.active = TRUE AND e3.deleted_at IS NULL AND e3.exit_reason IS NULL) AS embryos_remaining
 FROM injection_lot l
 JOIN experiment_batch b ON b.id = l.batch_id
 JOIN stage_timing_profile p ON p.id = b.timing_profile_id
@@ -428,7 +428,6 @@ JOIN embryo e ON e.injection_lot_id = l.id
 WHERE ` + strings.Join(where, " AND ") + `
 GROUP BY l.id, b.batch_code, l.lot_no, l.activated_at, sd.code, sd.stage_order, st.expected_hpa
 ORDER BY l.id, sd.stage_order`
-	args = append(args, true)
 	rows, err := s.db.QueryContext(ctx, sqlText, args...)
 	if err != nil {
 		return nil, nil, err
