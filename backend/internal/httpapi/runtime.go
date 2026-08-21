@@ -498,7 +498,15 @@ func (s *sqlStateStore) RefreshReadModelForRequest(ctx context.Context, server *
 		return nil
 	}
 	if strings.HasPrefix(resource, "analytics") || strings.HasPrefix(resource, "exports") {
-		return s.Load(ctx, server)
+		// Load only the operational rows used by reports.  Load intentionally
+		// hydrates reference data at startup; using it here would leave a fresh
+		// API instance with empty analytics/export results because the large
+		// canonical collections are not startup state.
+		return s.refreshResources(ctx, server,
+			"batches", "injection-lots", "embryos", "fish", "specimens",
+			"observations", "fish-observations", "donor-cell-lines", "operators",
+			"sites", "fish-boxes", "protocols", "timing-profiles",
+			"treatment-groups", "control-arm-counts")
 	}
 	if resource == "due" {
 		return s.refreshResources(ctx, server, "batches", "injection-lots", "embryos", "protocols", "timing-profiles", "observations")

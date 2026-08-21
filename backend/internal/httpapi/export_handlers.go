@@ -158,11 +158,12 @@ func sortedIDs(records map[string]map[string]any) []string {
 }
 func fishMatrixColumns(fish map[string]map[string]any, observations map[string]map[string]any) []string {
 	max := 0
-	for id := range fish {
-		for _, observation := range observations {
-			if stringValue(observation["cloneFishId"]) == id && intValue(observation["ageDays"]) > max {
-				max = intValue(observation["ageDays"])
-			}
+	for _, observation := range observations {
+		if observation["deletedAt"] != nil || fish[stringValue(observation["cloneFishId"])] == nil {
+			continue
+		}
+		if age := intValue(observation["ageDays"]); age > max {
+			max = age
 		}
 	}
 	columns := make([]string, 0, max)
@@ -316,6 +317,24 @@ func (s *apiServer) fishObservationExportRows(fish map[string]map[string]any) []
 }
 func (s *apiServer) fishMatrixExportRows(fish map[string]map[string]any) [][]string {
 	columns := fishMatrixColumns(fish, s.fishObs)
+	byFishAge := make(map[string]map[int]string, len(s.fishObs))
+	for _, observation := range s.fishObs {
+		if observation["deletedAt"] != nil {
+			continue
+		}
+		fishID := stringValue(observation["cloneFishId"])
+		if fish[fishID] == nil {
+			continue
+		}
+		if byFishAge[fishID] == nil {
+			byFishAge[fishID] = make(map[int]string)
+		}
+		value := "0"
+		if stringValue(observation["outcome"]) == "ALIVE" {
+			value = "1"
+		}
+		byFishAge[fishID][intValue(observation["ageDays"])] = value
+	}
 	rows := [][]string{}
 	for _, id := range sortedIDs(fish) {
 		item := fish[id]
@@ -323,17 +342,7 @@ func (s *apiServer) fishMatrixExportRows(fish map[string]map[string]any) [][]str
 		row := []string{stringValue(item["fishCode"]), stringValue(item["dob"]), stringValue(donor["strain"]), stringValue(item["status"])}
 		for _, column := range columns {
 			age, _ := strconv.Atoi(strings.TrimPrefix(column, "d"))
-			value := ""
-			for _, observation := range s.fishObs {
-				if observation["deletedAt"] == nil && stringValue(observation["cloneFishId"]) == id && intValue(observation["ageDays"]) == age {
-					if stringValue(observation["outcome"]) == "ALIVE" {
-						value = "1"
-					} else {
-						value = "0"
-					}
-					break
-				}
-			}
+			value := byFishAge[id][age]
 			row = append(row, value)
 		}
 		rows = append(rows, row)
