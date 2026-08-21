@@ -252,9 +252,11 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if refresher, ok := s.store.(canonicalReadModel); ok {
 			if err := refresher.RefreshReadModelForRequest(r.Context(), s, r.URL.Path); err != nil {
 				if mutationLeaseToken != "" {
-					_ = s.store.(interface {
+					if aborter, canAbort := s.store.(interface {
 						Abort(context.Context, storepkg.Mutation) error
-					}).Abort(context.Background(), storepkg.Mutation{Scope: requestScope, Key: idempotencyKey, RequestHash: fingerprint, LeaseToken: mutationLeaseToken})
+					}); canAbort {
+						_ = aborter.Abort(context.Background(), storepkg.Mutation{Scope: requestScope, Key: idempotencyKey, RequestHash: fingerprint, LeaseToken: mutationLeaseToken})
+					}
 				}
 				writeAPIError(w, http.StatusServiceUnavailable, "persistence_unavailable", "the committed read model is temporarily unavailable")
 				return
