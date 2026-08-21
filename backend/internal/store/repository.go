@@ -978,6 +978,9 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 		}
 	}
 	for id, item := range changes.Entities["operators"] {
+		if !s.optionalReferencesAvailableTx(ctx, tx, item, "siteId") {
+			return fmt.Errorf("operator %s has an invalid foreign-key reference", id)
+		}
 		siteID := nullableReference(item["siteId"])
 		if err := s.upsertCanonical(ctx, tx, "operator", []string{"id", "site_id", "name", "active", "created_at", "updated_at", "deleted_at"}, []any{id, siteID, stringValue(item["name"]), item["active"] != false, timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
 			return err
@@ -1044,7 +1047,7 @@ func (s *SQLRepository) syncCanonicalChanges(ctx context.Context, tx *sql.Tx, ch
 		}
 	}
 	for id, item := range changes.Entities["fish"] {
-		if !s.referencesAvailableTx(ctx, tx, item, "donorCellLineId") {
+		if !s.referencesAvailableTx(ctx, tx, item, "donorCellLineId") || !s.optionalReferencesAvailableTx(ctx, tx, item, "embryoId", "siteId", "fishBoxId") {
 			return fmt.Errorf("fish %s has an invalid foreign-key reference", id)
 		}
 		if err := s.upsertCanonical(ctx, tx, "clone_fish", []string{"id", "embryo_id", "fish_code", "running_no", "dob", "donor_cell_line_id", "site_id", "fish_box_id", "status", "biological_condition", "first_abnormal_on", "first_abnormal_age_days", "first_abnormal_stage_id", "sex", "fin_clipped", "exit_date", "exit_reason", "remarks", "created_at", "updated_at", "deleted_at"}, []any{id, nullableReference(item["embryoId"]), stringValue(item["fishCode"]), intValue(item["runningNo"]), stringValue(item["dob"]), stringValue(item["donorCellLineId"]), nullableReference(item["siteId"]), nullableReference(item["fishBoxId"]), stringValueOr(item["status"], "ALIVE"), stringValueOr(item["condition"], "NORMAL"), nullableString(item["firstAbnormalOn"]), nullableInt(item["firstAbnormalAgeDays"]), nullableString(item["firstAbnormalStageId"]), stringValueOr(item["sex"], "UNKNOWN"), item["finClipped"] == true, nullableString(item["exitDate"]), nullableFishExitReason(item["exitReason"]), nullableString(item["remarks"]), timestampValue(item["createdAt"]), timestampValue(item["updatedAt"]), item["deletedAt"]}, []string{"id"}); err != nil {
@@ -1238,6 +1241,18 @@ func (s *SQLRepository) referencesAvailableTx(ctx context.Context, tx *sql.Tx, i
 		}
 		var found int
 		if err := tx.QueryRowContext(ctx, query, args...).Scan(&found); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *SQLRepository) optionalReferencesAvailableTx(ctx context.Context, tx *sql.Tx, item map[string]any, fields ...string) bool {
+	for _, field := range fields {
+		if stringValue(item[field]) == "" {
+			continue
+		}
+		if !s.referencesAvailableTx(ctx, tx, item, field) {
 			return false
 		}
 	}
