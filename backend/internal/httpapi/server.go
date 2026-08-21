@@ -134,6 +134,16 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+	if r.Method == http.MethodGet {
+		if refresher, ok := s.store.(interface {
+			RefreshReadModel(context.Context, *apiServer) error
+		}); ok {
+			if err := refresher.RefreshReadModel(r.Context(), s); err != nil {
+				writeAPIError(w, http.StatusServiceUnavailable, "persistence_unavailable", "the committed read model is temporarily unavailable")
+				return
+			}
+		}
+	}
 	mutation := r.Method != http.MethodGet && r.Method != http.MethodHead
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		if err := s.validateWriteContext(r, partsForContext(r.URL.Path)); err != nil {

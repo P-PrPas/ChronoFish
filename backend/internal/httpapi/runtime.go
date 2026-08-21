@@ -277,6 +277,13 @@ func (s *sqlStateStore) Load(ctx context.Context, server *apiServer) error {
 	return nil
 }
 
+// RefreshReadModel rehydrates the committed SQL view for a read request. SQL
+// is authoritative across API instances; the in-process maps are only a
+// derived view and are never the source of a successful write.
+func (s *sqlStateStore) RefreshReadModel(ctx context.Context, server *apiServer) error {
+	return s.Load(ctx, server)
+}
+
 func (s *sqlStateStore) Save(ctx context.Context, server *apiServer) error {
 	state := stateFromServer(server)
 	return s.repository.Save(ctx, &state)
