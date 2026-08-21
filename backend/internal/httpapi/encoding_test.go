@@ -40,6 +40,9 @@ func (failingCommitStore) Commit(context.Context, *storepkg.State, *storepkg.Sta
 func (failingCommitStore) CommitDelta(context.Context, *storepkg.Delta, *storepkg.Mutation) error {
 	return errors.New("transaction failed")
 }
+func (failingCommitStore) RefreshReadModelForRequest(context.Context, *apiServer, string) error {
+	return nil
+}
 
 func TestHTTPErrorMessagesAreUTF8(t *testing.T) {
 	recorder := httptest.NewRecorder()

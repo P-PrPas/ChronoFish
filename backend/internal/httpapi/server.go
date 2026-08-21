@@ -297,9 +297,13 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if mutation {
 		w = recorded
 	}
+	routeServer := s
+	if mutation && deltaStore != nil {
+		routeServer = mutationWorkingServer(s, r)
+	}
 	path := strings.TrimPrefix(r.URL.Path, "/api/v1/")
 	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if handled := s.route(w, r, parts); !handled {
+	if handled := routeServer.route(w, r, parts); !handled {
 		writeAPIError(w, http.StatusNotFound, "not_found", "ไม่พบ endpoint ที่ร้องขอ")
 	}
 	if mutation && atomicStore != nil {
