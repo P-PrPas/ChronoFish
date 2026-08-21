@@ -4,9 +4,69 @@ import (
 	"context"
 	"encoding/json"
 	"reflect"
+	"strconv"
 
 	storepkg "github.com/P-PrPas/ChronoFish/backend/internal/store"
 )
+
+// publishCommittedVersions advances only rows in the request write set after
+// the SQL transaction has committed. It keeps the in-process read model's
+// optimistic fence aligned with the canonical row_version without exposing an
+// uncommitted value or reloading the whole database.
+func publishCommittedVersions(server *apiServer, delta *storepkg.Delta) {
+	if server == nil || delta == nil {
+		return
+	}
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	bump := func(item map[string]any, before map[string]any) {
+		if item == nil {
+			return
+		}
+		if before == nil {
+			item["rowVersion"] = int64(1)
+			return
+		}
+		version := int64Value(before["rowVersion"])
+		if version < 1 {
+			version = 1
+		}
+		item["rowVersion"] = version + 1
+	}
+	for resource, records := range delta.After.Entities {
+		for id := range records {
+			if current := server.entities[resource][id]; current != nil {
+				bump(current, delta.Before.Entities[resource][id])
+			}
+		}
+	}
+	for id := range delta.After.Observations {
+		if current := server.observations[id]; current != nil {
+			bump(current, delta.Before.Observations[id])
+		}
+	}
+	for id := range delta.After.FishObservations {
+		if current := server.fishObs[id]; current != nil {
+			bump(current, delta.Before.FishObservations[id])
+		}
+	}
+}
+
+func int64Value(value any) int64 {
+	switch number := value.(type) {
+	case int:
+		return int64(number)
+	case int64:
+		return number
+	case float64:
+		return int64(number)
+	case string:
+		parsed, _ := strconv.ParseInt(number, 10, 64)
+		return parsed
+	default:
+		return 0
+	}
+}
 
 type stateStore interface {
 	Load(context.Context, *apiServer) error
@@ -24,6 +84,10 @@ type atomicStateStore interface {
 
 type deltaStateStore interface {
 	CommitDelta(context.Context, *storepkg.Delta, *storepkg.Mutation) error
+}
+
+type auditReader interface {
+	QueryAudits(context.Context, storepkg.AuditQuery) ([]map[string]any, bool, error)
 }
 
 type mutationCacheValue struct {
@@ -241,6 +305,12 @@ func (s *sqlStateStore) Commit(ctx context.Context, before, after *storepkg.Stat
 func (s *sqlStateStore) CommitDelta(ctx context.Context, delta *storepkg.Delta, mutation *storepkg.Mutation) error {
 	return s.repository.CommitDelta(ctx, delta, mutation)
 }
+
+func (s *sqlStateStore) QueryAudits(ctx context.Context, query storepkg.AuditQuery) ([]map[string]any, bool, error) {
+	return s.repository.QueryAudits(ctx, query)
+}
+
+var _ auditReader = (*sqlStateStore)(nil)
 
 func (s *sqlStateStore) Close() error { return s.repository.Close() }
 

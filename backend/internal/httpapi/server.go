@@ -303,6 +303,9 @@ func (s *apiServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(originalWriter, http.StatusServiceUnavailable, "persistence_unavailable", "ฐานข้อมูลยังไม่พร้อมใช้งาน")
 			return
 		}
+		if deltaStore != nil {
+			publishCommittedVersions(s, work.Delta())
+		}
 		s.mu.Lock()
 		if strings.Contains(contentType, "spreadsheetml") {
 			encoded, _ := json.Marshal(base64.StdEncoding.EncodeToString(recorded.body))

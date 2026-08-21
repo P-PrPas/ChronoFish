@@ -113,32 +113,9 @@ func (s *SQLRepository) Load(ctx context.Context, state *State) error {
 	if err := s.loadObservationTable(ctx, state, "fish_observation", state.FishObservations, stageCodes); err != nil {
 		return fmt.Errorf("load fish observations: %w", err)
 	}
-	if err := s.loadAudits(ctx, state); err != nil {
-		return err
-	}
-	rows, err := s.db.QueryContext(ctx, "SELECT scope, idempotency_key, request_hash, status_code, content_type, response_body FROM request_idempotency")
-	if err != nil {
-		return fmt.Errorf("load request idempotency: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var scope, key, hash, contentType, body string
-		var status int
-		if err := rows.Scan(&scope, &key, &hash, &status, &contentType, &body); err != nil {
-			return err
-		}
-		cacheKey := scope
-		if cacheKey == "" {
-			cacheKey = "request:" + key
-		}
-		state.Idempotency[cacheKey] = json.RawMessage(body)
-		state.IdempotencyStatus[cacheKey] = status
-		state.IdempotencyHash[cacheKey] = hash
-		state.IdempotencyBinary[cacheKey] = strings.Contains(contentType, "spreadsheetml")
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
+	// Audit history and idempotency replay are repository-backed query paths;
+	// neither is loaded into the process cache at startup. This keeps startup
+	// bounded when the five-year audit/idempotency tables are large.
 	for _, fish := range state.Entities["fish"] {
 		if running := intValue(fish["runningNo"]); running >= state.FishNo {
 			state.FishNo = running + 1
@@ -255,7 +232,7 @@ func (s *SQLRepository) loadObservationTable(ctx context.Context, state *State, 
 }
 
 func (s *SQLRepository) loadAudits(ctx context.Context, state *State) error {
-	rows, err := s.db.QueryContext(ctx, "SELECT * FROM audit_log ORDER BY occurred_at DESC LIMIT 5000")
+	rows, err := s.db.QueryContext(ctx, "SELECT * FROM audit_log ORDER BY occurred_at DESC")
 	if err != nil {
 		return fmt.Errorf("load audit log: %w", err)
 	}
@@ -288,6 +265,79 @@ func (s *SQLRepository) loadAudits(ctx context.Context, state *State) error {
 		state.Audits = append(state.Audits, item)
 	}
 	return rows.Err()
+}
+
+// AuditQuery is intentionally a narrow read port. It keeps audit history
+// paginated and filtered in SQL instead of materialising the whole table.
+type AuditQuery struct {
+	Table, RecordID, OperatorID string
+	From, To                    time.Time
+	Limit, Offset               int
+}
+
+func (s *SQLRepository) QueryAudits(ctx context.Context, query AuditQuery) ([]map[string]any, bool, error) {
+	limit := query.Limit
+	if limit < 1 || limit > 500 {
+		limit = 100
+	}
+	if query.Offset < 0 {
+		query.Offset = 0
+	}
+	where := []string{"1 = 1"}
+	args := make([]any, 0, 7)
+	add := func(sqlText string, value any) {
+		where = append(where, sqlText+" "+s.placeholder(len(args)+1))
+		args = append(args, value)
+	}
+	if query.Table != "" {
+		add("table_name =", query.Table)
+	}
+	if query.RecordID != "" {
+		add("record_id =", query.RecordID)
+	}
+	if query.OperatorID != "" {
+		add("operator_id =", query.OperatorID)
+	}
+	if !query.From.IsZero() {
+		add("occurred_at >=", query.From.UTC())
+	}
+	if !query.To.IsZero() {
+		add("occurred_at <=", query.To.UTC())
+	}
+	limitPlaceholder := s.placeholder(len(args) + 1)
+	offsetPlaceholder := s.placeholder(len(args) + 2)
+	args = append(args, limit, query.Offset)
+	sqlText := "SELECT id, table_name, record_id, action, old_values, new_values, operator_id, device_id, occurred_at FROM audit_log WHERE " + strings.Join(where, " AND ") + " ORDER BY occurred_at DESC, id DESC LIMIT " + limitPlaceholder + " OFFSET " + offsetPlaceholder
+	rows, err := s.db.QueryContext(ctx, sqlText, args...)
+	if err != nil {
+		return nil, false, err
+	}
+	defer rows.Close()
+	items := make([]map[string]any, 0, limit)
+	for rows.Next() {
+		var id, table, record, action string
+		var oldValues, newValues, operator, device any
+		var occurred any
+		if err := rows.Scan(&id, &table, &record, &action, &oldValues, &newValues, &operator, &device, &occurred); err != nil {
+			return nil, false, err
+		}
+		item := map[string]any{"id": id, "tableName": table, "recordId": record, "action": action, "operatorId": databaseValueFor("operator_id", operator), "deviceId": databaseValueFor("device_id", device), "occurredAt": databaseValueFor("occurred_at", occurred)}
+		for key, value := range map[string]any{"oldValues": oldValues, "newValues": newValues} {
+			decoded := databaseValueFor(key, value)
+			if raw := stringValue(decoded); raw != "" {
+				var parsed any
+				if json.Unmarshal([]byte(raw), &parsed) == nil {
+					decoded = parsed
+				}
+			}
+			item[key] = decoded
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	return items, len(items) == limit, nil
 }
 
 func apiField(column string) string {
@@ -501,19 +551,22 @@ func (s *SQLRepository) verifyRecordVersion(ctx context.Context, tx *sql.Tx, tab
 	if id == "" || before == nil {
 		return nil
 	}
-	writtenAt := nullableTime(before["updatedAt"])
-	if writtenAt.IsZero() {
-		return nil
+	expected := int64Value(before["rowVersion"])
+	if expected < 1 {
+		expected = 1
 	}
-	query := "SELECT updated_at FROM " + table + " WHERE id = " + s.placeholder(1)
-	var current any
+	// Lock the row before checking its monotonic fence. Two transactions that
+	// read the same version cannot both proceed: the second SELECT waits for
+	// the first commit and then observes the incremented row_version.
+	query := "SELECT row_version FROM " + table + " WHERE id = " + s.placeholder(1) + " FOR UPDATE"
+	var current int64
 	if err := tx.QueryRowContext(ctx, query, id).Scan(&current); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("concurrent mutation conflict: %s/%s disappeared", table, id)
 		}
 		return err
 	}
-	if !nullableTime(current).Equal(writtenAt) {
+	if current != expected {
 		return fmt.Errorf("concurrent mutation conflict: %s/%s changed", table, id)
 	}
 	return nil
@@ -589,18 +642,23 @@ func (s *SQLRepository) Reserve(ctx context.Context, mutation Mutation) (Mutatio
 	rollback := func(cause error) (Mutation, bool, error) { _ = tx.Rollback(); return Mutation{}, false, cause }
 	now := time.Now().UTC()
 	leaseUntil := now.Add(30 * time.Second)
-	leaseToken := newUUID()
+	leaseToken := mutation.LeaseToken
+	if leaseToken == "" {
+		leaseToken = newUUID()
+	}
 	insert := "INSERT INTO request_idempotency (scope, idempotency_key, request_hash, status_code, content_type, response_body, operator_id, device_id, created_at, lease_until, lease_token) VALUES (" + s.placeholder(1) + "," + s.placeholder(2) + "," + s.placeholder(3) + ",102," + s.placeholder(4) + "," + s.placeholder(5) + "," + s.placeholder(6) + "," + s.placeholder(7) + "," + s.placeholder(8) + "," + s.placeholder(9) + "," + s.placeholder(10) + ")"
 	if s.driver == "postgres" {
 		insert += " ON CONFLICT (scope, idempotency_key) DO NOTHING"
 	} else {
 		insert += " ON DUPLICATE KEY UPDATE idempotency_key = idempotency_key"
 	}
-	result, err := tx.ExecContext(ctx, insert, mutation.Scope, mutation.Key, mutation.RequestHash, "", "", mutation.OperatorID, mutation.DeviceID, now, leaseUntil, leaseToken)
+	_, err = tx.ExecContext(ctx, insert, mutation.Scope, mutation.Key, mutation.RequestHash, "", "", mutation.OperatorID, mutation.DeviceID, now, leaseUntil, leaseToken)
 	if err != nil {
 		return rollback(err)
 	}
-	inserted, _ := result.RowsAffected()
+	// Do not infer ownership from RowsAffected: MySQL's clientFoundRows mode
+	// changes its meaning for ON DUPLICATE KEY UPDATE. Ownership is proved by
+	// reading back the freshly generated fenced lease token.
 	var found Mutation
 	var completedAt any
 	var leaseValue, tokenValue any
@@ -615,15 +673,20 @@ func (s *SQLRepository) Reserve(ctx context.Context, mutation Mutation) (Mutatio
 	}
 	found.LeaseUntil = nullableTime(leaseValue)
 	found.LeaseToken = stringValue(tokenValue)
-	created := inserted == 1
+	created := found.Status == 102 && found.LeaseToken == leaseToken
 	if !created && found.Status == 102 && !found.LeaseUntil.IsZero() && !found.LeaseUntil.After(now) {
 		update := "UPDATE request_idempotency SET lease_until = " + s.placeholder(1) + ", lease_token = " + s.placeholder(2) + " WHERE scope = " + s.placeholder(3) + " AND idempotency_key = " + s.placeholder(4) + " AND request_hash = " + s.placeholder(5) + " AND status_code = 102 AND lease_until <= " + s.placeholder(6)
-		if result, updateErr := tx.ExecContext(ctx, update, leaseUntil, leaseToken, mutation.Scope, mutation.Key, mutation.RequestHash, now); updateErr != nil {
+		if _, updateErr := tx.ExecContext(ctx, update, leaseUntil, leaseToken, mutation.Scope, mutation.Key, mutation.RequestHash, now); updateErr != nil {
 			return rollback(updateErr)
-		} else if affected, _ := result.RowsAffected(); affected == 1 {
-			created = true
-			found.LeaseUntil = leaseUntil
-			found.LeaseToken = leaseToken
+		} else {
+			// A concurrent takeover may have won the conditional UPDATE. Read the
+			// row again and only proceed when this request owns the token.
+			if err := tx.QueryRowContext(ctx, selectQuery, mutation.Scope, mutation.Key).Scan(&found.RequestHash, &found.Status, &found.ContentType, &found.Body, &completedAt, &leaseValue, &tokenValue); err != nil {
+				return rollback(err)
+			}
+			found.LeaseUntil = nullableTime(leaseValue)
+			found.LeaseToken = stringValue(tokenValue)
+			created = found.Status == 102 && found.LeaseToken == leaseToken
 		}
 	}
 	found.Body = append([]byte(nil), found.Body...)
@@ -910,6 +973,7 @@ func (s *SQLRepository) upsertCanonical(ctx context.Context, tx *sql.Tx, table s
 				updates = append(updates, column+" = EXCLUDED."+column)
 			}
 		}
+		updates = append(updates, "row_version = "+table+".row_version + 1")
 		query += " ON CONFLICT (" + strings.Join(conflict, ", ") + ") DO UPDATE SET " + strings.Join(updates, ", ")
 	} else {
 		updates := make([]string, 0, len(columns)-len(conflict))
@@ -918,6 +982,7 @@ func (s *SQLRepository) upsertCanonical(ctx context.Context, tx *sql.Tx, table s
 				updates = append(updates, column+" = VALUES("+column+")")
 			}
 		}
+		updates = append(updates, "row_version = row_version + 1")
 		query += " ON DUPLICATE KEY UPDATE " + strings.Join(updates, ", ")
 	}
 	_, err := tx.ExecContext(ctx, query, values...)
@@ -1018,6 +1083,37 @@ func numberValue(value any) float64 {
 		return float64(number)
 	case string:
 		var parsed float64
+		_, _ = fmt.Sscan(number, &parsed)
+		return parsed
+	default:
+		return 0
+	}
+}
+
+func int64Value(value any) int64 {
+	switch number := value.(type) {
+	case int:
+		return int64(number)
+	case int8:
+		return int64(number)
+	case int16:
+		return int64(number)
+	case int32:
+		return int64(number)
+	case int64:
+		return number
+	case uint:
+		return int64(number)
+	case uint64:
+		return int64(number)
+	case float64:
+		return int64(number)
+	case []byte:
+		var parsed int64
+		_, _ = fmt.Sscan(string(number), &parsed)
+		return parsed
+	case string:
+		var parsed int64
 		_, _ = fmt.Sscan(number, &parsed)
 		return parsed
 	default:

@@ -1,0 +1,27 @@
+-- ===========================================================================
+-- GENERATED FILE — do not edit by hand.
+-- Source: backend/db/migrations/postgres/000005_row_versions.up.sql
+-- Regenerate: python3 scripts/gen_mysql_migrations.py
+-- ===========================================================================
+
+-- Monotonic row versions used to fence concurrent writes.  The existing
+-- updated_at values remain presentation/audit timestamps only.
+ALTER TABLE site ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE operator ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE donor_cell_line ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE recipient_egg_lot ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE csof_lot ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE treatment_group ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE fish_box ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE protocol ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE stage_definition ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE stage_timing_profile ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE stage_timing ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE experiment_batch ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE injection_lot ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE embryo ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE embryo_observation ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE control_arm_count ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE clone_fish ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE fish_observation ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;
+ALTER TABLE specimen ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1;

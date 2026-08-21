@@ -10,6 +10,7 @@ import (
 
 	"github.com/P-PrPas/ChronoFish/backend/internal/domain"
 	"github.com/P-PrPas/ChronoFish/backend/internal/service"
+	storepkg "github.com/P-PrPas/ChronoFish/backend/internal/store"
 )
 
 type mutationDeltaContextKey struct{}
@@ -46,8 +47,6 @@ func (s *apiServer) auditLog(w http.ResponseWriter, r *http.Request) bool {
 	if r.Method != http.MethodGet {
 		return false
 	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	query := r.URL.Query()
 	from := parseAuditTime(query.Get("from"))
 	to := parseAuditTime(query.Get("to"))
@@ -62,6 +61,21 @@ func (s *apiServer) auditLog(w http.ResponseWriter, r *http.Request) bool {
 	if value, err := strconv.Atoi(query.Get("cursor")); err == nil && value > 0 {
 		offset = value
 	}
+	if reader, ok := s.store.(auditReader); ok {
+		items, more, err := reader.QueryAudits(r.Context(), storepkg.AuditQuery{Table: query.Get("table"), RecordID: query.Get("recordId"), OperatorID: query.Get("operatorId"), From: from, To: to, Limit: limit, Offset: offset})
+		if err != nil {
+			writeAPIError(w, http.StatusServiceUnavailable, "persistence_unavailable", "audit history is temporarily unavailable")
+			return true
+		}
+		var nextCursor any
+		if more {
+			nextCursor = strconv.Itoa(offset + len(items))
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": items, "nextCursor": nextCursor})
+		return true
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	filtered := make([]map[string]any, 0, len(s.audits))
 	for index := len(s.audits) - 1; index >= 0; index-- {
 		item := s.audits[index]

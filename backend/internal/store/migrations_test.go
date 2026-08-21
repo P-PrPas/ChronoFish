@@ -60,6 +60,26 @@ func TestIdempotencyUpgradePreservesV3AndAddsFencedLease(t *testing.T) {
 	}
 }
 
+func TestRowVersionUpgradeAddsMonotonicFences(t *testing.T) {
+	root := filepath.Join("..", "..", "db", "migrations")
+	postgres, err := os.ReadFile(filepath.Join(root, "postgres", "000005_row_versions.up.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range []string{"site", "experiment_batch", "injection_lot", "embryo", "embryo_observation", "clone_fish", "fish_observation", "specimen"} {
+		if !strings.Contains(string(postgres), "ALTER TABLE "+table+" ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1") {
+			t.Fatalf("row-version migration missing %s", table)
+		}
+	}
+	mysql, err := os.ReadFile(filepath.Join(root, "mysql", "000005_row_versions.up.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(mysql), "ADD COLUMN row_version BIGINT NOT NULL DEFAULT 1") {
+		t.Fatal("MySQL row-version upgrade missing row_version")
+	}
+}
+
 func TestRunMigrationsHonoursCancelledContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

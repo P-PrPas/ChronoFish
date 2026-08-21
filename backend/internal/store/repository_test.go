@@ -21,7 +21,7 @@ func TestReserveSameKeyReturnsStoredWinner(t *testing.T) {
 	}
 	defer db.Close()
 	repo := NewSQLRepository(db, "postgres")
-	request := Mutation{Scope: "site:create", Key: "key-1", RequestHash: "hash-1", OperatorID: "operator-1", DeviceID: "device-1"}
+	request := Mutation{Scope: "site:create", Key: "key-1", RequestHash: "hash-1", OperatorID: "operator-1", DeviceID: "device-1", LeaseToken: "token-1"}
 
 	reserve := func(row *sqlmock.Rows, affected int64) (Mutation, bool, error) {
 		mock.ExpectBegin()
@@ -81,11 +81,12 @@ func TestReserveExpiredLeaseElectsNewOwner(t *testing.T) {
 	}
 	defer db.Close()
 	repo := NewSQLRepository(db, "postgres")
-	request := Mutation{Scope: "site:create", Key: "lease-key", RequestHash: "lease-hash", OperatorID: "operator-1", DeviceID: "device-1"}
+	request := Mutation{Scope: "site:create", Key: "lease-key", RequestHash: "lease-hash", OperatorID: "operator-1", DeviceID: "device-1", LeaseToken: "new-token"}
 	mock.ExpectBegin()
 	mock.ExpectExec("INSERT INTO request_idempotency").WithArgs(request.Scope, request.Key, request.RequestHash, sqlmock.AnyArg(), sqlmock.AnyArg(), request.OperatorID, request.DeviceID, sqlmock.AnyArg(), sqlmock.AnyArg(), sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until, lease_token").WithArgs(request.Scope, request.Key).WillReturnRows(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until", "lease_token"}).AddRow(request.RequestHash, 102, "", "", nil, time.Now().Add(-time.Minute), "old-token"))
 	mock.ExpectExec("UPDATE request_idempotency SET lease_until").WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), request.Scope, request.Key, request.RequestHash, sqlmock.AnyArg()).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT request_hash, status_code, content_type, response_body, completed_at, lease_until, lease_token").WithArgs(request.Scope, request.Key).WillReturnRows(sqlmock.NewRows([]string{"request_hash", "status_code", "content_type", "response_body", "completed_at", "lease_until", "lease_token"}).AddRow(request.RequestHash, 102, "", "", nil, time.Now().Add(time.Minute), request.LeaseToken))
 	mock.ExpectCommit()
 	_, created, err := repo.Reserve(context.Background(), request)
 	if err != nil || !created {
@@ -150,13 +151,13 @@ func TestCommitDeltaRejectsStaleCanonicalVersionBeforeUpsert(t *testing.T) {
 	repo := NewSQLRepository(db, "postgres")
 	old := "2026-01-01T00:00:00Z"
 	mock.ExpectBegin()
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT updated_at FROM site WHERE id = $1")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT row_version FROM site WHERE id = $1 FOR UPDATE")).
 		WithArgs("site-1").
-		WillReturnRows(sqlmock.NewRows([]string{"updated_at"}).AddRow(time.Date(2026, 1, 1, 0, 0, 1, 0, time.UTC)))
+		WillReturnRows(sqlmock.NewRows([]string{"row_version"}).AddRow(int64(2)))
 	mock.ExpectRollback()
 	delta := &Delta{
 		Before: State{Entities: map[string]map[string]map[string]any{"sites": {
-			"site-1": {"id": "site-1", "updatedAt": old},
+			"site-1": {"id": "site-1", "updatedAt": old, "rowVersion": int64(1)},
 		}}},
 		After: State{Entities: map[string]map[string]map[string]any{"sites": {
 			"site-1": {"id": "site-1", "code": "new", "updatedAt": old},
