@@ -1455,6 +1455,8 @@ export interface components {
         };
         InjectionLotDetail: components["schemas"]["InjectionLot"] & {
             embryos?: components["schemas"]["Embryo"][];
+            /** @description Non-blocking business-rule warnings raised while creating the lot (AC-307). */
+            warnings?: string[];
         };
         Embryo: {
             /** Format: uuid */
@@ -3909,6 +3911,9 @@ export interface operations {
                     "application/json": {
                         items: {
                             group?: string | null;
+                            condition?: string | null;
+                            strain?: string | null;
+                            treatmentGroup?: string | null;
                             ageDays: number;
                             atRisk: number;
                             alive: number;
