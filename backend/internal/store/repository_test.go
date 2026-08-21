@@ -357,3 +357,45 @@ func TestSQLRepositoryConcurrentSameKey(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSQLRepositoryRowVersionFenceAllowsOneConcurrentUpdate(t *testing.T) {
+	dsn := os.Getenv("CHRONOFISH_TEST_DATABASE_URL")
+	driver := os.Getenv("CHRONOFISH_TEST_DATABASE_DRIVER")
+	if dsn == "" || driver == "" {
+		t.Skip("set CHRONOFISH_TEST_DATABASE_DRIVER and CHRONOFISH_TEST_DATABASE_URL for an engine integration test")
+	}
+	db, err := sql.Open(driver, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := db.PingContext(ctx); err != nil {
+		t.Skipf("database unavailable: %v", err)
+	}
+	repo := NewSQLRepository(db, driver)
+	id := newUUID()
+	now := time.Now().UTC()
+	query := "INSERT INTO site (id, code, name, active, created_at, updated_at, deleted_at) VALUES ($1,$2,$3,$4,$5,$6,$7)"
+	if driver == "mysql" {
+		query = "INSERT INTO site (id, code, name, active, created_at, updated_at, deleted_at) VALUES (?,?,?,?,?,?,?)"
+	}
+	if _, err := db.ExecContext(ctx, query, id, "fence-"+id[:8], "Fence", true, now, now, nil); err != nil {
+		t.Fatal(err)
+	}
+	defer db.ExecContext(context.Background(), "DELETE FROM site WHERE id = "+repo.placeholder(1), id)
+	makeDelta := func(name string) *Delta {
+		return &Delta{Before: State{Entities: map[string]map[string]map[string]any{"sites": {id: {"id": id, "code": "fence-" + id[:8], "name": "Fence", "active": true, "rowVersion": int64(1)}}}}, After: State{Entities: map[string]map[string]map[string]any{"sites": {id: {"id": id, "code": "fence-" + id[:8], "name": name, "active": true, "rowVersion": int64(1), "createdAt": now.Format(time.RFC3339), "updatedAt": now.Format(time.RFC3339)}}}}}
+	}
+	results := make(chan error, 2)
+	start := make(chan struct{})
+	for _, name := range []string{"Fence A", "Fence B"} {
+		go func(name string) { <-start; results <- repo.CommitDelta(ctx, makeDelta(name), nil) }(name)
+	}
+	close(start)
+	first, second := <-results, <-results
+	if (first == nil) == (second == nil) {
+		t.Fatalf("concurrent row-version results = %v, %v; want exactly one success", first, second)
+	}
+}
