@@ -66,6 +66,14 @@ func (s *SQLRepository) LoadResources(ctx context.Context, state *State, resourc
 			return fmt.Errorf("load %s: %w", table, err)
 		}
 	}
+	stageCodes := map[string]string(nil)
+	if containsString(resources, "embryos") || containsString(resources, "fish") || containsString(resources, "observations") || containsString(resources, "fish-observations") || containsString(resources, "control-arm-counts") {
+		var err error
+		stageCodes, err = s.loadStageCodes(ctx)
+		if err != nil {
+			return fmt.Errorf("load stage definitions: %w", err)
+		}
+	}
 	if containsString(resources, "timing-profiles") {
 		for _, profile := range state.Entities["timing-profiles"] {
 			profile["entries"] = []any{}
@@ -78,10 +86,6 @@ func (s *SQLRepository) LoadResources(ctx context.Context, state *State, resourc
 		if state.Observations == nil {
 			state.Observations = make(map[string]map[string]any)
 		}
-		stageCodes, err := s.loadStageCodes(ctx)
-		if err != nil {
-			return fmt.Errorf("load stage definitions: %w", err)
-		}
 		state.Observations = make(map[string]map[string]any)
 		if err := s.loadObservationTable(ctx, state, "embryo_observation", state.Observations, stageCodes); err != nil {
 			return fmt.Errorf("load embryo observations: %w", err)
@@ -91,16 +95,68 @@ func (s *SQLRepository) LoadResources(ctx context.Context, state *State, resourc
 		if state.FishObservations == nil {
 			state.FishObservations = make(map[string]map[string]any)
 		}
-		stageCodes, err := s.loadStageCodes(ctx)
-		if err != nil {
-			return fmt.Errorf("load stage definitions: %w", err)
-		}
 		state.FishObservations = make(map[string]map[string]any)
 		if err := s.loadObservationTable(ctx, state, "fish_observation", state.FishObservations, stageCodes); err != nil {
 			return fmt.Errorf("load fish observations: %w", err)
 		}
 	}
+	if len(stageCodes) > 0 {
+		hydrateDerivedFields(state, stageCodes)
+	}
 	return nil
+}
+
+// hydrateDerivedFields rebuilds denormalised API fields from canonical IDs and
+// observations after a restart.  The SQL schema deliberately stores IDs as
+// the authority; keeping this small projection derivation here prevents a
+// freshly-started instance from disagreeing with one that just handled a
+// mutation in memory.
+func hydrateDerivedFields(state *State, stageCodes map[string]string) {
+	for _, observation := range state.Observations {
+		if observation == nil || observation["deletedAt"] != nil {
+			continue
+		}
+		if embryo := state.Entities["embryos"][stringValue(observation["embryoId"])]; embryo != nil {
+			observation["injectionLotId"] = embryo["injectionLotId"]
+		}
+	}
+	for _, embryo := range state.Entities["embryos"] {
+		if embryo == nil {
+			continue
+		}
+		if code := stageCodes[stringValue(embryo["exitStageId"])]; code != "" {
+			embryo["exitStageCode"] = code
+		}
+		var first map[string]any
+		var firstAt time.Time
+		for _, observation := range state.Observations {
+			if observation == nil || observation["deletedAt"] != nil || stringValue(observation["embryoId"]) != stringValue(embryo["id"]) || stringValue(observation["condition"]) != "ABNORMAL" {
+				continue
+			}
+			observedAt, err := time.Parse(time.RFC3339Nano, stringValue(observation["observedAt"]))
+			if err != nil {
+				continue
+			}
+			if first == nil || observedAt.Before(firstAt) || (observedAt.Equal(firstAt) && domain.StageNumber(stringValue(observation["stageCode"])) < domain.StageNumber(stringValue(first["stageCode"]))) {
+				first, firstAt = observation, observedAt
+			}
+		}
+		if first == nil {
+			continue
+		}
+		embryo["firstAbnormalObservationId"] = first["id"]
+		embryo["firstAbnormalStageCode"] = first["stageCode"]
+		embryo["firstAbnormalStageId"] = stageDefinitionID(stringValue(first["stageCode"]))
+		embryo["firstAbnormalOn"] = firstAt.In(time.FixedZone("Asia/Bangkok", 7*60*60)).Format("2006-01-02")
+	}
+	for _, fish := range state.Entities["fish"] {
+		if fish == nil {
+			continue
+		}
+		if code := stageCodes[stringValue(fish["firstAbnormalStageId"])]; code != "" {
+			fish["firstAbnormalStageCode"] = code
+		}
+	}
 }
 
 // OperatorActive is used for write authentication. Unlike the in-process

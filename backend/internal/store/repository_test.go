@@ -228,6 +228,34 @@ func TestStringValueDecodesDriverBytes(t *testing.T) {
 	}
 }
 
+func TestHydrateDerivedFieldsRebuildsCanonicalProjection(t *testing.T) {
+	state := State{
+		Entities: map[string]map[string]map[string]any{
+			"embryos": {"embryo-1": {"id": "embryo-1", "injectionLotId": "lot-1", "exitStageId": stageDefinitionID("stage_03_2C")}},
+			"fish":    {"fish-1": {"id": "fish-1", "firstAbnormalStageId": stageDefinitionID("stage_04_4C")}},
+		},
+		Observations: map[string]map[string]any{
+			"observation-1": {"id": "observation-1", "embryoId": "embryo-1", "stageCode": "stage_04_4C", "observedAt": "2026-08-20T02:00:00+07:00", "condition": "ABNORMAL"},
+		},
+	}
+	hydrateDerivedFields(&state, map[string]string{
+		stageDefinitionID("stage_03_2C"): "stage_03_2C",
+		stageDefinitionID("stage_04_4C"): "stage_04_4C",
+	})
+	if got := stringValue(state.Observations["observation-1"]["injectionLotId"]); got != "lot-1" {
+		t.Fatalf("observation lot = %q, want lot-1", got)
+	}
+	if got := stringValue(state.Entities["embryos"]["embryo-1"]["exitStageCode"]); got != "stage_03_2C" {
+		t.Fatalf("exit stage = %q, want stage_03_2C", got)
+	}
+	if got := stringValue(state.Entities["embryos"]["embryo-1"]["firstAbnormalStageCode"]); got != "stage_04_4C" {
+		t.Fatalf("first abnormal stage = %q, want stage_04_4C", got)
+	}
+	if got := stringValue(state.Entities["fish"]["fish-1"]["firstAbnormalStageCode"]); got != "stage_04_4C" {
+		t.Fatalf("fish abnormal stage = %q, want stage_04_4C", got)
+	}
+}
+
 func TestRewriteAssignedFishBodyReconcilesNestedBulkResponse(t *testing.T) {
 	body := []byte(`{"items":[{"status":"created","fish":{"id":"fish-1","runningNo":1,"fishCode":"No.1_Clone2-wt cell-20"}}]}`)
 	got := rewriteAssignedFishBody(body, map[string]int{"fish-1": 27})
