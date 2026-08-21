@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/P-PrPas/ChronoFish/backend/internal/domain"
 )
 
 func (s *apiServer) createBatch(w http.ResponseWriter, r *http.Request) bool {
@@ -152,18 +154,21 @@ func (s *apiServer) createLot(w http.ResponseWriter, r *http.Request, batchID st
 			}
 		}
 	}
+	var startAt time.Time
+	if start := stringValue(input["enuStartAt"]); start != "" {
+		startAt, _ = parseBangkokInstant(start)
+	}
+	warning := ""
 	if finish := stringValue(input["enuFinishAt"]); finish != "" {
 		finishAt, finishErr := parseBangkokInstant(finish)
 		if finishErr != nil {
 			writeAPIError(w, 422, "validation_error", "enuFinishAt must be after activatedAt")
 			return true
 		}
-		if start := stringValue(input["enuStartAt"]); start != "" {
-			startAt, startErr := parseBangkokInstant(start)
-			if startErr != nil || !finishAt.After(startAt) {
-				writeAPIError(w, 422, "validation_error", "enuFinishAt must be after enuStartAt")
-				return true
-			}
+		warning, err = domain.ENUWindow(activated, startAt, finishAt)
+		if err != nil {
+			writeAPIError(w, 422, "validation_error", err.Error())
+			return true
 		}
 	}
 	n := intValue(input["nActivated"])
@@ -211,10 +216,8 @@ func (s *apiServer) createLot(w http.ResponseWriter, r *http.Request, batchID st
 	}
 	result := cloneMap(lot)
 	result["embryos"] = embryos
-	if finish := stringValue(input["enuFinishAt"]); finish != "" {
-		if finishAt, finishErr := parseBangkokInstant(finish); finishErr == nil && finishAt.After(activated) {
-			result["warnings"] = []string{"enuFinishAt is later than activatedAt; verify the ENU timing before analysis"}
-		}
+	if warning != "" {
+		result["warnings"] = []string{warning}
 	}
 	_ = activated
 	writeJSON(w, 201, result)

@@ -1,10 +1,26 @@
 package domain
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
 )
+
+var ErrENUFinishBeforeStart = errors.New("enu finish must be after enu start")
+
+// ENUWindow validates the chronological relation that is safe to enforce at
+// entry time. Real lab records may finish after activation (AC-307), so that
+// case is a warning, not a rejected write.
+func ENUWindow(activated, start, finish time.Time) (warning string, err error) {
+	if !start.IsZero() && !finish.IsZero() && !finish.After(start) {
+		return "", ErrENUFinishBeforeStart
+	}
+	if !finish.IsZero() && finish.After(activated) {
+		return "enuFinishAt is later than activatedAt; verify the ENU timing before analysis", nil
+	}
+	return "", nil
+}
 
 func StageNumber(code string) int {
 	suffix := strings.TrimPrefix(code, "stage_")

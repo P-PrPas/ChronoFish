@@ -100,3 +100,17 @@ func TestPromotionRulesRejectInvalidThresholdAndExit(t *testing.T) {
 		t.Fatal("calendar promotion accepted an ineligible embryo")
 	}
 }
+
+func TestENUWindowWarnsAfterActivationAndRejectsFinishBeforeStart(t *testing.T) {
+	activated := time.Date(2026, 8, 20, 0, 0, 0, 0, time.UTC)
+	warning, err := ENUWindow(activated, time.Time{}, activated.Add(time.Second))
+	if err != nil || warning == "" {
+		t.Fatalf("warning=%q err=%v, want AC-307 warning", warning, err)
+	}
+	if warning, err := ENUWindow(activated, time.Time{}, activated); err != nil || warning != "" {
+		t.Fatalf("equal finish = warning %q err %v, want accepted without warning", warning, err)
+	}
+	if _, err := ENUWindow(activated, activated.Add(time.Hour), activated); err == nil {
+		t.Fatal("finish before ENU start unexpectedly accepted")
+	}
+}
