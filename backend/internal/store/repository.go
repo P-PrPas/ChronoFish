@@ -537,17 +537,16 @@ func (s *SQLRepository) QueryEntityPage(ctx context.Context, query EntityPageQue
 	if query.Limit < 1 || query.Limit > 500 {
 		query.Limit = 100
 	}
-	where := []string{"cf.deleted_at IS NULL"}
+	where := []string{"deleted_at IS NULL"}
 	args := make([]any, 0, 8)
 	if query.Resource != "fish" {
-		where[0] = "deleted_at IS NULL"
-		if !query.IncludeInactive {
+		if !query.IncludeInactive && tableHasActiveColumn(table) {
 			where = append(where, "active = TRUE")
 		}
 	} else {
-		if !query.IncludeInactive {
-			where = append(where, "cf.active = TRUE")
-		}
+		// clone_fish has no active flag; deleted_at is its canonical soft-delete
+		// predicate. Keep the same predicate for both normal and admin views.
+		where[0] = "cf.deleted_at IS NULL"
 		if value := query.Filters["siteId"]; value != "" {
 			where = append(where, "cf.site_id = "+s.placeholder(len(args)+1))
 			args = append(args, value)
@@ -660,14 +659,14 @@ func (s *SQLRepository) QueryDue(ctx context.Context, query DueQuery) (overdue, 
 		query.Now = time.Now().UTC()
 	}
 	where := []string{
-		"l.active = " + s.placeholder(1), "l.deleted_at IS NULL",
-		"b.active = " + s.placeholder(2), "b.deleted_at IS NULL",
-		"e.active = " + s.placeholder(3), "e.deleted_at IS NULL", "e.exit_reason IS NULL",
+		"l.deleted_at IS NULL",
+		"b.deleted_at IS NULL",
+		"e.deleted_at IS NULL", "e.exit_reason IS NULL",
 		"sd.stage_order BETWEEN 1 AND 26", "st.deleted_at IS NULL", "p.deleted_at IS NULL",
 		"NOT EXISTS (SELECT 1 FROM embryo_observation o WHERE o.embryo_id = e.id AND o.stage_definition_id = sd.id AND o.deleted_at IS NULL)",
-		"EXISTS (SELECT 1 FROM embryo e2 WHERE e2.injection_lot_id = l.id AND e2.active = " + s.placeholder(4) + " AND e2.deleted_at IS NULL AND e2.exit_reason IS NULL)",
+		"EXISTS (SELECT 1 FROM embryo e2 WHERE e2.injection_lot_id = l.id AND e2.deleted_at IS NULL AND e2.exit_reason IS NULL)",
 	}
-	args := []any{true, true, true, true}
+	args := make([]any, 0, 2)
 	if query.SiteID != "" {
 		where = append(where, "b.site_id = "+s.placeholder(len(args)+1))
 		args = append(args, query.SiteID)
@@ -678,7 +677,7 @@ func (s *SQLRepository) QueryDue(ctx context.Context, query DueQuery) (overdue, 
 	}
 	sqlText := `SELECT l.id, b.batch_code, l.lot_no, l.activated_at, sd.code, sd.label, sd.stage_order,
        st.expected_hpa,
-	       (SELECT COUNT(*) FROM embryo e3 WHERE e3.injection_lot_id = l.id AND e3.active = TRUE AND e3.deleted_at IS NULL AND e3.exit_reason IS NULL) AS embryos_remaining
+	       (SELECT COUNT(*) FROM embryo e3 WHERE e3.injection_lot_id = l.id AND e3.deleted_at IS NULL AND e3.exit_reason IS NULL) AS embryos_remaining
 FROM injection_lot l
 JOIN experiment_batch b ON b.id = l.batch_id
 JOIN stage_timing_profile p ON p.id = b.timing_profile_id
@@ -1156,6 +1155,19 @@ func canonicalTable(resource string) string {
 		"injection-lots": "injection_lot", "embryos": "embryo", "fish": "clone_fish",
 		"specimens": "specimen", "control-arm-counts": "control_arm_count",
 	}[resource]
+}
+
+// tableHasActiveColumn mirrors the canonical schema. Most operational tables
+// use deleted_at as their lifecycle marker; only reference/master tables have
+// an independent active flag. Keeping this in one place prevents list and FK
+// validation queries from inventing a non-existent column on PostgreSQL/MySQL.
+func tableHasActiveColumn(table string) bool {
+	switch table {
+	case "site", "operator", "donor_cell_line", "recipient_egg_lot", "csof_lot", "treatment_group", "fish_box", "protocol":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *SQLRepository) verifyRecordVersion(ctx context.Context, tx *sql.Tx, table, id string, before map[string]any) error {
@@ -1639,7 +1651,7 @@ func (s *SQLRepository) referencesAvailableTx(ctx context.Context, tx *sql.Tx, i
 		}
 		query := "SELECT 1 FROM " + table + " WHERE id = " + s.placeholder(1) + " AND deleted_at IS NULL"
 		args := []any{id}
-		if table != "stage_timing_profile" {
+		if tableHasActiveColumn(table) {
 			query += " AND active = " + s.placeholder(2)
 			args = append(args, true)
 		}

@@ -27,7 +27,7 @@ DST = ROOT / "backend/db/migrations/mysql"
 TABLE_OPTS = " ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci"
 INDEX_TABLES = {
     "ix_stage_timing_profile_stage": "stage_timing",
-    "ix_embryo_lot_active_exit": "embryo",
+    "ix_embryo_lot_exit_path": "embryo",
     "ix_fish_observation_fish_date": "fish_observation",
     "ix_observation_embryo_stage": "embryo_observation",
     "ix_audit_occurred_id": "audit_log",
