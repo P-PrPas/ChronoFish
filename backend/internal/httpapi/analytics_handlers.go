@@ -304,6 +304,7 @@ func (s *apiServer) funnelLocked(embryos []map[string]any) []map[string]any {
 	return items
 }
 func (s *apiServer) survivalLocked(embryos []map[string]any) []map[string]any {
+	observationsByEmbryo := s.observationIndexLocked()
 	groups := map[string][]map[string]any{}
 	for _, embryo := range embryos {
 		lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
@@ -316,7 +317,7 @@ func (s *apiServer) survivalLocked(embryos []map[string]any) []map[string]any {
 	items := make([]map[string]any, 0, len(groups)*26)
 	for key, group := range groups {
 		parts := strings.SplitN(key, "\x00", 2)
-		for _, point := range s.stageSurvivalLocked(group) {
+		for _, point := range s.stageSurvivalWithIndexLocked(group, observationsByEmbryo) {
 			point["siteId"], point["strain"] = parts[0], parts[1]
 			items = append(items, point)
 		}
@@ -334,8 +335,11 @@ func (s *apiServer) survivalLocked(embryos []map[string]any) []map[string]any {
 }
 
 func (s *apiServer) stageSurvivalLocked(embryos []map[string]any) []map[string]any {
-	items := make([]map[string]any, 0, 26)
-	observationsByEmbryo := make(map[string][]map[string]any, len(embryos))
+	return s.stageSurvivalWithIndexLocked(embryos, s.observationIndexLocked())
+}
+
+func (s *apiServer) observationIndexLocked() map[string][]map[string]any {
+	observationsByEmbryo := make(map[string][]map[string]any, len(s.observations))
 	for _, observation := range s.observations {
 		if observation["deletedAt"] == nil {
 			embryoID := stringValue(observation["embryoId"])
@@ -344,12 +348,22 @@ func (s *apiServer) stageSurvivalLocked(embryos []map[string]any) []map[string]a
 			}
 		}
 	}
+	return observationsByEmbryo
+}
+
+func (s *apiServer) stageSurvivalWithIndexLocked(embryos []map[string]any, observationsByEmbryo map[string][]map[string]any) []map[string]any {
+	items := make([]map[string]any, 0, 26)
+	expectedByLot := make(map[string]map[string]float64)
 	previousAlive := 0
 	surv := 1.0
 	for stage := 1; stage <= 26; stage++ {
 		risk, alive := 0, 0
 		for _, embryo := range embryos {
-			if !s.checkpointDueLocked(embryo, stage) {
+			lotID := stringValue(embryo["injectionLotId"])
+			if expectedByLot[lotID] == nil {
+				expectedByLot[lotID] = s.expectedHPAIndexForLotLocked(s.entities["injection-lots"][lotID])
+			}
+			if !s.checkpointDueWithExpectedLocked(embryo, stage, expectedByLot[lotID]) {
 				continue
 			}
 			risk++
@@ -388,6 +402,19 @@ func (s *apiServer) checkpointDueLocked(embryo map[string]any, stage int) bool {
 		return false
 	}
 	return !time.Now().UTC().Before(activated.Add(time.Duration(s.expectedHPAForEmbryoLocked(map[string]any{"embryoId": embryo["id"], "stageCode": stageCode(stage)}) * float64(time.Hour))))
+}
+
+func (s *apiServer) checkpointDueWithExpectedLocked(embryo map[string]any, stage int, expected map[string]float64) bool {
+	lot := s.entities["injection-lots"][stringValue(embryo["injectionLotId"])]
+	activated, err := time.Parse(time.RFC3339, stringValue(lot["activatedAt"]))
+	if err != nil {
+		return false
+	}
+	hpa, ok := expected[stageCode(stage)]
+	if !ok {
+		hpa = expectedHPA(stageCode(stage))
+	}
+	return !time.Now().UTC().Before(activated.Add(time.Duration(hpa * float64(time.Hour))))
 }
 
 func (s *apiServer) checkpointStatusLocked(embryo map[string]any, stage int) string {

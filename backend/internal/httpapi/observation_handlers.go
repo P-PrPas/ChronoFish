@@ -24,6 +24,7 @@ func (s *apiServer) dueCheckpoints(w http.ResponseWriter, r *http.Request) bool 
 	observedStages := make(map[string]map[string]struct{})
 	activeEmbryosByLot := make(map[string]int)
 	activeEmbryoRowsByLot := make(map[string]int)
+	expectedByLot := make(map[string]map[string]float64)
 	for _, embryo := range s.entities["embryos"] {
 		if embryo["active"] == false || embryo["deletedAt"] != nil {
 			continue
@@ -68,7 +69,14 @@ func (s *apiServer) dueCheckpoints(w http.ResponseWriter, r *http.Request) bool 
 		}
 		for stage := 1; stage <= 26; stage++ {
 			code := stageCode(stage)
-			due := activated.Add(time.Duration(s.expectedHPAForLotLocked(lot, code) * float64(time.Hour)))
+			if expectedByLot[lotID] == nil {
+				expectedByLot[lotID] = s.expectedHPAIndexForLotLocked(lot)
+			}
+			hpa := expectedByLot[lotID][code]
+			if hpa == 0 {
+				hpa = expectedHPA(code)
+			}
+			due := activated.Add(time.Duration(hpa * float64(time.Hour)))
 			_, observed := observedStages[stringValue(lot["id"])][code]
 			if !observed {
 				minutes := int(now.Sub(due).Minutes())
@@ -494,6 +502,26 @@ func (s *apiServer) expectedHPAForLotLocked(lot map[string]any, stageCode string
 		}
 	}
 	return expectedHPA(stageCode)
+}
+
+func (s *apiServer) expectedHPAIndexForLotLocked(lot map[string]any) map[string]float64 {
+	result := make(map[string]float64)
+	if lot == nil {
+		return result
+	}
+	batch := s.entities["batches"][stringValue(lot["batchId"])]
+	profile := s.entities["timing-profiles"][stringValue(batch["timingProfileId"])]
+	if entries, ok := profile["entries"].([]any); ok {
+		for _, value := range entries {
+			entry, ok := value.(map[string]any)
+			if ok {
+				if code := stringValue(entry["stageCode"]); code != "" {
+					result[code] = numberValue(entry["expectedHpa"])
+				}
+			}
+		}
+	}
+	return result
 }
 
 // intervalMetricsLocked returns the difference from the nearest earlier
