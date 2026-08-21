@@ -534,13 +534,13 @@ func (s *sqlStateStore) RefreshReadModelForRequest(ctx context.Context, server *
 	case "timing-profiles":
 		add("protocols", "timing-profiles")
 	case "batches":
-		add("batches", "injection-lots", "embryos", "donor-cell-lines", "operators", "sites", "protocols", "timing-profiles", "treatment-groups")
+		add("batches", "injection-lots", "embryos", "donor-cell-lines", "operators", "sites", "protocols", "timing-profiles", "treatment-groups", "control-arm-counts")
 	case "injection-lots":
 		add("injection-lots", "batches", "embryos", "donor-cell-lines", "timing-profiles", "protocols", "observations")
 	case "embryos":
 		add("embryos", "injection-lots", "batches", "timing-profiles", "protocols", "operators", "donor-cell-lines", "observations")
 	case "fish":
-		add("fish", "embryos", "injection-lots", "batches", "donor-cell-lines", "fish-boxes", "sites", "fish-observations")
+		add("fish", "embryos", "injection-lots", "batches", "donor-cell-lines", "fish-boxes", "sites", "fish-observations", "specimens")
 	case "promotions":
 		add("embryos", "injection-lots", "batches", "protocols", "timing-profiles", "donor-cell-lines", "fish", "observations")
 	case "observations":
