@@ -70,14 +70,9 @@ func (s *SQLRepository) LoadResources(ctx context.Context, state *State, resourc
 		for _, profile := range state.Entities["timing-profiles"] {
 			profile["entries"] = []any{}
 		}
-		stageCodes, err := s.loadStageCodes(ctx)
-		if err != nil {
-			return fmt.Errorf("load stage definitions: %w", err)
-		}
 		if err := s.loadTimingEntries(ctx, state); err != nil {
 			return fmt.Errorf("load timing entries: %w", err)
 		}
-		_ = stageCodes // stage codes are joined by loadTimingEntries.
 	}
 	if containsString(resources, "observations") {
 		if state.Observations == nil {
