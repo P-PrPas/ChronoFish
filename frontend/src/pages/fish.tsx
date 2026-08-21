@@ -85,7 +85,7 @@ export function Fish({ t, onPendingChange }: { t: AppText; onPendingChange: (cou
 
   if (selected) return <FishDetail fishId={selected} masters={masters} onBack={() => setSelected('')} />
   return <section>
-    <div className="page-heading"><div><p className="eyebrow">STAGE 2 / REGISTRY</p><h1>{t.fish}</h1><p className="muted">Bangkok date: {date}. One request per injection lot for All Alive.</p></div><div className="button-row">{mode === 'rollcall' && <button className="button button--secondary" onClick={() => void markAlive()}>{t.allAlive}</button>}<button className="button button--primary" onClick={() => setShowCreate(true)}>Register fish</button></div></div>
+    <div className="page-heading"><div><p className="eyebrow">STAGE 2 / REGISTRY</p><h1>{t.fish}</h1><p className="muted">Bangkok date: {date}. All Alive sends one batch request for this roll-call.</p></div><div className="button-row">{mode === 'rollcall' && <button className="button button--secondary" onClick={() => void markAlive()}>{t.allAlive}</button>}<button className="button button--primary" onClick={() => setShowCreate(true)}>Register fish</button></div></div>
     <div className="tabs" role="tablist"><button role="tab" aria-selected={mode === 'rollcall'} className={mode === 'rollcall' ? 'tab tab--active' : 'tab'} onClick={() => setMode('rollcall')}>Daily roll-call</button><button role="tab" aria-selected={mode === 'registry'} className={mode === 'registry' ? 'tab tab--active' : 'tab'} onClick={() => setMode('registry')}>Fish registry</button></div>
     {showCreate && <ManualFishForm masters={masters} onSaved={() => { setShowCreate(false); loadRegistry() }} onCancel={() => setShowCreate(false)} />}
     {error && <ErrorMessage message={error} />}
