@@ -223,7 +223,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [x] วาง app shell/navigation สำหรับหน้าจอจริง โดยไม่สร้าง placeholder ครบทุกหน้า
 - [x] เพิ่มกลไกข้อความไทย/อังกฤษแบบ object ธรรมดาก่อน; เพิ่ม library เมื่อ plural/date complexity พิสูจน์ว่าจำเป็น
 - [x] ทำ SCR-16 สำหรับ master data ทั้งเจ็ดประเภท โดย reuse form/table pattern ที่เกิดขึ้นจริง
-- [ ] รองรับ loading, empty, field error, conflict, retry และ deactivate confirmation/undo ตาม UI-08
+- [x] รองรับ loading, empty, field error, conflict, retry และ deactivate confirmation/undo ตาม UI-08
 
 #### Tests และ Exit criteria
 
@@ -231,7 +231,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [x] handler tests ตรวจ header บังคับ, error envelope และ status code
 - [x] repository integration tests ของ workflow/idempotency/restart/audit บน PostgreSQL และ MySQL
 - [x] frontend tests ของ operator/device persistence และ master form validation
-- [ ] keyboard/touch targets ≥ 44×44, contrast ≥ 4.5:1 และไม่ใช้สีอย่างเดียว
+- [x] keyboard/touch targets ≥ 44×44, contrast ≥ 4.5:1 และไม่ใช้สีอย่างเดียว
 - [ ] Python API start ได้กับ DB ทั้งสองชนิด และ master data CRUD ผ่าน UI จริง
 - [ ] `docker compose up --build` เปิด API + PostgreSQL แล้ว health check ผ่านจาก clean checkout
 - [x] MySQL migration/integration suite ผ่านด้วย golden expectations เดียวกับ PostgreSQL
