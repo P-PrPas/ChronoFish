@@ -49,10 +49,9 @@ def test_master_create_normalizes_rejects_duplicate_and_replays(client, write_he
     first = client.post("/api/v1/sites", headers=write_headers, json={"code": " Lab-A ", "name": " Main site "})
     assert first.status_code == 201
     assert first.json()["code"] == "Lab-A"
-    assert (
-        client.post("/api/v1/sites", headers=write_headers, json={"code": " Lab-A ", "name": " Main site "}).content
-        == first.content
-    )
+    duplicate = client.post("/api/v1/sites", headers=write_headers, json={"code": " Lab-A ", "name": " Main site "})
+    assert duplicate.status_code == 200
+    assert duplicate.content == first.content
     conflict_headers = {**write_headers, "X-Idempotency-Key": "01900000-0000-7000-8000-000000000100"}
     conflict = client.post("/api/v1/sites", headers=conflict_headers, json={"code": "lab-a", "name": "Other"})
     assert conflict.status_code == 409

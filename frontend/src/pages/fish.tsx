@@ -11,7 +11,7 @@ const outcomes: FishOutcome[] = ['ALIVE', 'DEAD', 'FROZEN', 'DISCARDED']
 const outcomeLabel = (outcome: FishOutcome) => outcome.charAt(0) + outcome.slice(1).toLowerCase()
 const bangkokDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date())
 
-export function Fish({ t, onPendingChange }: { t: AppText; onPendingChange: (count: number) => void }) {
+export function Fish({ t }: { t: AppText }) {
   const [mode, setMode] = useState<'rollcall' | 'registry'>('rollcall')
   const [date, setDate] = useState(bangkokDate())
   const [items, setItems] = useState<ApiItem[]>([])
@@ -27,9 +27,8 @@ export function Fish({ t, onPendingChange }: { t: AppText; onPendingChange: (cou
   const loadRollCall = useCallback(() => {
     void get(`/fish/roll-call?date=${date}`).then((data) => {
       setItems(data.items ?? [])
-      onPendingChange(0)
     }).catch((e: Error) => setError(e.message))
-  }, [date, onPendingChange])
+  }, [date])
   const loadRegistry = useCallback(() => {
     void get('/fish?includeInactive=true').then((data) => setRegistry(data.items ?? [])).catch((e: Error) => setError(e.message))
   }, [])

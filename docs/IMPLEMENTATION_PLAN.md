@@ -342,28 +342,28 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 #### Contract/Backend
 
-- [ ] ใช้ scope “ทุกการบันทึก” ตาม SRS และเติม stable idempotency field/header ใน OpenAPI ให้ทุก mutation ก่อนนำเข้า queue
-- [ ] ให้ idempotency check และ mutation อยู่ transaction เดียวกัน
-- [ ] duplicate request ต้องคืน HTTP 200 พร้อม record เดิม ไม่ตอบ conflict
-- [ ] แยก retriable errors (network/5xx/429) จาก rejected business errors (4xx) ให้ frontend จัดการได้
+- [x] ใช้ scope “ทุกการบันทึก” ตาม SRS และเติม stable idempotency field/header ใน OpenAPI ให้ทุก mutation ก่อนนำเข้า queue
+- [x] ให้ idempotency check และ mutation อยู่ transaction เดียวกัน
+- [x] duplicate request ต้องคืน HTTP 200 พร้อม record เดิม ไม่ตอบ conflict
+- [x] แยก retriable errors (network/5xx/429) จาก rejected business errors (4xx) ให้ frontend จัดการได้
 
 #### Frontend
 
-- [ ] สร้าง write queue บน native IndexedDB; เก็บ payload, headers ที่จำเป็น, attempt count, next attempt และสถานะ
-- [ ] optimistic update ก่อน network response และ reconcile ด้วย server result
-- [ ] retry แบบ exponential backoff พร้อม jitter และหยุด retry อัตโนมัติเมื่อเป็น business rejection
-- [ ] เก็บ queue ข้าม reload/tab close/device sleep และ drain เมื่อ online หรือเมื่อเปิดแอปครั้งถัดไป
-- [ ] แสดง `บันทึกแล้ว` / `กำลังส่ง…` / `ค้าง N รายการ` ในตำแหน่งคงที่
-- [ ] เตือนก่อนปิด tab เมื่อมี pending rows
-- [ ] ป้องกันการกดซ้ำสร้าง UUID ใหม่ให้ logical write เดิม
-- [ ] เพิ่ม Service Worker/app manifest เพื่อ cache app shell และติดตั้งบน iPad หากผ่านการทดสอบ Safari
+- [x] สร้าง write queue บน native IndexedDB; เก็บ payload, headers ที่จำเป็น, attempt count, next attempt และสถานะ
+- [x] optimistic update ก่อน network response และ reconcile ด้วย server result
+- [x] retry แบบ exponential backoff พร้อม jitter และหยุด retry อัตโนมัติเมื่อเป็น business rejection
+- [x] เก็บ queue ข้าม reload/tab close/device sleep และ drain เมื่อ online หรือเมื่อเปิดแอปครั้งถัดไป
+- [x] แสดง `บันทึกแล้ว` / `กำลังส่ง…` / `ค้าง N รายการ` ในตำแหน่งคงที่
+- [x] เตือนก่อนปิด tab เมื่อมี pending rows
+- [x] ป้องกันการกดซ้ำสร้าง UUID ใหม่ให้ logical write เดิม
+- [x] เพิ่ม Service Worker/app manifest เพื่อ cache app shell และติดตั้งบน iPad หากผ่านการทดสอบ Safari
 
 #### Tests และ Exit criteria
 
-- [ ] browser test: offline save → refresh → online → row ถูกส่งหนึ่งครั้ง
-- [ ] browser test: timeout หลัง server commit → retry → ไม่มี duplicate
-- [ ] browser test: rejected item ไม่ block รายการถัดไปและผู้ใช้เห็นวิธีแก้
-- [ ] ทดสอบ IndexedDB quota/error และห้ามแสดง “บันทึกแล้ว” เมื่อยังเขียน queue ไม่สำเร็จ
+- [x] browser test: offline save → refresh → online → row ถูกส่งหนึ่งครั้ง
+- [x] browser test: timeout หลัง server commit → retry → ไม่มี duplicate
+- [x] browser test: rejected item ไม่ block รายการถัดไปและผู้ใช้เห็นวิธีแก้
+- [x] ทดสอบ IndexedDB quota/error และห้ามแสดง “บันทึกแล้ว” เมื่อยังเขียน queue ไม่สำเร็จ
 - [ ] UAT T-06, T-07 และ AC-1002/AC-1003 ผ่านบน Safari iPad จริง
 
 ### Phase 6 — Promotion, Fish Registry, Daily Roll-call และ Specimen

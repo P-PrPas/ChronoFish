@@ -67,6 +67,20 @@ def main() -> int:
         errors.append("api/openapi.yaml must remain OpenAPI 3.1.0")
 
     operation_ids: set[str] = set()
+    mutation_methods = {"post", "put", "patch", "delete"}
+    required_write_headers = {
+        "#/components/parameters/OperatorId",
+        "#/components/parameters/DeviceId",
+        "#/components/parameters/IdempotencyKey",
+    }
+    for path, path_item in document.get("paths", {}).items():
+        for method, operation in path_item.items():
+            if method not in mutation_methods or not isinstance(operation, dict):
+                continue
+            references = {parameter.get("$ref") for parameter in operation.get("parameters", []) if isinstance(parameter, dict)}
+            for required_header in required_write_headers - references:
+                errors.append(f"{method.upper()} {path} is missing {required_header}")
+
     for node in walk(document):
         reference = node.get("$ref")
         if isinstance(reference, str) and reference.startswith("#/"):

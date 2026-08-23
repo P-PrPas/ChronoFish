@@ -49,7 +49,9 @@ def test_sql_store_persists_workflow_idempotency_and_audit_across_instances():
     site_body = {"code": f"SQL-{suffix}", "name": f"SQL site {suffix}"}
     site_response = first.post("/api/v1/sites", headers=site_headers, json=site_body)
     assert site_response.status_code == 201, site_response.text
-    assert first.post("/api/v1/sites", headers=site_headers, json=site_body).content == site_response.content
+    duplicate_site = first.post("/api/v1/sites", headers=site_headers, json=site_body)
+    assert duplicate_site.status_code == 200
+    assert duplicate_site.content == site_response.content
     site = site_response.json()
     donor = first.post(
         "/api/v1/donor-cell-lines",

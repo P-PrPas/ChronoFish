@@ -25,6 +25,7 @@ function App() {
   const [online, setOnline] = useState(navigator.onLine);
   const [pending, setPending] = useState(0);
   const [rejected, setRejected] = useState(0);
+  const [syncing, setSyncing] = useState(false);
   const [operators, setOperators] = useState<ApiItem[]>([]);
   const currentOperator = operatorId();
   const t = text[language];
@@ -54,6 +55,12 @@ function App() {
       void drainQueue().then(refreshQueue);
     };
     const off = () => setOnline(false);
+    const queueChanged = () => refreshQueue();
+    const syncStarted = () => setSyncing(true);
+    const syncIdle = () => {
+      setSyncing(false);
+      refreshQueue();
+    };
     const beforeClose = (event: BeforeUnloadEvent) => {
       if (pending > 0) {
         event.preventDefault();
@@ -62,6 +69,11 @@ function App() {
     };
     window.addEventListener("online", on);
     window.addEventListener("offline", off);
+    window.addEventListener("chronofish:queue-enqueued", queueChanged);
+    window.addEventListener("chronofish:queue-drained", queueChanged);
+    window.addEventListener("chronofish:queue-rejected", queueChanged);
+    window.addEventListener("chronofish:queue-syncing", syncStarted);
+    window.addEventListener("chronofish:queue-sync-idle", syncIdle);
     window.addEventListener("beforeunload", beforeClose);
     void drainQueue().then(refreshQueue);
     const stopQueueSync = startQueueSync(refreshQueue);
@@ -69,6 +81,11 @@ function App() {
       stopQueueSync();
       window.removeEventListener("online", on);
       window.removeEventListener("offline", off);
+      window.removeEventListener("chronofish:queue-enqueued", queueChanged);
+      window.removeEventListener("chronofish:queue-drained", queueChanged);
+      window.removeEventListener("chronofish:queue-rejected", queueChanged);
+      window.removeEventListener("chronofish:queue-syncing", syncStarted);
+      window.removeEventListener("chronofish:queue-sync-idle", syncIdle);
       window.removeEventListener("beforeunload", beforeClose);
     };
   }, [pending]);
@@ -116,7 +133,7 @@ function App() {
             {online ? t.online : t.offline}
           </span>
           <span className="queue" aria-live="polite">
-            {pending ? `${t.pending} ${pending}` : "✓"}
+            {syncing ? t.syncing : pending ? `${t.pending} ${pending}` : t.saved}
           </span>
           {rejected > 0 && (
             <button
@@ -170,9 +187,9 @@ function App() {
         </nav>
         <main className="content">
           {page === "dashboard" && <Dashboard onNavigate={navigate} t={t} />}
-          {page === "due" && <Due t={t} onPendingChange={setPending} />}
+          {page === "due" && <Due t={t} />}
           {page === "batches" && <Batches t={t} />}
-          {page === "fish" && <Fish t={t} onPendingChange={setPending} />}
+          {page === "fish" && <Fish t={t} />}
           {page === "master" && <Master t={t} />}
           {page === "timing" && <Timing t={t} />}
           {page === "promotions" && <Promotions t={t} />}

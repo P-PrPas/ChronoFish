@@ -42,7 +42,7 @@ export function checkpointTiming(activatedAt: string, observedAt: string, expect
   return { actual, expected: expectedHpa, deviation, observedMinutes, liveMinutes, label }
 }
 
-export function Due({ t, onPendingChange }: { t: AppText; onPendingChange: (count: number) => void }) {
+export function Due({ t }: { t: AppText }) {
   const [data, setData] = useState<ApiItem>({ overdue: [], upcoming: [] })
   const [selected, setSelected] = useState<ApiItem | null>(null)
   const [siteId, setSiteId] = useState('')
@@ -55,9 +55,8 @@ export function Due({ t, onPendingChange }: { t: AppText; onPendingChange: (coun
     if (selectedOperatorId) query.set('operatorId', selectedOperatorId)
     void get(`/due-checkpoints${query.size ? `?${query}` : ''}`).then((value) => {
       setData(value)
-      onPendingChange(value.pendingPromotionCount ?? 0)
     }).catch((e: Error) => setError(e.message))
-  }, [onPendingChange, selectedOperatorId, siteId])
+  }, [selectedOperatorId, siteId])
   useEffect(() => { load(); const timer = window.setInterval(load, 60_000); return () => window.clearInterval(timer) }, [load])
   useEffect(() => {
     void Promise.all(['sites', 'operators'].map((resource) =>
