@@ -211,3 +211,82 @@ def test_concurrent_batch_codes_and_live_wells_remain_unique():
     embryos = client.get(f"/api/v1/injection-lots/{lot['id']}/embryos").json()["items"]
     assert sum(item.get("wellPosition") == "A1" for item in embryos) == 1
     store.close()
+
+
+def test_concurrent_observation_save_correction_and_soft_delete_are_consistent():
+    suffix = uuid7().split("-")[0]
+    store = SQLStore(_config())
+    client = TestClient(create_app(_config(), store))
+    site = client.post(
+        "/api/v1/sites", headers=_headers(), json={"code": f"O-{suffix}", "name": f"Observation site {suffix}"}
+    ).json()
+    donor = client.post(
+        "/api/v1/donor-cell-lines",
+        headers=_headers(),
+        json={"strain": f"observation-{suffix}", "preparation": "CHUNKS"},
+    ).json()
+    treatment = client.post(
+        "/api/v1/treatment-groups",
+        headers=_headers(),
+        json={"code": f"O-{suffix}", "name": "Observation test", "armType": "SCNT"},
+    ).json()
+    batch = client.post(
+        "/api/v1/batches",
+        headers=_headers(),
+        json={
+            "batchCode": f"OBS-{suffix}",
+            "experimentDate": datetime.now(UTC).date().isoformat(),
+            "siteId": site["id"],
+            "operatorId": DEMO_OPERATOR_ID,
+            "protocolId": PROTOCOL_ID,
+            "treatmentGroupId": treatment["id"],
+        },
+    ).json()
+    activated = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
+    embryo = client.post(
+        f"/api/v1/batches/{batch['id']}/injection-lots",
+        headers=_headers(),
+        json={"lotNo": "1", "donorCellLineId": donor["id"], "activatedAt": activated, "nActivated": 1},
+    ).json()["embryos"][0]
+
+    def observe(_index: int):
+        return client.post(
+            "/api/v1/observations/embryo",
+            headers=_headers(),
+            json={
+                "observations": [
+                    {
+                        "clientUuid": uuid7(),
+                        "embryoId": embryo["id"],
+                        "stageCode": "stage_02_2C",
+                        "observedAt": datetime.now(UTC).isoformat(),
+                        "outcome": "ALIVE",
+                        "condition": "NORMAL",
+                    }
+                ]
+            },
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(observe, range(2)))
+
+    assert [response.status_code for response in responses] == [200, 200]
+    results = [response.json()["results"][0] for response in responses]
+    assert sorted(item["status"] for item in results) == ["created", "duplicate"]
+    assert len({item["id"] for item in results}) == 1
+    observation_id = results[0]["id"]
+    corrected = client.patch(
+        f"/api/v1/observations/embryo/{observation_id}",
+        headers=_headers(),
+        json={"condition": "ABNORMAL", "correctionReason": "microscope review"},
+    )
+    assert corrected.status_code == 200, corrected.text
+    assert (
+        client.delete(
+            f"/api/v1/observations/embryo/{observation_id}?reason=duplicate-lab-entry", headers=_headers()
+        ).status_code
+        == 204
+    )
+    audits = client.get(f"/api/v1/audit-log?table=embryo_observation&recordId={observation_id}").json()["items"]
+    assert {item["action"] for item in audits} == {"INSERT", "UPDATE", "DELETE"}
+    store.close()

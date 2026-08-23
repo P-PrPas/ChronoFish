@@ -629,8 +629,8 @@ export interface paths {
          *
          *     Recording `DEAD` or `DEGENERATED` also writes the embryo's exit event.
          *     Marking an embryo `ALIVE` after it already has one violates monotonic
-         *     survival (BR-07) and is rejected with `409` unless `overrideReason` is
-         *     supplied.
+         *     survival (BR-07) and is reported as a rejected item unless
+         *     `overrideReason` is supplied. Request-level conflicts still use `409`.
          *
          *     Partial success is normal: each item reports its own status, so one bad
          *     row never discards the rest of the checkpoint.
@@ -662,8 +662,9 @@ export interface paths {
          * Correct a mis-entered embryo observation
          * @description Corrections are recorded, not hidden (FR-1101, FR-1102). Editing the
          *     outcome recalculates the embryo's exit event; editing the condition can
-         *     clear or move `firstAbnormal` (BR-12). `hpaExpectedSnapshot` is only
-         *     recomputed if `observedAt` changes.
+         *     clear or move `firstAbnormal` (BR-12). `hpaExpectedSnapshot` remains
+         *     frozen; editing `observedAt` recalculates `hpaActual` and `deviationH`
+         *     against that original snapshot (BR-03).
          */
         patch: operations["updateEmbryoObservation"];
         trace?: never;
@@ -1559,7 +1560,8 @@ export interface components {
             expectedHpa: number;
             /** Format: date-time */
             dueAt?: string;
-            totalEmbryos?: number;
+            totalEmbryos: number;
+            embryosRemaining: number;
             embryos: {
                 /** Format: uuid */
                 embryoId: string;
@@ -1567,6 +1569,8 @@ export interface components {
                 wellPosition?: string | null;
                 /** @description Carried forward from the previous observation (FR-409). */
                 defaultCondition: components["schemas"]["Condition"];
+                priorOutcome?: components["schemas"]["EmbryoOutcome"] | null;
+                priorStageCode?: string | null;
                 firstAbnormalStageLabel?: string | null;
             }[];
         };
@@ -1603,11 +1607,22 @@ export interface components {
             hpaExpected?: number | null;
             /** @example 0.1333 */
             deviationH?: number | null;
+            /** @example 5.33 */
+            deviationPct?: number | null;
+            intervalActual?: number | null;
+            intervalExpected?: number | null;
+            intervalDeviationH?: number | null;
             /**
              * @description Preformatted for display per BR-23, so both platforms word it identically.
              * @example ช้ากว่าสากล 8 นาที
              */
             deviationLabel?: string | null;
+            /**
+             * @description English BR-23 display label.
+             * @example 8 minutes slower than reference
+             */
+            deviationLabelEn?: string | null;
+            isBackdated?: boolean | null;
             exitRecorded?: boolean | null;
             error?: {
                 [key: string]: unknown;

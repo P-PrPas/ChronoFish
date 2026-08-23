@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
+import pytest
+
 from chronofish.domain.rules import deviation_label, promotion_eligible_at, stage_code, stage_number
 from chronofish.runtime.values import uuid7
 
@@ -27,6 +29,20 @@ def test_domain_rules():
     activated = datetime(2026, 1, 1, tzinfo=UTC)
     assert not promotion_eligible_at(False, True, activated, activated + timedelta(days=5), 5)
     assert promotion_eligible_at(False, True, activated, activated + timedelta(days=5, seconds=1), 5)
+
+
+@pytest.mark.parametrize(
+    ("deviation", "language", "expected"),
+    [
+        (0.0, "th", "ตรงกับสากล"),
+        (1 / 60, "th", "ช้ากว่าสากล 1 นาที"),
+        (0.5, "en", "30 minutes slower than reference"),
+        (1.5, "en", "1 hr 30 min slower than reference"),
+        (-0.25, "en", "15 minutes faster than reference"),
+    ],
+)
+def test_deviation_labels_follow_br23_in_both_languages(deviation, language, expected):
+    assert deviation_label(deviation, language) == expected
 
 
 def test_master_create_normalizes_rejects_duplicate_and_replays(client, write_headers):

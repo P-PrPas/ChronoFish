@@ -157,7 +157,10 @@ def _validate_observation(state: State, item: dict[str, Any]) -> str | None:
     if item["outcome"] not in EMBRYO_OUTCOMES or not condition_valid(str(item["condition"])):
         return "outcome หรือ condition ไม่ถูกต้อง"
     if item["outcome"] == "ALIVE" and embryo.get("exitReason") and not item.get("overrideReason"):
-        return "ต้องระบุ overrideReason เมื่อต้องการบันทึก ALIVE หลังมี exit event"
+        exit_order = stage_number(str(embryo.get("exitStageCode") or ""))
+        exit_at = parse_datetime(str(embryo["exitAt"]))
+        if stage_number(str(item["stageCode"])) >= exit_order or observed >= exit_at:
+            return "ต้องระบุ overrideReason เมื่อต้องการบันทึก ALIVE หลังมี exit event"
     return None
 
 
@@ -185,11 +188,13 @@ def build_observations_router(store: Store) -> APIRouter:
     @router.get("/due-checkpoints")
     def due_checkpoints(siteId: str | None = None, operatorId: str | None = None) -> dict[str, Any]:
         state, now = store.snapshot(), utc_now()
-        observed = {
-            (item.get("injectionLotId"), item.get("stageCode"))
-            for item in state.observations.values()
-            if item.get("deletedAt") is None
-        }
+        observed_order: dict[str, int] = {}
+        for observation in state.observations.values():
+            if observation.get("deletedAt") is None:
+                embryo_id = str(observation.get("embryoId") or "")
+                observed_order[embryo_id] = max(
+                    observed_order.get(embryo_id, 0), stage_number(str(observation.get("stageCode") or ""))
+                )
         overdue, upcoming = [], []
         for lot in state.entities["injection-lots"].values():
             if lot.get("active") is False or lot.get("deletedAt") is not None or not lot.get("activatedAt"):
@@ -209,11 +214,16 @@ def build_observations_router(store: Store) -> APIRouter:
             if not embryos:
                 continue
             remaining = sum(not item.get("exitReason") for item in embryos)
+            if not remaining:
+                continue
+            completed_order = min(
+                26 if embryo.get("exitReason") else observed_order.get(str(embryo["id"]), 0) for embryo in embryos
+            )
             activated = parse_datetime(str(lot["activatedAt"]))
             first_upcoming = False
             for order in range(1, 27):
                 code = stage_code(order)
-                if (lot["id"], code) in observed:
+                if order <= completed_order:
                     continue
                 due_at = activated + timedelta(hours=_expected_hpa(state, lot, code))
                 minutes = int((now - due_at).total_seconds() / 60)
@@ -249,17 +259,37 @@ def build_observations_router(store: Store) -> APIRouter:
         if order not in range(1, 37):
             raise APIError(422, "validation_error", "stageCode ไม่ถูกต้อง")
         batch = state.entities["batches"].get(str(lot.get("batchId")), {})
+        all_embryos = [
+            embryo
+            for embryo in state.entities["embryos"].values()
+            if embryo.get("injectionLotId") == lot_id
+            and embryo.get("active") is not False
+            and embryo.get("deletedAt") is None
+        ]
         embryos = []
-        for embryo in state.entities["embryos"].values():
-            if embryo.get("injectionLotId") != lot_id or embryo.get("active") is False or embryo.get("exitReason"):
+        for embryo in all_embryos:
+            if embryo.get("exitReason"):
                 continue
-            latest = _latest_embryo_observation(state, str(embryo["id"]))
+            earlier = [
+                item
+                for item in state.observations.values()
+                if item.get("embryoId") == embryo["id"]
+                and item.get("deletedAt") is None
+                and 0 < stage_number(str(item.get("stageCode", ""))) < order
+            ]
+            prior = max(
+                earlier,
+                key=lambda item: (stage_number(str(item.get("stageCode", ""))), str(item.get("observedAt", ""))),
+                default=None,
+            )
             embryos.append(
                 {
                     "embryoId": embryo["id"],
                     "embryoCode": embryo["embryoCode"],
                     "wellPosition": embryo.get("wellPosition"),
-                    "defaultCondition": (latest or {}).get("condition", "NORMAL"),
+                    "defaultCondition": (prior or {}).get("condition", "NORMAL"),
+                    "priorOutcome": (prior or {}).get("outcome"),
+                    "priorStageCode": (prior or {}).get("stageCode"),
                     "firstAbnormalStageLabel": stage_label(stage_number(str(embryo.get("firstAbnormalStageCode", ""))))
                     if embryo.get("firstAbnormalStageCode")
                     else None,
@@ -275,7 +305,7 @@ def build_observations_router(store: Store) -> APIRouter:
             "activatedAt": lot["activatedAt"],
             "expectedHpa": expected,
             "dueAt": (activated + timedelta(hours=expected)).isoformat().replace("+00:00", "Z"),
-            "totalEmbryos": len(embryos),
+            "totalEmbryos": len(all_embryos),
             "embryosRemaining": len(embryos),
             "embryos": embryos,
         }
@@ -286,8 +316,8 @@ def build_observations_router(store: Store) -> APIRouter:
 
         def operation(state: State):
             raw = body.get("observations")
-            if not isinstance(raw, list):
-                raise APIError(422, "validation_error", "ต้องระบุ observations")
+            if not isinstance(raw, list) or len(raw) not in range(1, 201):
+                raise APIError(422, "validation_error", "observations ต้องมี 1 ถึง 200 รายการ")
             results = []
             touched = set()
             for item in raw:
@@ -310,6 +340,7 @@ def build_observations_router(store: Store) -> APIRouter:
                         None,
                     )
                 if existing:
+                    existing_deviation = float(existing["deviationH"])
                     results.append(
                         {
                             "clientUuid": client_id,
@@ -318,6 +349,13 @@ def build_observations_router(store: Store) -> APIRouter:
                             "hpaActual": existing["hpaActual"],
                             "hpaExpected": existing["hpaExpectedSnapshot"],
                             "deviationH": existing["deviationH"],
+                            "deviationLabel": deviation_label(existing_deviation),
+                            "deviationLabelEn": deviation_label(existing_deviation, "en"),
+                            "deviationPct": round4(existing_deviation / float(existing["hpaExpectedSnapshot"]) * 100)
+                            if existing["hpaExpectedSnapshot"]
+                            else None,
+                            "isBackdated": bool(existing.get("isBackdated")),
+                            "exitRecorded": existing.get("outcome") in {"DEAD", "DEGENERATED"},
                         }
                     )
                     continue
@@ -331,6 +369,7 @@ def build_observations_router(store: Store) -> APIRouter:
                 expected = round4(_expected_hpa(state, lot, str(item["stageCode"])))
                 deviation = round4(actual - expected)
                 observation_id, now = uuid7(), utc_now()
+                backdated = is_backdated(observed_at, now)
                 observation = {
                     **item,
                     "id": observation_id,
@@ -340,7 +379,7 @@ def build_observations_router(store: Store) -> APIRouter:
                     "deviationH": deviation,
                     "operatorId": request.headers.get("X-Operator-Id"),
                     "deviceId": request.headers.get("X-Device-Id"),
-                    "isBackdated": is_backdated(observed_at, now),
+                    "isBackdated": backdated,
                     "createdAt": now.isoformat().replace("+00:00", "Z"),
                 }
                 interval = _interval_metrics(
@@ -354,6 +393,10 @@ def build_observations_router(store: Store) -> APIRouter:
                     "hpaExpected": expected,
                     "deviationH": deviation,
                     "deviationLabel": deviation_label(deviation),
+                    "deviationLabelEn": deviation_label(deviation, "en"),
+                    "deviationPct": round4(deviation / expected * 100) if expected else None,
+                    "isBackdated": backdated,
+                    "exitRecorded": item["outcome"] in {"DEAD", "DEGENERATED"},
                 }
                 if interval:
                     (
@@ -380,7 +423,7 @@ def build_observations_router(store: Store) -> APIRouter:
 
         def operation(state: State):
             observation = state.observations.get(observation_id)
-            if not observation:
+            if not observation or observation.get("deletedAt") is not None:
                 raise APIError(404, "not_found", "ไม่พบ observation")
             old = copy.deepcopy(observation)
             if request.method == "DELETE":
@@ -393,14 +436,15 @@ def build_observations_router(store: Store) -> APIRouter:
                 correction = str(payload.get("correctionReason") or payload.get("overrideReason") or "").strip()
                 if not correction:
                     raise APIError(422, "validation_error", "ต้องระบุ correctionReason")
-                candidate = {**observation, **{key: value for key, value in payload.items() if key != "id"}}
+                allowed = {"observedAt", "outcome", "condition", "notes"}
+                candidate = {**observation, **{key: value for key, value in payload.items() if key in allowed}}
                 candidate["overrideReason"] = correction
                 if message := _validate_observation(state, candidate):
                     raise APIError(422, "validation_error", message)
                 lot = state.entities["injection-lots"][str(candidate["injectionLotId"])]
                 observed_at = parse_datetime(str(candidate["observedAt"]))
                 actual = round4((observed_at - parse_datetime(str(lot["activatedAt"]))).total_seconds() / 3600)
-                expected = round4(_expected_hpa(state, lot, str(candidate["stageCode"])))
+                expected = float(candidate["hpaExpectedSnapshot"])
                 candidate.update(
                     {
                         "hpaActual": actual,
