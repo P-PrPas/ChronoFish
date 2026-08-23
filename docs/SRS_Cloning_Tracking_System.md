@@ -262,7 +262,7 @@ graph LR
 
 | ID | ข้อกำหนด |
 |---|---|
-| SI-01 | Frontend สื่อสารกับ Backend ผ่าน **HTTP/JSON เท่านั้น** ตามสัญญาที่ระบุใน OpenAPI 3.1 |
+| SI-01 | Frontend สื่อสารกับ Backend ผ่าน **HTTP ตาม OpenAPI 3.1 เท่านั้น** โดย application payload ใช้ JSON และ file transfer ใช้ media type ที่ contract ระบุ |
 | SI-02 | ไม่มีการเรียกฟังก์ชันข้ามฝั่ง ไม่มี RPC เฉพาะภาษา ไม่มี server component |
 | SI-03 | Backend ต่อฐานข้อมูลผ่าน SQLAlchemy โดยระบุ driver และ connection URL ผ่าน environment variable |
 | SI-04 | ไม่มี integration กับระบบภายนอกใด ๆ ใน v1 |
@@ -274,7 +274,7 @@ graph LR
 |---|---|
 | CI-01 | ใช้ HTTPS เท่านั้น |
 | CI-02 | รองรับ CORS เพราะ frontend และ backend อาจอยู่คนละโดเมน — รายชื่อ origin ที่อนุญาตตั้งผ่าน environment variable |
-| CI-03 | Payload ทุกชนิดเป็น `application/json; charset=utf-8` ยกเว้นการดาวน์โหลดไฟล์ |
+| CI-03 | Application payload เป็น `application/json; charset=utf-8`; file upload/download ใช้ media type ที่ OpenAPI ระบุ (`text/csv; charset=utf-8` สำหรับ FR-206) |
 | CI-04 | เวลาใน payload ใช้รูปแบบ ISO 8601 พร้อม timezone offset เสมอ (เช่น `2026-08-20T13:24:00+07:00`) |
 | CI-05 | ทุก response ที่เป็น error ใช้โครงสร้างเดียวกันตาม 8.6 |
 

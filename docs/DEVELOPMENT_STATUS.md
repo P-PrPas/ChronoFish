@@ -1,7 +1,7 @@
 # ChronoFish Development Status
 
 > อัปเดตล่าสุด: 23 สิงหาคม 2026  
-> Branch: `feat/implement-chronofish-v1`  
+> Branch: `feat/phase-1-hardening`
 > Go baseline ก่อนย้ายภาษา: `6adc25e`
 
 ## สรุปสถานะ
@@ -19,21 +19,23 @@ Frontend ยังคงเป็น Vite + React + TypeScript แบบ static 
 - audit query แบบ indexed keyset pagination โดยไม่ materialize audit history ทั้งหมด
 - Excel 14 sheets แบบ flat table, R-ready CSV 30 columns และ binary idempotent replay
 - middleware สำหรับ CORS, IP allowlist, rate limit, body-size limit, generic error redaction, security headers และ metadata-only request logging
+- บังคับ content type ตาม OpenAPI (JSON และ CSV import) และแปลง FastAPI request-validation failure เป็น `ErrorResponse`/HTTP 400 ตาม SRS
+- native required-field validation สำหรับ master-data forms พร้อม tests ของ operator/device persistence
 - Dockerfile แบบ non-root, Compose สำหรับ PostgreSQL/MySQL, native virtual-environment workflow และ Python CI
 - route-contract test เทียบ OpenAPI ทั้ง 70 operations และ pytest behavior/integration suite
 
 ## ผลตรวจล่าสุด
 
 - `ruff format --check` และ `ruff check`: ผ่าน
-- pytest memory suite: 21 passed, 1 database-only test skipped
+- pytest memory suite: 28 passed, 1 database-only test skipped
 - domain coverage: 91.30% (เกณฑ์ 90%)
 - PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–8 และ workflow write/replay/duplicate-draft/restart/activate/audit
 - MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL
 - OpenAPI validation: 51 paths / 70 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
-- frontend: build ผ่าน และ 18 tests ผ่าน
+- frontend: build ผ่าน และ 21 tests ผ่าน
 - Compose configuration ทั้งสองไฟล์: ผ่าน
-- Docker image build: ยังไม่ได้รันในเครื่องนี้เพราะไม่มี Docker daemon; CI มี image-build gate
+- Docker image build: ผ่าน CI ของ PR #1; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
 
 ## Architecture ปัจจุบัน
 
@@ -47,7 +49,7 @@ Frontend ยังคงเป็น Vite + React + TypeScript แบบ static 
 
 - สังเกต workflow จริงในห้องแลปและทำ UAT T-01 ถึง T-23 บน iPad/Safari
 - ยืนยัน production hosting, TLS/VPN/IP allowlist, secret store และ deployment owner
-- รัน Docker image gate บนเครื่อง/CI ที่มี Docker daemon
+- รัน `docker compose up --build` และ health check จาก clean checkout บนเครื่องที่มี Docker daemon
 - backup/restore drill กับ production-like infrastructure
 - เทียบ Excel/R/PDF กับไฟล์อ้างอิงจริงของห้องแลป
 - performance sign-off ด้วยชุดข้อมูลเทียบเท่า 5 ปี; SQLStore ปัจจุบันโหลด operational snapshot สำหรับ analytics/export และมี `ponytail:` marker ให้เปลี่ยนเป็น bounded SQL projections เมื่อ dataset จริงพิสูจน์ว่าจำเป็น

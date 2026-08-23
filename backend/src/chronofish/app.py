@@ -6,6 +6,7 @@ import time
 from collections import defaultdict, deque
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -73,6 +74,10 @@ def create_app(config: Config | None = None, store: MemoryStore | None = None) -
             return error_response(APIError(400, "invalid_request", "Content-Length is invalid"))
         if content_length > MAX_REQUEST_BYTES:
             return error_response(APIError(413, "request_too_large", "request body is too large"))
+        media_type = request.headers.get("content-type", "").partition(";")[0].strip().lower()
+        expected_media_type = "text/csv" if request.url.path == "/api/v1/timing-profiles/csv" else "application/json"
+        if (request.method in {"POST", "PUT", "PATCH"} or content_length) and media_type != expected_media_type:
+            return error_response(APIError(400, "invalid_request", f"Content-Type must be {expected_media_type}"))
         try:
             response = await call_next(request)
         except APIError as error:
@@ -90,6 +95,8 @@ def create_app(config: Config | None = None, store: MemoryStore | None = None) -
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
+        if response.headers.get("content-type", "").partition(";")[0].lower() == "application/json":
+            response.headers["Content-Type"] = "application/json; charset=utf-8"
         return response
 
     @app.get("/api/v1/health")
@@ -108,5 +115,9 @@ def create_app(config: Config | None = None, store: MemoryStore | None = None) -
     @app.exception_handler(APIError)
     async def handle_api_error(_request: Request, error: APIError) -> JSONResponse:
         return error_response(error)
+
+    @app.exception_handler(RequestValidationError)
+    async def handle_validation_error(_request: Request, _error: RequestValidationError) -> JSONResponse:
+        return error_response(APIError(400, "invalid_request", "request is invalid"))
 
     return app

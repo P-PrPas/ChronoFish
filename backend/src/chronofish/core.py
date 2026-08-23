@@ -50,7 +50,7 @@ def error_response(error: APIError) -> JSONResponse:
     body: JSON = {"error": {"code": error.code, "message": error.message}}
     if error.details is not None:
         body["error"]["details"] = error.details
-    return JSONResponse(body, status_code=error.status)
+    return JSONResponse(body, status_code=error.status, media_type="application/json; charset=utf-8")
 
 
 def utc_now() -> datetime:

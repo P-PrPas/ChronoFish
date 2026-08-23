@@ -1097,7 +1097,7 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 
 ทีมผู้พัฒนาและผู้ดูแลปัจจุบันทำงานด้วย Python ได้เร็วกว่า จึงเลือก FastAPI เพื่อให้ business rules, validation และ integration tests อ่านและแก้ไขได้โดยไม่ต้องรักษา Go-specific infrastructure เดิม การแลกเปลี่ยนคือ deployment ไม่ใช่ standalone binary อีกต่อไป จึงใช้ version-pinned Docker image เป็น artifact หลักและมี native virtual-environment workflow เป็นทางสำรอง
 
-การเลือกนี้ไม่เปลี่ยน domain, OpenAPI หรือ schema: frontend ยังคุยผ่าน HTTP/JSON, PostgreSQL/MySQL ยังผ่าน test suite เดียวกัน, PDF ยังสร้างผ่าน browser print stylesheet และ backend ยังต้อง stateless
+การเลือกนี้ไม่เปลี่ยน domain, OpenAPI หรือ schema: frontend ยังคุยผ่าน HTTP ตาม OpenAPI (JSON สำหรับ application payload และ media type ที่ระบุสำหรับ file transfer), PostgreSQL/MySQL ยังผ่าน test suite เดียวกัน, PDF ยังสร้างผ่าน browser print stylesheet และ backend ยังต้อง stateless
 
 ### 11.4 ความทนต่อเครือข่าย (Tier 1) — ยืนยันตาม Q-N1
 
@@ -1125,7 +1125,7 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 | # | กฎ | ป้องกันอะไร |
 |---|---|---|
 | 1 | **Frontend build เป็น static เท่านั้น** — ห้ามใช้ SSR, server action, server-side middleware | ผูกกับแพลตฟอร์ม · ทำให้ frontend วางที่ไหนก็ได้แม้ shared hosting |
-| 2 | **คุยกันผ่าน HTTP/JSON ที่มี OpenAPI spec เท่านั้น** — ไม่มีการเรียกฟังก์ชันข้ามฝั่ง | ทำให้เปลี่ยนภาษา backend ได้โดย frontend ไม่ต้องแก้แม้บรรทัดเดียว |
+| 2 | **คุยกันผ่าน HTTP ที่มี OpenAPI spec เท่านั้น** — application payload ใช้ JSON, file transfer ใช้ media type ที่ contract ระบุ และไม่มีการเรียกฟังก์ชันข้ามฝั่ง | ทำให้เปลี่ยนภาษา backend ได้โดย frontend ไม่ต้องแก้แม้บรรทัดเดียว |
 | 3 | **ห้ามใช้ฟีเจอร์เฉพาะ DB** — ไม่มี materialized view, ไม่มี stored procedure, ไม่มี Postgres array/JSONB operator เฉพาะทาง | ทำให้ PostgreSQL 16 ↔ MySQL 8 ใช้ business behavior เดียวกันได้ |
 | 4 | **UUID เก็บเป็น `CHAR(36)` · เวลาเก็บเป็น UTC** | MySQL ไม่มี `uuid` type และ `TIMESTAMP` ของ MySQL ตันปี 2038 |
 | 5 | **Migration เป็นไฟล์ `.sql` ธรรมดา** ไม่ใช่ฟอร์แมตเฉพาะของ ORM | ย้าย ORM/ภาษาได้โดยไม่ต้องแปลง schema |
