@@ -9,7 +9,7 @@ Production API processes must use a real database:
 ```text
 APP_ENV=production
 DB_DRIVER=postgres
-DATABASE_URL=postgres://USER:PASSWORD@HOST:5432/chronofish?sslmode=require
+DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/chronofish?sslmode=require
 MIGRATIONS_DIR=/migrations/postgres
 CORS_ALLOWED_ORIGINS=https://chronofish.example
 IP_ALLOWLIST=10.0.0.0/8,192.168.1.0/24

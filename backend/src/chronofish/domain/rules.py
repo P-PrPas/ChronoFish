@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 from datetime import date, datetime, timedelta
+from decimal import ROUND_HALF_UP, Decimal
 
 STAGE_SUFFIXES = (
     "1C",
@@ -106,7 +107,7 @@ def default_expected_hpa(code: str) -> float:
 
 
 def round4(value: float) -> float:
-    return round(value + 0.0, 4)
+    return float(Decimal(str(value)).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP))
 
 
 def enu_window(activated: datetime, start: datetime | None, finish: datetime | None) -> str | None:

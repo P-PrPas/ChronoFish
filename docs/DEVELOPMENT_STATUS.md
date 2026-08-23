@@ -2,70 +2,73 @@
 
 > อัปเดตล่าสุด: 23 สิงหาคม 2026  
 > Branch: `feat/implement-chronofish-v1`  
-> จุดอ้างอิงก่อนย้าย backend: `6adc25e`
+> Go baseline ก่อนย้ายภาษา: `6adc25e`
 
-## สรุปสำหรับผู้รับช่วงงาน
+## สรุปสถานะ
 
-ChronoFish มี OpenAPI 3.1 จำนวน 69 operations, React frontend, schema/migrations สำหรับ PostgreSQL 16 และ MySQL 8 และ backend เดิมภาษา Go ที่ implement workflow หลักแล้ว งานปัจจุบันคือย้าย backend เป็น Python โดย **คง HTTP contract และ schema เดิม** เพื่อให้ทีมพัฒนาและดูแลต่อได้ง่ายขึ้น
+การย้าย backend จาก Go เป็น Python เสร็จแล้วใน source tree ปัจจุบัน โดยมี OpenAPI 3.1 จำนวน 70 operations ระบบใช้ Python 3.13+, FastAPI, SQLAlchemy synchronous, Uvicorn, PostgreSQL 16 เป็นฐานหลัก และ MySQL 8 เป็น compatibility target ส่วน Go runtime, Go tests และ Go CI ถูกถอดออกหลัง Python ผ่าน behavior, contract และ database integration gates
 
-ห้ามเปลี่ยน `api/openapi.yaml` หรือ database schema เพียงเพื่อให้ migration ง่ายขึ้น หาก behavior จำเป็นต้องเปลี่ยน ให้แก้ SRS/OpenAPI เป็น change request ก่อน
+Frontend ยังคงเป็น Vite + React + TypeScript แบบ static SPA และใช้ generated types จาก `api/openapi.yaml` ซึ่งเป็น HTTP contract แหล่งเดียวของระบบ
 
-## Architecture ที่ตัดสินใจแล้ว
+## สิ่งที่ implement แล้ว
 
-- Frontend: Vite + React + TypeScript แบบ static SPA
-- Backend ใหม่: Python 3.13+, FastAPI, SQLAlchemy synchronous และ Uvicorn
-- Database หลัก: PostgreSQL 16; ต้องผ่าน integration suite เดียวกันบน MySQL 8
-- API contract: `api/openapi.yaml` เป็นแหล่งความจริง
-- Migration: คงไฟล์ SQL ที่ `backend/db/migrations/{postgres,mysql}` และใช้ Python migration runner
-- Deployment: Docker image เป็น artifact หลัก; native run ใช้ virtual environment และ `python -m chronofish`
-- State: backend stateless; database เป็น source of truth; ห้ามพึ่ง local filesystem สำหรับข้อมูลถาวร
+- API ครบ 70 operations: master data, timing profile, batch/lot/embryo, copied-lot activation, observations, promotion/fish, analytics, audit และ export
+- business rules 36 stages, HPA/deviation, Bangkok calendar age, backdated override, embryo/fish lifecycle และ promotion threshold
+- durable writes บน PostgreSQL/MySQL: transaction, audit, soft delete, idempotent replay/conflict และ fish running number ภายใต้ database lock
+- Python migration runner สำหรับ SQL versions 1–8 พร้อม migration lock และ dirty-state protection
+- audit query แบบ indexed keyset pagination โดยไม่ materialize audit history ทั้งหมด
+- Excel 14 sheets แบบ flat table, R-ready CSV 30 columns และ binary idempotent replay
+- middleware สำหรับ CORS, IP allowlist, rate limit, body-size limit, generic error redaction, security headers และ metadata-only request logging
+- Dockerfile แบบ non-root, Compose สำหรับ PostgreSQL/MySQL, native virtual-environment workflow และ Python CI
+- route-contract test เทียบ OpenAPI ทั้ง 70 operations และ pytest behavior/integration suite
 
-## Baseline ก่อนย้ายภาษา
+## ผลตรวจล่าสุด
 
-- Go unit/integration tests ผ่านทั้งหมดที่ commit `6adc25e`
-- OpenAPI validator ผ่าน: 50 paths / 69 operations
-- Frontend มี workflow pages, offline queue, generated API types และ tests
-- Docker/Compose รองรับ PostgreSQL และ MySQL
-- CI ตรวจ migration upgrade, idempotency, restart durability และ constraint smoke tests บนทั้งสองฐานข้อมูล
+- `ruff format --check` และ `ruff check`: ผ่าน
+- pytest memory suite: 21 passed, 1 database-only test skipped
+- domain coverage: 91.30% (เกณฑ์ 90%)
+- PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–8 และ workflow write/replay/duplicate-draft/restart/activate/audit
+- MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL
+- OpenAPI validation: 51 paths / 70 operations ผ่าน
+- PostgreSQL → MySQL generated migration parity: ผ่าน
+- frontend: build ผ่าน และ 18 tests ผ่าน
+- Compose configuration ทั้งสองไฟล์: ผ่าน
+- Docker image build: ยังไม่ได้รันในเครื่องนี้เพราะไม่มี Docker daemon; CI มี image-build gate
 
-## ลำดับ migration
+## Architecture ปัจจุบัน
 
-1. ปรับเอกสาร, README, Docker และ CI ให้ระบุ Python stack
-2. สร้าง Python composition root, config, middleware, error contract และ health endpoint
-3. ย้าย store/migration/idempotency/audit โดย database เป็น canonical source
-4. ย้าย endpoints เป็น vertical slice: master data → timing → batch/lot/embryo → observations → promotion/fish → analytics/export
-5. ย้าย tests จาก Go เป็น pytest และรัน behavior เดียวกันบน memory, PostgreSQL และ MySQL ตามความเหมาะสม
-6. ลบ Go runtime หลัง Python ผ่าน contract, integration, frontend และ Docker gates ทั้งหมด
-7. ทำ final spec/code review แล้วจึงเปิด PR
+- Backend entrypoint: `python -m chronofish`
+- Migration command: `python -m chronofish migrate`
+- Production state: database เป็น source of truth; memory driver ใช้ได้เฉพาะ development/test
+- Deployment artifact หลัก: Python Docker image; native venv เป็นทางเลือก
+- Migration source: `backend/db/migrations/postgres`; MySQL copy generate ด้วย `scripts/gen_mysql_migrations.py`
 
-## Release blockers ที่ต้องตรวจซ้ำหลัง migration
+## งานที่ยังต้องอาศัยผู้ใช้หรือ infrastructure ภายนอก
 
-- transaction + audit + idempotency ต้อง atomic และปลอดภัยเมื่อมี API หลาย instance
-- fish running number ต้องจ่ายจากฐานข้อมูลใน transaction
-- read path ห้ามใช้ process cache เป็น source of truth ใน production
-- audit ต้อง query แบบ indexed/keyset pagination โดยไม่ตัดประวัติ
-- due/analytics/export ต้องไม่โหลด observations ทั้งระบบเข้า memory
-- business rules ต้องอยู่ใน service/domain ไม่กองใน HTTP handler และมี coverage อย่างน้อย 90%
-- optimistic offline writes, Bangkok time, soft delete และ immutable timing profile ต้องรักษา behavior เดิม
+- สังเกต workflow จริงในห้องแลปและทำ UAT T-01 ถึง T-23 บน iPad/Safari
+- ยืนยัน production hosting, TLS/VPN/IP allowlist, secret store และ deployment owner
+- รัน Docker image gate บนเครื่อง/CI ที่มี Docker daemon
+- backup/restore drill กับ production-like infrastructure
+- เทียบ Excel/R/PDF กับไฟล์อ้างอิงจริงของห้องแลป
+- performance sign-off ด้วยชุดข้อมูลเทียบเท่า 5 ปี; SQLStore ปัจจุบันโหลด operational snapshot สำหรับ analytics/export และมี `ponytail:` marker ให้เปลี่ยนเป็น bounded SQL projections เมื่อ dataset จริงพิสูจน์ว่าจำเป็น
 
-## งานที่ต้องอาศัยผู้ใช้หรือ infrastructure ภายนอก
-
-- สังเกต workflow จริงในห้องแลปและทำ UAT บน iPad/Safari
-- ยืนยัน production hosting, TLS/VPN/IP allowlist และผู้รับผิดชอบ deployment
-- backup/restore drill
-- เทียบ Excel/R/PDF กับไฟล์อ้างอิงจริง
-- performance/UAT sign-off ด้วยชุดข้อมูลเทียบเท่า 5 ปี
-
-## คำสั่งเป้าหมายหลัง migration
+## คำสั่งพัฒนาและตรวจสอบ
 
 ```powershell
+cd backend
 python -m pip install -e ".[dev]"
-python -m chronofish
-pytest
+python -m ruff format --check src tests
+python -m ruff check src tests
+python -m pytest
 
-cd frontend
+cd ../frontend
 npm.cmd ci
-npm.cmd test -- --run
+npm.cmd run generate:api
 npm.cmd run check
-```
+npm.cmd test -- --run
 
+cd ..
+python scripts/validate_openapi.py
+docker compose -f compose.yaml config
+docker compose -f compose.mysql.yaml --profile mysql config
+```

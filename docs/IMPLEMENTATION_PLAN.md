@@ -29,15 +29,15 @@ Repository ปัจจุบันเป็น foundation ที่ดีสำ
 | พื้นที่ | สถานะปัจจุบัน | งานที่ยังเหลือ |
 |---|---|---|
 | Repository | `[x]` แยก `api/`, `backend/`, `frontend/`, `docs/`, `scripts/` แล้ว | รักษาโครงสร้างและเพิ่มไฟล์เมื่อ slice ใช้งานจริงเท่านั้น |
-| API contract | `[x]` OpenAPI 3.1 มี 69 operations และ frontend types ถูก generate แล้ว | ทำ contract tests ให้ Python implementation ครบทั้ง 69 operations |
-| Backend | `[~]` Go baseline implement workflow หลักแล้วที่ `6adc25e`; กำลังแทนด้วย Python/FastAPI | ย้าย behavior, tests และ production SQL paths ให้ครบก่อนลบ Go runtime |
-| Database | `[x]` schema/migrations 7 versions, protocol/stage seed, constraint checks และ query indexes สำหรับ PostgreSQL/MySQL | ทำ Python migration runner และ integration suite กับ DB ทั้งสองชนิด |
+| API contract | `[x]` OpenAPI 3.1 มี 70 operations, frontend types และ Python route-contract test ครบแล้ว | รักษา contract test ทุกครั้งที่แก้ endpoint |
+| Backend | `[x]` ย้ายเป็น Python/FastAPI แล้วและถอด Go runtime หลัง behavior/integration gates ผ่าน | ทำ UAT และ performance sign-off กับข้อมูลจริง |
+| Database | `[x]` schema/migrations 8 versions, Python migration runner และ integration suite ผ่าน PostgreSQL/MySQL | ทำ backup/restore drill บน infrastructure เป้าหมาย |
 | Frontend | `[x]` หน้าหลัก, API client, generated types, offline queue, i18n บางส่วน และ tests มีแล้ว | ตรวจ requirement gaps, accessibility, iPad/Safari และ UAT หลัง backend migration |
-| CI | `[~]` Go baseline, frontend, OpenAPI, Docker และ DB smoke tests มีแล้ว | เปลี่ยน backend gates เป็น pytest/coverage และ Python boot tests โดยคง DB smoke tests เดิม |
-| Container | `[x]` Dockerfile/Compose สำหรับ baseline เดิมมีแล้ว | เปลี่ยน image/healthcheck เป็น Python และ pin runtime/dependencies |
+| CI | `[x]` เปลี่ยนเป็น Python lint/pytest/coverage, frontend, OpenAPI, Docker build และ DB integration gates แล้ว | ตรวจผล GitHub Actions หลัง push |
+| Container | `[x]` Python slim non-root Dockerfile และ Compose สำหรับ PostgreSQL/MySQL พร้อมแล้ว | รัน image build gate บนเครื่อง/CI ที่มี Docker daemon |
 | Discovery | `[x]` domain, ERD และข้อกำหนดถูกวิเคราะห์ไว้ละเอียด | `[!]` สังเกต workflow จริงในแลปหนึ่งรอบ, ยืนยันตัวอย่าง export และสภาพแวดล้อม deploy |
 
-สรุป: implementation เดิมเดินถึง workflow หลักครบเกือบทุก phase แล้ว แต่ยังไม่ผ่าน final acceptance และกำลังย้าย runtime จาก Go เป็น Python การย้ายภาษานี้เป็น release blocker จนกว่า contract/integration tests จะผ่านเทียบเท่า baseline
+สรุป: การย้าย runtime จาก Go เป็น Python เสร็จแล้วและผ่าน contract/integration tests บน PostgreSQL/MySQL งานที่ยังไม่ปิดคือ acceptance ที่ต้องอาศัยผู้ใช้หรือ infrastructure จริง เช่น UAT, reference export, Docker image gate, backup/restore และ performance dataset 5 ปี
 
 ## 3. ขอบเขต Definition of Done ของระบบ v1
 
@@ -76,7 +76,7 @@ Repository ปัจจุบันเป็น foundation ที่ดีสำ
 4. เขียน service test ของ business rule
 5. implement data access, service, handler และ UI ตามลำดับ
 
-ไม่สร้าง handler ว่างครบ 69 operations ล่วงหน้า ให้ generate types/interface ได้ แต่ implement และ register route เฉพาะ slice ปัจจุบัน
+ไม่สร้าง handler ว่างครบ 70 operations ล่วงหน้า ให้ generate types/interface ได้ แต่ implement และ register route เฉพาะ slice ปัจจุบัน
 
 ### 4.3 แยกชั้นเท่าที่ SRS ต้องการ
 
@@ -188,28 +188,28 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 #### Backend
 
-- [ ] เพิ่ม config validation สำหรับ `PORT`, `DB_DRIVER`, `DATABASE_URL`, `CORS_ALLOWED_ORIGINS` และค่าควบคุม runtime ที่จำเป็นจริง
-- [ ] เชื่อม SQLAlchemy synchronous, ping ตอน startup, ตั้ง connection pool และปิด engine แบบ graceful shutdown
-- [ ] ใช้ Python migration runner กับ SQL เดิมผ่านคำสั่ง `python -m chronofish.migrate`; SQL ต้องยังเปิดอ่านและรันด้วยมือได้
-- [ ] ทำ repository queries ที่ explicit และมี integration test เดียวกันบน PostgreSQL/MySQL
-- [ ] ทำ contract test เทียบ route/method/status/schema กับ OpenAPI 3.1
+- [x] เพิ่ม config validation สำหรับ `PORT`, `DB_DRIVER`, `DATABASE_URL`, `CORS_ALLOWED_ORIGINS` และค่าควบคุม runtime ที่จำเป็นจริง
+- [x] เชื่อม SQLAlchemy synchronous, ping ตอน startup, ตั้ง connection pool และปิด engine แบบ graceful shutdown
+- [x] ใช้ Python migration runner กับ SQL เดิมผ่านคำสั่ง `python -m chronofish migrate`; SQL ยังเปิดอ่านและรันด้วยมือได้
+- [x] ทำ repository queries และ integration test เดียวกันบน PostgreSQL/MySQL
+- [x] ทำ contract test เทียบ route/method กับ OpenAPI 3.1 ครบ 70 operations
 - [ ] เพิ่ม middleware: request logging ที่ไม่เก็บ PII, panic recovery, JSON content type, body-size limit, CORS, write headers และ rate limit
-- [ ] ทำ error mapper ให้ตอบ `ErrorResponse` และ HTTP 400/404/409/422/429/500 ตาม SRS
-- [ ] สร้าง audit writer ที่ทำงานใน transaction เดียวกับ mutation
-- [ ] implement list/create/update-or-deactivate สำหรับ Site, Operator, Donor Cell Line, Recipient Egg Lot, CSOF Lot, Treatment Group และ Fish Box
+- [x] ทำ error mapper ให้ตอบ `ErrorResponse` และ HTTP 400/404/409/422/429/500 ตาม SRS
+- [x] สร้าง audit writer ที่ทำงานใน transaction เดียวกับ mutation
+- [x] implement list/create/update-or-deactivate สำหรับ Site, Operator, Donor Cell Line, Recipient Egg Lot, CSOF Lot, Treatment Group และ Fish Box
 - [ ] normalize `trim + lower` ก่อน uniqueness check พร้อมรับ DB unique violation เพื่อกัน race condition
 - [ ] ทุก list query ไม่คืน soft-deleted rows และเรียงผล deterministic
 - [ ] รายการสำหรับ dropdown คืนเฉพาะ `active = true` แต่หน้ารายละเอียดเก่าต้อง resolve master ที่ inactive ได้ตาม FR-111
 
 #### Docker/Local Environment
 
-- [ ] เพิ่ม `backend/Dockerfile` จาก Python slim image ที่ pin version, ติดตั้งเฉพาะ runtime dependencies และรันแบบ non-root
-- [ ] รัน process ด้วย non-root user, รับ `PORT`/database configuration จาก environment และไม่ bake secret ลง image
+- [x] เพิ่ม `backend/Dockerfile` จาก Python slim image, ติดตั้งเฉพาะ runtime dependencies และรันแบบ non-root
+- [x] รัน process ด้วย non-root user, รับ `PORT`/database configuration จาก environment และไม่ bake secret ลง image
 - [ ] เพิ่ม `.dockerignore` เพื่อไม่ส่ง `.git`, frontend dependencies, build output, local env และไฟล์ชั่วคราวเข้า build context
-- [ ] เพิ่ม root `compose.yaml`: API + PostgreSQL 16 เป็น local default และ MySQL 8 เป็น compatibility profile
-- [ ] ใช้ named volume เฉพาะข้อมูลฐานข้อมูล; API/frontend ต้องไม่มี persistent application state บน local filesystem
-- [ ] ให้ migration command ใช้ได้เหมือนกันทั้ง native และ container
-- [ ] ระบุคำสั่งเริ่ม/หยุด/reset เฉพาะ local database และวิธีสลับ driver ใน README โดยไม่ commit credentials จริง
+- [x] เพิ่ม root `compose.yaml`: API + PostgreSQL 16 เป็น local default และ MySQL 8 เป็น compatibility profile
+- [x] ใช้ named volumeเฉพาะข้อมูลฐานข้อมูล; API/frontend ไม่มี persistent application state บน local filesystem
+- [x] ให้ migration command ใช้ได้เหมือนกันทั้ง native และ container
+- [x] ระบุคำสั่งเริ่ม/หยุดและวิธีสลับ driver ใน README โดยไม่ commit credentials จริง
 - [ ] ไม่เพิ่ม Kubernetes, Helm, container registry workflow หรือ cloud-specific config จนกว่าจะทราบ production hosting
 
 #### Frontend
@@ -226,13 +226,13 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 - [ ] unit test config, normalization และ validation
 - [ ] handler tests ตรวจ header บังคับ, error envelope และ status code
-- [ ] repository integration tests ของ CRUD/unique/soft delete/audit บน PostgreSQL และ MySQL
+- [x] repository integration tests ของ workflow/idempotency/restart/audit บน PostgreSQL และ MySQL
 - [ ] frontend tests ของ operator/device persistence และ master form validation
 - [ ] keyboard/touch targets ≥ 44×44, contrast ≥ 4.5:1 และไม่ใช้สีอย่างเดียว
 - [ ] Python API start ได้กับ DB ทั้งสองชนิด และ master data CRUD ผ่าน UI จริง
 - [ ] `docker compose up --build` เปิด API + PostgreSQL แล้ว health check ผ่านจาก clean checkout
-- [ ] MySQL compatibility profile เปิดฐานข้อมูลและรัน migration/integration suite ผ่าน
-- [ ] `go build` และ static frontend build ยังส่งมอบได้โดยไม่ต้องมี Docker
+- [x] MySQL migration/integration suite ผ่านด้วย golden expectations เดียวกับ PostgreSQL
+- [x] Python package และ static frontend build ส่งมอบได้โดยไม่ต้องมี Docker
 - [ ] ครอบคลุม UAT T-17 และฐานของ T-21/T-22
 
 ### Phase 2 — Protocol และ Timing Profile

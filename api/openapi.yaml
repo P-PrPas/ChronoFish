@@ -769,6 +769,32 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
 
+  /injection-lots/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    patch:
+      tags: [Experiments]
+      summary: Activate a lot template copied with a batch
+      description: |
+        Supplies T0 and creates the embryos for a draft lot created by
+        `duplicateBatch`. An activated lot cannot be changed through this
+        operation because changing T0 would invalidate downstream results.
+      operationId: activateInjectionLotTemplate
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InjectionLotActivationInput' }
+      responses:
+        '200':
+          description: Template activated and embryos created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InjectionLotDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
   /injection-lots/{id}/embryos:
     parameters: [ $ref: '#/components/parameters/PathId' ]
     get:
@@ -2154,7 +2180,7 @@ components:
 
     InjectionLot:
       type: object
-      required: [id, batchId, lotNo, donorCellLineId, activatedAt, nActivated]
+      required: [id, batchId, lotNo, donorCellLineId, nActivated]
       properties:
         id: { type: string, format: uuid }
         batchId: { type: string, format: uuid }
@@ -2169,9 +2195,9 @@ components:
         enuStartAt: { type: [string, 'null'], format: date-time }
         enuFinishAt: { type: [string, 'null'], format: date-time }
         activatedAt:
-          type: string
+          type: [string, 'null']
           format: date-time
-          description: T0 for everything downstream (BR-01).
+          description: T0 for everything downstream (BR-01); null only for a copied draft template.
         nEggs: { type: [integer, 'null'] }
         nActivated: { type: integer }
         notes: { type: [string, 'null'] }
@@ -2198,6 +2224,23 @@ components:
           description: Optional, in sequence order; entry i is the well of embryo i+1.
           items: { type: string, pattern: '^[A-H](1[0-2]|[1-9])$' }
         notes: { type: [string, 'null'] }
+    InjectionLotActivationInput:
+      type: object
+      required: [activatedAt, nActivated]
+      properties:
+        donorCellLineId: { type: string, format: uuid }
+        enuPowerPct: { type: [integer, 'null'], minimum: 0, maximum: 100 }
+        enuPulseUs: { type: [integer, 'null'], minimum: 0 }
+        enuLed: { type: [integer, 'null'], minimum: 0 }
+        enuStartAt: { type: [string, 'null'], format: date-time }
+        enuFinishAt: { type: [string, 'null'], format: date-time }
+        activatedAt: { type: string, format: date-time }
+        nEggs: { type: [integer, 'null'], minimum: 0 }
+        nActivated: { type: integer, minimum: 0, maximum: 96 }
+        wellPositions:
+          type: [array, 'null']
+          items: { type: string, pattern: '^[A-H](1[0-2]|[1-9])$' }
+        notes: { type: [string, 'null'] }
     InjectionLotDetail:
       allOf:
         - $ref: '#/components/schemas/InjectionLot'
@@ -2208,7 +2251,7 @@ components:
               items: { $ref: '#/components/schemas/Embryo' }
             warnings:
               type: array
-              description: Non-blocking business-rule warnings raised while creating the lot (AC-307).
+              description: Non-blocking business-rule warnings raised while creating or activating the lot (AC-307).
               items: { type: string }
 
     Embryo:

@@ -20,8 +20,9 @@ def build_timing_router(store: MemoryStore) -> APIRouter:
     def protocols() -> dict[str, Any]:
         return {"items": list(store.snapshot().entities["protocols"].values()), "nextCursor": None}
 
-    @router.get("/protocols/{protocol_id}/stages")
-    def stages(protocol_id: str) -> dict[str, Any]:
+    @router.get("/protocols/{id}/stages")
+    def stages(id: str) -> dict[str, Any]:
+        protocol_id = id
         state = store.snapshot()
         if protocol_id not in state.entities["protocols"]:
             raise APIError(404, "not_found", "ไม่พบ protocol")

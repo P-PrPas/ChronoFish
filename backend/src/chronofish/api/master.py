@@ -85,7 +85,8 @@ def build_master_router(store: MemoryStore) -> APIRouter:
 
                 return mutate(store, request, body, operation)
 
-            async def update_endpoint(item_id: str, request: Request, body: dict[str, Any]):
+            async def update_endpoint(id: str, request: Request, body: dict[str, Any]):
+                item_id = id
                 body = normalize(body)
 
                 def operation(state: State):
@@ -113,5 +114,5 @@ def build_master_router(store: MemoryStore) -> APIRouter:
 
         router.add_api_route(f"/{resource}", list_items, methods=["GET"], name=f"list-{resource}")
         router.add_api_route(f"/{resource}", create_item, methods=["POST"], name=f"create-{resource}")
-        router.add_api_route(f"/{resource}/{{item_id}}", update_item, methods=["PATCH"], name=f"update-{resource}")
+        router.add_api_route(f"/{resource}/{{id}}", update_item, methods=["PATCH"], name=f"update-{resource}")
     return router

@@ -463,7 +463,7 @@ erDiagram
         int enu_led "80/85/90"
         datetime_utc enu_start_at
         datetime_utc enu_finish_at
-        datetime_utc activated_at "T0 = DOB"
+        datetime_utc activated_at "T0 = DOB; null เฉพาะ copied draft"
         int n_eggs
         int n_activated
     }
@@ -750,7 +750,7 @@ hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้�
 | FR-2.4 | เพิ่ม Injection Lot: `lot_no`, donor cell line, Power %, Pulse µs, LED, enucleation start/finish, **activated_at**, `N in lot` | M |
 | FR-2.5 | ระบุ **`n_activated` = N** (จำนวนที่ activate สำเร็จ ไม่ใช่ `n_eggs`) แล้วระบบ **generate embryo record N ตัวทันที** พร้อม `embryo_code` = `{batch_code}_{lot_no}_{seq}` · เพิ่ม/นำออกด้วย soft delete ภายหลังได้ถ้าจำนวนจริงไม่ตรง | M |
 | FR-2.6 | ระบุ well position ในถาด 96-well | S |
-| FR-2.7 | Clone batch ก่อนหน้าเป็น template (ค่า enucleation ซ้ำกันเกือบทุกครั้ง) | S |
+| FR-2.7 | Clone batch ก่อนหน้าเป็น template (ค่า enucleation ซ้ำกันเกือบทุกครั้ง); copied lot เป็น draft ที่ไม่มีเวลา/ตัวอ่อน และต้อง activate ก่อนใช้งาน | S |
 | FR-2.8 | บันทึกกลุ่ม Natural breeding / IVF แบบนับรวม Normal/Abnormal ที่ checkpoint `4-cell`, `Shield–75%epi`, `Day-1/2/3` | M |
 
 ### 6.3 Registration — Stage 2 (Clone Fish)

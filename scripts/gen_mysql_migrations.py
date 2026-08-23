@@ -64,6 +64,14 @@ def convert(sql: str, upgrade: bool) -> str:
         sql,
     )
     sql = sql.replace(
+        "ALTER TABLE injection_lot ALTER COLUMN activated_at DROP NOT NULL;",
+        "ALTER TABLE injection_lot MODIFY activated_at DATETIME(3) NULL;",
+    )
+    sql = sql.replace(
+        "ALTER TABLE injection_lot ALTER COLUMN activated_at SET NOT NULL;",
+        "ALTER TABLE injection_lot MODIFY activated_at DATETIME(3) NOT NULL;",
+    )
+    sql = sql.replace(
         "DROP INDEX IF EXISTS ix_request_idempotency_lease;",
         "DROP INDEX ix_request_idempotency_lease ON request_idempotency;",
     )

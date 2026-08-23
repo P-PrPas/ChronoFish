@@ -50,7 +50,7 @@ def load_config() -> Config:
     database_url = os.getenv("DATABASE_URL", "").strip()
     if driver != "memory" and not database_url:
         raise ValueError("DATABASE_URL is required when DB_DRIVER is not memory")
-    migrations_default = Path(__file__).resolve().parents[3] / "db" / "migrations" / driver
+    migrations_default = Path(__file__).resolve().parents[2] / "db" / "migrations" / driver
     return Config(
         port=_integer("PORT", 8080, 1),
         app_env=app_env,

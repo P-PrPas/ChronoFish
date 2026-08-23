@@ -11,16 +11,16 @@ dependencies = [
   "pydantic==2.13.2",
   "SQLAlchemy==2.0.49",
   "uvicorn==0.44.0",
-  "psycopg[binary]>=3.2,<4",
-  "PyMySQL>=1.1,<2",
+  "psycopg[binary]==3.3.4",
+  "PyMySQL==1.2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
   "httpx==0.28.1",
   "pytest==9.0.3",
-  "pytest-cov>=7,<8",
-  "ruff>=0.13,<1",
+  "pytest-cov==7.1.0",
+  "ruff==0.15.12",
 ]
 
 [tool.setuptools.packages.find]
@@ -36,4 +36,3 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
-

@@ -22,6 +22,5 @@
 
 - ทีม Python สามารถพัฒนาและ debug ได้เร็วขึ้น
 - deployment ต้องมี Python runtime หรือ container แทน standalone Go binary
-- ต้องย้าย test และ implementation ทั้งหมดก่อนถอด Go ออกจาก CI
+- migration เสร็จเมื่อ 23 สิงหาคม 2026; Go runtime/CI ถูกถอดหลัง Python ผ่าน contract และ integration suite บน PostgreSQL/MySQL
 - ความถูกต้องของ migration วัดจาก contract/integration tests ไม่ใช่ความเหมือนของโครงสร้างโค้ด
-

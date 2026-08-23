@@ -33,6 +33,25 @@ describe('lab workflow forms', () => {
     root.unmount()
   })
 
+  it('offers activation for copied injection-lot drafts', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.endsWith('/batches')) return json({ items: [{ id: 'batch-1', batchCode: 'B-1', experimentDate: '2026-08-23' }] })
+      if (path.endsWith('/batches/batch-1')) return json({ id: 'batch-1', batchCode: 'B-1', experimentDate: '2026-08-23', injectionLots: [{ id: 'lot-1', lotNo: '1', donorCellLineId: 'donor-1', activatedAt: null, nActivated: 0 }] })
+      if (path.includes('/injection-lots/lot-1/embryos')) return json({ items: [] })
+      if (path.endsWith('/donor-cell-lines')) return json({ items: [{ id: 'donor-1', strain: 'AB' }] })
+      return json({ items: [] })
+    }))
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Batches t={text.en} />); await Promise.resolve() })
+    await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement)?.click(); await Promise.resolve() })
+    const activate = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Activate template'))
+    expect(activate).not.toBeUndefined()
+    await act(async () => { activate?.click(); await Promise.resolve() })
+    expect(document.body.textContent).toContain('Activate injection lot template')
+    root.unmount()
+  })
+
   it('exposes Bangkok roll-call outcomes and registry filters', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input)

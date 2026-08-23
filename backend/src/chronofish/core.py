@@ -213,28 +213,40 @@ def audit(
 Mutation = Callable[[State], tuple[int, Any] | tuple[int, Any, str]]
 
 
-def mutate(store: MemoryStore, request: Request, body: Any, operation: Mutation) -> Response:
+def request_fingerprint(request: Request, body: Any) -> tuple[str, str]:
+    canonical = json.dumps(normalize(body), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    request_hash = hashlib.sha256(
+        f"{request.method}\0{request.url.path}?{request.url.query}\0{canonical}".encode()
+    ).hexdigest()
+    return f"{request.method}:{request.url.path}?{request.url.query}", request_hash
+
+
+def encode_result(result: tuple[int, Any] | tuple[int, Any, str]) -> tuple[int, str, bytes]:
+    status, payload, *content_type = result
+    media_type = content_type[0] if content_type else "application/json"
+    encoded = (
+        payload
+        if isinstance(payload, bytes)
+        else json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str).encode()
+    )
+    return status, media_type, encoded
+
+
+def mutate(store: Any, request: Request, body: Any, operation: Mutation) -> Response:
+    if execute := getattr(store, "execute_mutation", None):
+        return execute(request, body, operation)
     with store.lock:
         state = store.state
         _operator, _device, key = validate_write_context(request, state)
-        canonical = json.dumps(normalize(body), sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-        request_hash = hashlib.sha256(
-            f"{request.method}\0{request.url.path}?{request.url.query}\0{canonical}".encode()
-        ).hexdigest()
-        scope = f"{request.method}:{request.url.path}?{request.url.query}:{key}"
+        scope, request_hash = request_fingerprint(request, body)
+        scope = f"{scope}:{key}"
         previous = state.idempotency.get(scope)
         if previous:
             if previous.request_hash != request_hash:
                 raise APIError(409, "idempotency_conflict", "X-Idempotency-Key ถูกใช้กับ request อื่นแล้ว")
             return Response(previous.body, previous.status, media_type=previous.content_type)
         working = copy.deepcopy(state)
-        result = operation(working)
-        status, payload, *content_type = result
-        media_type = content_type[0] if content_type else "application/json"
-        if isinstance(payload, bytes):
-            encoded = payload
-        else:
-            encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str).encode()
+        status, media_type, encoded = encode_result(operation(working))
         working.idempotency[scope] = StoredResponse(request_hash, status, media_type, encoded)
         store.state = working
         return Response(encoded, status, media_type=media_type)

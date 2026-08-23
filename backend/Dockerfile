@@ -1,15 +1,19 @@
-FROM golang:1.24-alpine AS build
-WORKDIR /src
-COPY backend/go.mod backend/go.sum ./
-COPY backend/cmd ./cmd
-COPY backend/internal ./internal
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/chronofish ./cmd/api
+FROM python:3.13.7-slim-bookworm
 
-FROM gcr.io/distroless/static-debian12:nonroot
-COPY --from=build /out/chronofish /chronofish
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PORT=8080 \
+    MIGRATIONS_DIR=/migrations/postgres
+
+WORKDIR /app
+COPY backend/pyproject.toml ./
+COPY backend/src ./src
+RUN python -m pip install --no-cache-dir . \
+    && addgroup --system chronofish \
+    && adduser --system --ingroup chronofish --no-create-home chronofish
 COPY backend/db/migrations /migrations
-USER nonroot:nonroot
-ENV PORT=8080
-ENV MIGRATIONS_DIR=/migrations/postgres
+
+USER chronofish
 EXPOSE 8080
-ENTRYPOINT ["/chronofish"]
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 CMD ["python", "-m", "chronofish", "healthcheck"]
+ENTRYPOINT ["python", "-m", "chronofish"]
