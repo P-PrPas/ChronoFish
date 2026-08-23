@@ -46,8 +46,8 @@ Phase 3 — Batch, Injection Lot, Embryo และ Control Registration implemen
 - `ruff format --check` และ `ruff check`: ผ่าน
 - pytest memory suite: 42 passed, 3 database-only tests skipped
 - domain coverage: 95.70% (เกณฑ์ 90%)
-- PostgreSQL integration บน clean temporary cluster: CI จะตรวจ migrations 1–9, workflow เดิม และ concurrent batch-code/live-well uniqueness
-- MySQL integration บน clean temporary instance: CI จะตรวจชุดเดียวกับ PostgreSQL รวม migration 9 และ concurrency constraints
+- PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–9, workflow เดิม และ concurrent batch-code/live-well uniqueness ใน PR #6
+- MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL รวม migration 9 และ concurrency constraints ใน PR #6
 - OpenAPI validation: 51 paths / 70 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
 - frontend: generated API/build ผ่าน และ 29 tests ผ่าน
