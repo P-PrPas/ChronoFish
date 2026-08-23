@@ -1,7 +1,7 @@
 # ChronoFish Development Status
 
 > อัปเดตล่าสุด: 23 สิงหาคม 2026  
-> Branch: `feat/phase-2-timing-profiles`
+> Branch: `feat/phase-3-batch-registration`
 > Go baseline ก่อนย้ายภาษา: `6adc25e`
 
 ## สรุปสถานะ
@@ -10,14 +10,16 @@
 
 Frontend ยังคงเป็น Vite + React + TypeScript แบบ static SPA และใช้ generated types จาก `api/openapi.yaml` ซึ่งเป็น HTTP contract แหล่งเดียวของระบบ
 
-Phase 2 — Protocol และ Timing Profile implement ครบตาม checklist แล้ว ทั้ง canonical 36 stages, version history, atomic current profile, snapshot protection, CSV round-trip/row errors และหน้า SCR-15 โดย PostgreSQL/MySQL integration jobs ของ PR #5 ผ่านแล้ว; เหลือ UAT กับผู้ใช้จริง
+Phase 2 — Protocol และ Timing Profile implement ครบตาม checklist แล้ว ทั้ง canonical 36 stages, version history, atomic current profile, snapshot protection, CSV round-trip/row errors และหน้า SCR-15 โดย PostgreSQL/MySQL integration jobs ของ PR #5 ผ่านแล้ว
+
+Phase 3 — Batch, Injection Lot, Embryo และ Control Registration implement ครบตาม automated checklist แล้ว ครอบคลุม batch create/edit/duplicate, timing-profile pinning, atomic lot/embryo creation, deterministic control counts, database uniqueness สำหรับ batch code/sequence/live well, ผัง 96-well และ mobile list, Bangkok time และ automated T-01; เหลือการรับรอง UAT กับผู้ใช้จริงใน Phase 9
 
 ## สิ่งที่ implement แล้ว
 
 - API ครบ 70 operations: master data, timing profile, batch/lot/embryo, copied-lot activation, observations, promotion/fish, analytics, audit และ export
 - business rules 36 stages, HPA/deviation, Bangkok calendar age, backdated override, embryo/fish lifecycle และ promotion threshold
 - durable writes บน PostgreSQL/MySQL: transaction, audit, soft delete, idempotent replay/conflict และ fish running number ภายใต้ database lock
-- Python migration runner สำหรับ SQL versions 1–8 พร้อม migration lock และ dirty-state protection
+- Python migration runner สำหรับ SQL versions 1–9 พร้อม migration lock และ dirty-state protection
 - audit query แบบ indexed keyset pagination โดยไม่ materialize audit history ทั้งหมด
 - Excel 14 sheets แบบ flat table, R-ready CSV 30 columns และ binary idempotent replay
 - middleware สำหรับ CORS, IP allowlist, rate limit, body-size limit, generic error redaction, security headers และ metadata-only request logging
@@ -32,17 +34,23 @@ Phase 2 — Protocol และ Timing Profile implement ครบตาม check
 - Timing Profile API คืน canonical Stage Definition ครบ 36 รายการ, รองรับ partial override โดยสร้าง version เต็มชุดใหม่, ป้องกัน duplicate/ค่าติดลบ/NaN และ validate CSV ทั้งไฟล์ก่อนเขียนพร้อม row-level errors
 - SCR-15 แสดง current/old HPA, version/ผู้แก้/เวลา/ค่าที่เปลี่ยน, ยืนยันก่อนสร้าง version และ preview CSV พร้อมปิดการ import เมื่อพบข้อผิดพลาดต่อแถว
 - acceptance test ของ AC-204/T-08 ยืนยันว่า observation และ batch เก่ายังคง profile snapshot เดิม ขณะที่ batch ใหม่ผูกกับ current profile ใหม่
+- Batch API validate required/foreign-key/date/count/temperature/collision fields, รองรับ operator filter และไม่ยอมให้เปลี่ยน protocol/timing profile หลังสร้าง
+- Injection Lot สร้าง embryo ทั้งชุดใน transaction เดียว ตรวจ chronology/count/well และ rollback ทั้ง lot เมื่อรายการใดผิด
+- Embryo API จำกัด PATCH เฉพาะ well, รองรับ add/soft-delete/reuse well และมี database constraint ป้องกัน live well ซ้ำภายใต้ concurrent writes
+- SCR-04/05/06 ใช้ batch form ร่วมกันสำหรับ create/edit, duplicate batch, ยืนยันก่อนสร้าง lot และ preview รหัสบน plate 96 หลุม; หน้าจอเล็กใช้รายการแทน
+- SCR-11 โหลด control counts เดิม แสดงยอด normal/abnormal/รวม และ validate duplicate/non-negative integer ก่อนบันทึก
+- automated T-01 สร้าง 1 batch, 3 lots, lot ละ 5 embryos ได้ 15 records พร้อมรหัสตามลำดับและไม่มี partial lot
 
 ## ผลตรวจล่าสุด
 
 - `ruff format --check` และ `ruff check`: ผ่าน
-- pytest memory suite: 35 passed, 2 database-only tests skipped
+- pytest memory suite: 42 passed, 3 database-only tests skipped
 - domain coverage: 95.70% (เกณฑ์ 90%)
-- PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–8, workflow write/replay/duplicate-draft/restart/activate/audit และ concurrent Timing Profile versioning
-- MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL รวม concurrent Timing Profile versioning
+- PostgreSQL integration บน clean temporary cluster: CI จะตรวจ migrations 1–9, workflow เดิม และ concurrent batch-code/live-well uniqueness
+- MySQL integration บน clean temporary instance: CI จะตรวจชุดเดียวกับ PostgreSQL รวม migration 9 และ concurrency constraints
 - OpenAPI validation: 51 paths / 70 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
-- frontend: build ผ่าน และ 25 tests ผ่าน
+- frontend: generated API/build ผ่าน และ 29 tests ผ่าน
 - Compose configuration ทั้งสองไฟล์: ผ่าน
 - Docker image build: ผ่าน CI ของ PR #1; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
 

@@ -181,7 +181,11 @@ class SQLStore:
         for resource, table in RESOURCE_TABLE.items():
             records = {}
             for row in self._rows(connection, table):
-                item = {_camel(column): _api_value(column, value) for column, value in row.items()}
+                item = {
+                    _camel(column): _api_value(column, value)
+                    for column, value in row.items()
+                    if column in TABLE_COLUMNS[table]
+                }
                 if "biologicalCondition" in item:
                     item["condition"] = item.pop("biologicalCondition")
                 if resource == "embryos" and item.get("exitStageId"):

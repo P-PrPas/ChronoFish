@@ -1,18 +1,35 @@
 from __future__ import annotations
 
 import copy
+import math
 import re
 from datetime import date
 from typing import Any
 
 from fastapi import APIRouter, Query, Request
 
-from ...domain.rules import enu_window, stage_number
+from ...domain.rules import enu_window, stage_label, stage_number
 from ...domain.state import State
 from ...runtime.errors import APIError
 from ...runtime.mutations import audit
 from ...runtime.values import iso_now, normalize, parse_datetime, uuid7
 from ...store import Store
+
+BATCH_INPUT_FIELDS = {
+    "batchCode",
+    "experimentDate",
+    "dayNo",
+    "siteId",
+    "operatorId",
+    "protocolId",
+    "treatmentGroupId",
+    "recipientEggLotId",
+    "csofLotId",
+    "clutchCode",
+    "replicateNo",
+    "incubationTempC",
+    "notes",
+}
 
 
 def _active(state: State, resource: str, item_id: str, label: str | None = None) -> dict[str, Any]:
@@ -37,7 +54,7 @@ def _next_day_no(state: State, body: dict[str, Any]) -> int:
     return max(values, default=0) + 1
 
 
-def _create_batch(state: State, request: Request, body: dict[str, Any], source_id: str = "") -> dict[str, Any]:
+def _validate_batch(state: State, body: dict[str, Any], current_id: str = "") -> None:
     for field in ("experimentDate", "siteId", "operatorId", "protocolId", "treatmentGroupId"):
         if not body.get(field):
             raise APIError(422, "validation_error", f"ต้องระบุ {field}")
@@ -45,23 +62,55 @@ def _create_batch(state: State, request: Request, body: dict[str, Any], source_i
         date.fromisoformat(str(body["experimentDate"]))
     except ValueError as error:
         raise APIError(422, "validation_error", "experimentDate ต้องเป็น YYYY-MM-DD") from error
+    current = state.entities["batches"].get(current_id, {})
     for resource, field in {
         "sites": "siteId",
         "operators": "operatorId",
         "protocols": "protocolId",
         "treatment-groups": "treatmentGroupId",
+        "recipient-egg-lots": "recipientEggLotId",
+        "csof-lots": "csofLotId",
     }.items():
-        _active(state, resource, str(body[field]), field)
-    profile_id = str(body.get("timingProfileId") or "")
-    if not profile_id:
-        profile_id = next(
-            (
-                str(item["id"])
-                for item in state.entities["timing-profiles"].values()
-                if item.get("protocolId") == body["protocolId"] and item.get("isCurrent")
-            ),
-            "",
-        )
+        if body.get(field) and body.get(field) != current.get(field):
+            _active(state, resource, str(body[field]), field)
+    for field in ("dayNo", "replicateNo"):
+        value = body.get(field)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1):
+            raise APIError(422, "validation_error", f"{field} ต้องเป็นจำนวนเต็มตั้งแต่ 1 ขึ้นไป")
+    temperature = body.get("incubationTempC")
+    if temperature is not None and (
+        isinstance(temperature, bool)
+        or not isinstance(temperature, (int, float))
+        or not math.isfinite(temperature)
+        or not 0 <= temperature <= 50
+    ):
+        raise APIError(422, "validation_error", "incubationTempC ต้องอยู่ระหว่าง 0 ถึง 50")
+    for field, limit in (("batchCode", 100), ("clutchCode", 50)):
+        value = body.get(field)
+        if value is not None and (not isinstance(value, str) or not value or len(value) > limit):
+            raise APIError(422, "validation_error", f"{field} ไม่ถูกต้อง")
+    batch_code = str(body.get("batchCode") or "")
+    if batch_code and any(
+        item.get("id") != current_id
+        and item.get("active") is not False
+        and item.get("deletedAt") is None
+        and str(item.get("batchCode", "")).casefold() == batch_code.casefold()
+        for item in state.entities["batches"].values()
+    ):
+        raise APIError(409, "conflict", "batchCode ซ้ำกับรายการที่มีอยู่แล้ว")
+
+
+def _create_batch(state: State, request: Request, body: dict[str, Any], source_id: str = "") -> dict[str, Any]:
+    body = {key: value for key, value in body.items() if key in BATCH_INPUT_FIELDS}
+    _validate_batch(state, body)
+    profile_id = next(
+        (
+            str(item["id"])
+            for item in state.entities["timing-profiles"].values()
+            if item.get("protocolId") == body["protocolId"] and item.get("isCurrent")
+        ),
+        "",
+    )
     profile = state.entities["timing-profiles"].get(profile_id)
     if not profile or profile.get("protocolId") != body["protocolId"] or profile.get("deletedAt") is not None:
         raise APIError(422, "validation_error", "ไม่พบ timing profile")
@@ -73,7 +122,9 @@ def _create_batch(state: State, request: Request, body: dict[str, Any], source_i
     if not batch_code:
         batch_code = f"{day_no}_{_batch_code_part(operator.get('name'))}_{_batch_code_part(treatment.get('code'))}"
     if any(
-        item.get("active") is not False and str(item.get("batchCode", "")).casefold() == batch_code.casefold()
+        item.get("active") is not False
+        and item.get("deletedAt") is None
+        and str(item.get("batchCode", "")).casefold() == batch_code.casefold()
         for item in state.entities["batches"].values()
     ):
         if source_id:
@@ -102,8 +153,8 @@ def _lot_inputs(state: State, body: dict[str, Any]) -> tuple[int, list[str], str
             raise APIError(422, "validation_error", "ต้องระบุ lotNo, donorCellLineId และ activatedAt")
     if "nActivated" not in body:
         raise APIError(422, "validation_error", "ต้องระบุ nActivated")
-    if len(str(body["lotNo"])) > 20:
-        raise APIError(422, "validation_error", "lotNo ต้องยาวไม่เกิน 20 ตัวอักษร")
+    if not isinstance(body["lotNo"], str) or len(body["lotNo"]) > 20:
+        raise APIError(422, "validation_error", "lotNo ต้องเป็นข้อความยาวไม่เกิน 20 ตัวอักษร")
     activated = parse_datetime(str(body["activatedAt"]))
     start = parse_datetime(str(body["enuStartAt"])) if body.get("enuStartAt") else None
     finish = parse_datetime(str(body["enuFinishAt"])) if body.get("enuFinishAt") else None
@@ -112,13 +163,10 @@ def _lot_inputs(state: State, body: dict[str, Any]) -> tuple[int, list[str], str
     except ValueError as error:
         raise APIError(422, "validation_error", str(error)) from error
     _active(state, "donor-cell-lines", str(body["donorCellLineId"]), "donorCellLineId")
-    try:
-        for field in ("enuPowerPct", "enuPulseUs", "enuLed", "nEggs", "nActivated"):
-            if body.get(field) is not None:
-                body[field] = int(body[field])
-        count = int(body.get("nActivated") or 0)
-    except (TypeError, ValueError) as error:
-        raise APIError(422, "validation_error", "ค่าจำนวนต้องเป็นจำนวนเต็ม") from error
+    for field in ("enuPowerPct", "enuPulseUs", "enuLed", "nEggs", "nActivated"):
+        if body.get(field) is not None and (isinstance(body[field], bool) or not isinstance(body[field], int)):
+            raise APIError(422, "validation_error", "ค่าจำนวนต้องเป็นจำนวนเต็ม")
+    count = body["nActivated"]
     if count not in range(0, 97):
         raise APIError(422, "validation_error", "nActivated ต้องอยู่ระหว่าง 0 ถึง 96")
     if (
@@ -169,6 +217,15 @@ def _create_embryos(
     return embryos
 
 
+def _control_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result = [
+        {**copy.deepcopy(item), "stageLabel": stage_label(stage_number(str(item.get("stageCode") or "")))}
+        for item in items
+    ]
+    result.sort(key=lambda item: (stage_number(str(item["stageCode"])), str(item["armType"])))
+    return result
+
+
 def build_experiments_router(store: Store) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
 
@@ -177,6 +234,7 @@ def build_experiments_router(store: Store) -> APIRouter:
         dateFrom: str | None = None,
         dateTo: str | None = None,
         siteId: str | None = None,
+        operatorId: str | None = None,
         treatmentGroupId: str | None = None,
         cursor: str | None = None,
         limit: int = Query(100, ge=1, le=500),
@@ -190,6 +248,8 @@ def build_experiments_router(store: Store) -> APIRouter:
             if dateTo and str(item.get("experimentDate", "")) > dateTo:
                 continue
             if siteId and item.get("siteId") != siteId:
+                continue
+            if operatorId and item.get("operatorId") != operatorId:
                 continue
             if treatmentGroupId and item.get("treatmentGroupId") != treatmentGroupId:
                 continue
@@ -248,16 +308,15 @@ def build_experiments_router(store: Store) -> APIRouter:
             if not current:
                 raise APIError(404, "not_found", "ไม่พบ batch")
             old = copy.deepcopy(current)
-            updated = {**current, **{key: value for key, value in body.items() if key != "id"}, "updatedAt": iso_now()}
-            if body.get("active") is False:
-                updated["deletedAt"] = iso_now()
-            for resource, field in {
-                "sites": "siteId",
-                "operators": "operatorId",
-                "protocols": "protocolId",
-                "treatment-groups": "treatmentGroupId",
-            }.items():
-                _active(state, resource, str(updated[field]), field)
+            if body.get("protocolId") not in (None, current.get("protocolId")):
+                raise APIError(409, "invalid_state", "protocolId ของ batch ที่สร้างแล้วเปลี่ยนไม่ได้")
+            mutable = BATCH_INPUT_FIELDS - {"protocolId"}
+            updated = {
+                **current,
+                **{key: value for key, value in body.items() if key in mutable},
+                "updatedAt": iso_now(),
+            }
+            _validate_batch(state, updated, batch_id)
             state.entities["batches"][batch_id] = updated
             audit(state, request, "UPDATE", "experiment_batch", batch_id, old, updated)
             return 200, updated
@@ -401,10 +460,9 @@ def build_experiments_router(store: Store) -> APIRouter:
                 raise APIError(404, "not_found", "ไม่พบ injection lot")
             if not lot.get("activatedAt"):
                 raise APIError(409, "invalid_state", "ต้อง activate injection lot template ก่อนเพิ่ม embryo")
-            try:
-                count = int(body.get("count") or 0)
-            except (TypeError, ValueError) as error:
-                raise APIError(422, "validation_error", "count ต้องเป็นจำนวนเต็ม") from error
+            count = body.get("count")
+            if isinstance(count, bool) or not isinstance(count, int):
+                raise APIError(422, "validation_error", "count ต้องเป็นจำนวนเต็ม")
             existing = [item for item in state.entities["embryos"].values() if item.get("injectionLotId") == lot_id]
             max_sequence = max((int(item.get("seqInLot", 0)) for item in existing), default=0)
             if count < 1 or max_sequence + count > 96:
@@ -438,15 +496,22 @@ def build_experiments_router(store: Store) -> APIRouter:
 
         def operation(state: State):
             embryo = state.entities["embryos"].get(embryo_id)
-            if not embryo:
+            if not embryo or embryo.get("active") is False or embryo.get("deletedAt") is not None:
                 raise APIError(404, "not_found", "ไม่พบ embryo")
             old = copy.deepcopy(embryo)
-            updated = {**embryo, **{key: value for key, value in body.items() if key != "id"}, "updatedAt": iso_now()}
-            stage = str(updated.get("exitStageCode") or "")
-            if stage and stage_number(stage) not in range(1, 37):
-                raise APIError(422, "validation_error", "exitStageCode is invalid")
-            if body.get("active") is False:
-                updated["deletedAt"] = iso_now()
+            well = body.get("wellPosition") if "wellPosition" in body else embryo.get("wellPosition")
+            if well is not None and (not isinstance(well, str) or re.fullmatch(r"[A-H](?:1[0-2]|[1-9])", well) is None):
+                raise APIError(422, "validation_error", "wellPosition ต้องอยู่ในช่วง A1 ถึง H12")
+            if well is not None and any(
+                item.get("id") != embryo_id
+                and item.get("injectionLotId") == embryo.get("injectionLotId")
+                and item.get("wellPosition") == well
+                and item.get("active") is not False
+                and item.get("deletedAt") is None
+                for item in state.entities["embryos"].values()
+            ):
+                raise APIError(409, "conflict", "wellPosition ซ้ำใน injection lot")
+            updated = {**embryo, "wellPosition": well, "updatedAt": iso_now()}
             state.entities["embryos"][embryo_id] = updated
             audit(state, request, "UPDATE", "embryo", embryo_id, old, updated)
             return 200, updated
@@ -477,7 +542,7 @@ def build_experiments_router(store: Store) -> APIRouter:
             for item in state.entities["control-arm-counts"].values()
             if item.get("batchId") == batch_id and item.get("active") is not False and item.get("deletedAt") is None
         ]
-        return {"items": items}
+        return {"items": _control_items(items)}
 
     @router.put("/batches/{id}/control-arm-counts")
     async def replace_control_counts(id: str, request: Request, body: dict[str, Any]):
@@ -492,19 +557,31 @@ def build_experiments_router(store: Store) -> APIRouter:
             if not isinstance(items, list):
                 raise APIError(422, "validation_error", "items is required")
             keys = set()
+            validated = []
             for item in items:
                 if not isinstance(item, dict):
                     raise APIError(422, "validation_error", "each control count must be an object")
                 arm, stage = item.get("armType"), str(item.get("stageCode") or "")
                 if arm not in {"NATURAL_BREEDING", "IVF"} or stage_number(stage) not in range(1, 37):
                     raise APIError(422, "validation_error", "armType or stageCode is invalid")
-                if any(not isinstance(item.get(field), int) or item[field] < 0 for field in ("nNormal", "nAbnormal")):
+                if any(
+                    isinstance(item.get(field), bool) or not isinstance(item.get(field), int) or item[field] < 0
+                    for field in ("nNormal", "nAbnormal")
+                ):
                     raise APIError(422, "validation_error", "counts must be non-negative integers")
                 if (arm, stage) in keys:
                     raise APIError(422, "validation_error", "duplicate armType and stageCode")
                 keys.add((arm, stage))
+                validated.append(
+                    {
+                        "armType": arm,
+                        "stageCode": stage,
+                        "nNormal": item["nNormal"],
+                        "nAbnormal": item["nAbnormal"],
+                    }
+                )
             result = []
-            for item in items:
+            for item in validated:
                 key = (item["armType"], item["stageCode"])
                 existing = next(
                     (
@@ -540,7 +617,7 @@ def build_experiments_router(store: Store) -> APIRouter:
                     old = copy.deepcopy(existing)
                     existing.update({"active": False, "deletedAt": iso_now(), "updatedAt": iso_now()})
                     audit(state, request, "UPDATE", "control_arm_count", existing["id"], old, existing)
-            return 200, {"items": result}
+            return 200, {"items": _control_items(result)}
 
         return store.execute_mutation(request, body, operation)
 

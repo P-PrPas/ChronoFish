@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Batches } from '../src/pages/batches'
 import { Fish } from '../src/pages/fish'
-import { Timing } from '../src/pages/settings'
+import { Controls, Timing } from '../src/pages/settings'
 import { text } from '../src/types'
 
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
@@ -52,6 +52,30 @@ describe('lab workflow forms', () => {
     root.unmount()
   })
 
+  it('shows a 96-well planner, mobile fallback, and confirms before creating a lot', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.endsWith('/batches')) return json({ items: [{ id: 'batch-1', batchCode: 'B-1', experimentDate: '2026-08-23' }] })
+      if (path.endsWith('/batches/batch-1')) return json({ id: 'batch-1', batchCode: 'B-1', experimentDate: '2026-08-23', injectionLots: [] })
+      if (path.includes('/donor-cell-lines?')) return json({ items: [{ id: 'donor-1', strain: 'AB', active: true }] })
+      return json({ items: [] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const confirm = vi.fn(() => false)
+    vi.stubGlobal('confirm', confirm)
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Batches t={text.en} />); await Promise.resolve() })
+    await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement)?.click(); await new Promise((resolve) => setTimeout(resolve, 0)) })
+
+    expect(document.querySelectorAll('.well-grid--plate .well')).toHaveLength(96)
+    expect(document.querySelector('.well-list--mobile')).not.toBeNull()
+    const lotForm = Array.from(document.querySelectorAll('form')).find((form) => form.textContent?.includes('Injection lot'))
+    await act(async () => { lotForm?.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true })); await Promise.resolve() })
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false)
+    root.unmount()
+  })
+
   it('resolves inactive master data in historical batch details without offering it for new records', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input)
@@ -73,6 +97,33 @@ describe('lab workflow forms', () => {
     expect(document.body.textContent).toContain('Archived Treatment')
     expect(document.body.textContent).toContain('Archived Donor')
     expect(Array.from(document.querySelectorAll('option')).some((option) => option.textContent === 'Archived Donor')).toBe(false)
+    root.unmount()
+  })
+
+  it('edits the complete mutable batch record through the shared batch form', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      const batch = { id: 'batch-1', batchCode: 'B-1', dayNo: 2, experimentDate: '2026-08-23', siteId: 'site-1', operatorId: 'operator-1', protocolId: 'protocol-1', treatmentGroupId: 'treatment-1', recipientEggLotId: 'egg-1', csofLotId: 'csof-1', clutchCode: 'C-1', replicateNo: 2, incubationTempC: 28.5, notes: 'baseline' }
+      if (path.endsWith('/batches')) return json({ items: [batch] })
+      if (path.endsWith('/batches/batch-1')) return json({ ...batch, injectionLots: [] })
+      if (path.includes('/sites')) return json({ items: [{ id: 'site-1', code: 'LAB' }] })
+      if (path.includes('/operators')) return json({ items: [{ id: 'operator-1', name: 'Tech' }] })
+      if (path.includes('/protocols')) return json({ items: [{ id: 'protocol-1', name: 'SCNT' }] })
+      if (path.includes('/treatment-groups')) return json({ items: [{ id: 'treatment-1', code: 'SCNT' }] })
+      if (path.includes('/recipient-egg-lots')) return json({ items: [{ id: 'egg-1', lotCode: 'EGG-1' }] })
+      if (path.includes('/csof-lots')) return json({ items: [{ id: 'csof-1', lotCode: 'CSOF-1' }] })
+      if (path.includes('/donor-cell-lines')) return json({ items: [] })
+      return json({ items: [] })
+    }))
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Batches t={text.en} />); await Promise.resolve() })
+    await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement)?.click(); await new Promise((resolve) => setTimeout(resolve, 0)) })
+    const edit = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Edit batch')
+    await act(async () => { edit?.click(); await new Promise((resolve) => setTimeout(resolve, 0)) })
+
+    expect((document.querySelector('[data-testid="batch-day-no"]') as HTMLInputElement).value).toBe('2')
+    expect(document.body.textContent).toContain('Recipient egg lot')
+    expect(document.body.textContent).toContain('Incubation')
     root.unmount()
   })
 
@@ -163,6 +214,25 @@ describe('lab workflow forms', () => {
     await act(async () => { fileInput.dispatchEvent(new Event('change', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 0)) })
     expect(document.body.textContent).toContain('duplicate stage')
     expect(Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Import preview'))?.disabled).toBe(true)
+    root.unmount()
+  })
+
+  it('loads existing control rows and shows their totals', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.endsWith('/batches')) return json({ items: [{ id: 'batch-1', batchCode: 'B-1', protocolId: 'protocol-1' }] })
+      if (path.endsWith('/protocols')) return json({ items: [{ id: 'protocol-1', name: 'SCNT' }] })
+      if (path.includes('/protocols/protocol-1/stages')) return json({ items: [{ code: 'stage_19_SH', label: 'Shield' }] })
+      if (path.includes('/batches/batch-1/control-arm-counts')) return json({ items: [{ armType: 'IVF', stageCode: 'stage_19_SH', nNormal: 4, nAbnormal: 2 }] })
+      return json({ items: [] })
+    }))
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Controls t={text.en} />); await new Promise((resolve) => setTimeout(resolve, 0)) })
+
+    expect(Array.from(document.querySelectorAll('.metric')).map((item) => item.textContent)).toEqual([
+      'Normal total4', 'Abnormal total2', 'Grand total6',
+    ])
+    expect((document.querySelector('input[type="number"]') as HTMLInputElement).value).toBe('4')
     root.unmount()
   })
 })

@@ -272,30 +272,30 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 #### Backend/Database
 
-- [ ] implement batch list/get/create/update และ cursor pagination ตาม OpenAPI
-- [ ] bind `timing_profile_id` ตอนสร้าง batch และไม่เปลี่ยนย้อนหลังโดยพลการ
-- [ ] implement duplicate batch โดยคัดลอกเฉพาะค่าตั้งต้นตาม FR-305 ไม่คัดลอก observations/results
-- [ ] implement create injection lot + embryos ใน transaction เดียว
-- [ ] generate `batch_code`, `embryo_code`, sequence และ default well positions ตาม BR/FR โดยตรวจ collision ที่ DB
-- [ ] validate activation/start/finish timestamps, count และ business chronology
-- [ ] implement list/add/update/soft-delete embryo; ป้องกัน well ซ้ำใน lot
-- [ ] implement control arm counts แบบ replace/upsert ที่ deterministic และ audited
-- [ ] ตรวจการ rollback เมื่อ embryo ใด embryo หนึ่งผิด เพื่อไม่เหลือ lot ครึ่งชุด
+- [x] implement batch list/get/create/update และ cursor pagination ตาม OpenAPI
+- [x] bind `timing_profile_id` ตอนสร้าง batch และไม่เปลี่ยนย้อนหลังโดยพลการ
+- [x] implement duplicate batch โดยคัดลอกเฉพาะค่าตั้งต้นตาม FR-305 ไม่คัดลอก observations/results
+- [x] implement create injection lot + embryos ใน transaction เดียว
+- [x] generate `batch_code`, `embryo_code`, sequence และรองรับ well positions ตาม FR-309 โดยตรวจ collision ที่ DB
+- [x] validate activation/start/finish timestamps, count และ business chronology
+- [x] implement list/add/update/soft-delete embryo; ป้องกัน well ซ้ำใน lot
+- [x] implement control arm counts แบบ replace/upsert ที่ deterministic และ audited
+- [x] ตรวจการ rollback เมื่อ embryo ใด embryo หนึ่งผิด เพื่อไม่เหลือ lot ครึ่งชุด
 
 #### Frontend
 
-- [ ] ทำ SCR-04/05 batch list + create/edit/duplicate
-- [ ] ทำ SCR-06 injection lot form ที่เพิ่มหลาย lot และ preview embryo codes ก่อนยืนยัน
-- [ ] ทำ SCR-03 ผัง 96-well สำหรับ `md/lg`; บน `sm` ใช้รายการตาม SRS
-- [ ] ทำ SCR-11 control arm entry พร้อม totals/validation
-- [ ] แสดงเวลา Bangkok 24 ชั่วโมง แต่ส่ง ISO 8601 พร้อม offset
+- [x] ทำ SCR-04/05 batch list + create/edit/duplicate
+- [x] ทำ SCR-06 injection lot form ที่เพิ่มหลาย lot และ preview embryo codes ก่อนยืนยัน
+- [x] ทำ SCR-03 ผัง 96-well สำหรับ `md/lg`; บน `sm` ใช้รายการตาม SRS
+- [x] ทำ SCR-11 control arm entry พร้อม totals/validation
+- [x] แสดงเวลา Bangkok 24 ชั่วโมง แต่ส่ง ISO 8601 พร้อม offset
 
 #### Tests และ Exit criteria
 
-- [ ] service tests สำหรับ code generation, chronology, count และ duplicate semantics
-- [ ] concurrent code/well uniqueness tests บน DB สองชนิด
-- [ ] API/UI integration flow สร้าง 1 batch, 3 lots, lot ละ 5 embryos
-- [ ] UAT T-01 ผ่าน: ได้ 15 embryos และรหัสถูกต้อง
+- [x] service tests สำหรับ code generation, chronology, count และ duplicate semantics
+- [x] concurrent code/well uniqueness tests บน DB สองชนิด
+- [x] API/UI integration flow สร้าง 1 batch, 3 lots, lot ละ 5 embryos
+- [x] automated UAT T-01 ผ่าน: ได้ 15 embryos และรหัสถูกต้อง (การรับรองกับผู้ใช้จริงยังอยู่ใน Phase 9)
 
 ### Phase 4 — Due Now และ Embryo Checkpoint Entry
 

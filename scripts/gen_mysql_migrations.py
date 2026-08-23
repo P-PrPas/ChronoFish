@@ -31,6 +31,7 @@ INDEX_TABLES = {
     "ix_fish_observation_fish_date": "fish_observation",
     "ix_observation_embryo_stage": "embryo_observation",
     "ix_audit_occurred_id": "audit_log",
+    "uq_embryo_live_well": "embryo",
 }
 
 HEADER = (
