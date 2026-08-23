@@ -43,7 +43,7 @@ class MemoryStore:
             if previous:
                 if previous.request_hash != request_hash:
                     raise APIError(409, "idempotency_conflict", "X-Idempotency-Key ถูกใช้กับ request อื่นแล้ว")
-                return Response(previous.body, 200, media_type=previous.content_type)
+                return Response(previous.body, previous.status, media_type=previous.content_type)
             working = copy.deepcopy(self.state)
             status, media_type, encoded = encode_result(operation(working))
             self.idempotency[scope] = StoredResponse(request_hash, status, media_type, encoded)

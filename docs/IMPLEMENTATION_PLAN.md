@@ -344,7 +344,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 - [x] ใช้ scope “ทุกการบันทึก” ตาม SRS และเติม stable idempotency field/header ใน OpenAPI ให้ทุก mutation ก่อนนำเข้า queue
 - [x] ให้ idempotency check และ mutation อยู่ transaction เดียวกัน
-- [x] duplicate request ต้องคืน HTTP 200 พร้อม record เดิม ไม่ตอบ conflict
+- [x] request ที่ใช้ `X-Idempotency-Key` ซ้ำต้องคืน status/body เดิม; observation ที่ `clientUuid` ซ้ำคืน HTTP 200 พร้อม record เดิมตาม AC-1003
 - [x] แยก retriable errors (network/5xx/429) จาก rejected business errors (4xx) ให้ frontend จัดการได้
 
 #### Frontend

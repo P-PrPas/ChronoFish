@@ -17,6 +17,7 @@ export type QueuedWrite = {
   identity?: string
   lastError?: string
 }
+export type QueuedWriteRecord = { id: IDBValidKey; value: QueuedWrite }
 
 const databaseName = 'chronofish'
 const databaseVersion = 2
@@ -120,6 +121,41 @@ export async function rejectedQueueCount(): Promise<number> {
   return countByStatus('rejected')
 }
 
+export async function rejectedQueueItems(): Promise<QueuedWriteRecord[]> {
+  if (!('indexedDB' in window)) return []
+  let db: IDBDatabase | undefined
+  try {
+    db = await openQueue()
+    return (await records(db))
+      .filter(({ value }) => value.status === 'rejected')
+      .map(({ key, value }) => ({ id: key, value }))
+  } catch {
+    return []
+  } finally {
+    db?.close()
+  }
+}
+
+export async function discardRejected(id: IDBValidKey): Promise<void> {
+  if (!('indexedDB' in window)) return
+  const db = await openQueue()
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite')
+      const store = tx.objectStore(storeName)
+      const current = store.get(id)
+      current.onsuccess = () => {
+        if ((current.result as QueuedWrite | undefined)?.status === 'rejected') store.delete(id)
+      }
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+    })
+    window.dispatchEvent(new CustomEvent('chronofish:queue-discarded'))
+  } finally {
+    db.close()
+  }
+}
+
 async function countByStatus(status: QueueStatus): Promise<number> {
   if (!('indexedDB' in window)) return 0
   let db: IDBDatabase | undefined
@@ -161,6 +197,7 @@ export async function retryRejected(): Promise<void> {
     if (record.value.status === 'rejected') await updateQueued(db, record.key, { ...record.value, status: 'pending', nextAttempt: Date.now(), lastError: undefined })
   }
   db.close()
+  window.dispatchEvent(new CustomEvent('chronofish:queue-enqueued'))
   await drainQueue(true)
 }
 

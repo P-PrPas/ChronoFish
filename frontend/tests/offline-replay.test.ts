@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { indexedDB as fakeIndexedDB } from 'fake-indexeddb'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { drainQueue, putQueue, queueCount, rejectedQueueCount } from '../src/offline'
+import { discardRejected, drainQueue, putQueue, queueCount, rejectedQueueCount, rejectedQueueItems, retryRejected } from '../src/offline'
 
 describe('browser offline replay', () => {
   afterEach(() => { if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('chronofish'); localStorage.clear(); sessionStorage.clear(); vi.restoreAllMocks(); vi.unstubAllGlobals() })
@@ -83,6 +83,27 @@ describe('browser offline replay', () => {
 
     expect(await queueCount()).toBe(0)
     expect(await rejectedQueueCount()).toBe(1)
+  })
+
+  it('does not discard a rejected write after it has been moved back to pending', async () => {
+    vi.stubGlobal('indexedDB', fakeIndexedDB)
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: true })
+    localStorage.setItem('chronofish.operator_id', 'operator-a')
+    localStorage.setItem('chronofish.device_id', 'device-a')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+      JSON.stringify({ error: { message: 'invalid business state' } }),
+      { status: 422, headers: { 'Content-Type': 'application/json' } },
+    )))
+    await putQueue('/batches', { batchCode: 'REVIEW-FIRST' })
+    await drainQueue(true)
+    const [rejected] = await rejectedQueueItems()
+
+    Object.defineProperty(navigator, 'onLine', { configurable: true, value: false })
+    await retryRejected()
+    await discardRejected(rejected.id)
+
+    expect(await queueCount()).toBe(1)
+    expect(await rejectedQueueCount()).toBe(0)
   })
 
   it('retries an uncertain response with the original idempotency key', async () => {

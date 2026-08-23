@@ -16,7 +16,7 @@ Phase 3 — Batch, Injection Lot, Embryo และ Control Registration implemen
 
 Phase 4 — Due Now และ Embryo Checkpoint Entry implement ครบตาม automated checklist แล้ว ครอบคลุม BR-07/08/19/22/23, bulk idempotency, checkpoint read model, exit/correction/soft-delete audit, SCR-01/SCR-02, ผัง 96-well responsive, official timing response และ automated UAT T-02/T-03/T-04/T-05/T-15/T-16; เหลือการรับรองด้านอุปกรณ์ เครือข่าย และผู้ใช้จริงใน Phase 9
 
-Phase 5 — Network Resilience implement ครบตาม automated checklist แล้ว: ทุก mutation มี idempotency contract และ transaction-safe replay ที่คืน HTTP 200, frontend มี durable IndexedDB queue, logical-write dedupe, optimistic status, exponential backoff/jitter, retry/rejection handling, beforeunload guard และ app-shell Service Worker; เหลือการทดสอบ UAT T-06/T-07 และ AC-1002/AC-1003 บน Safari iPad จริง
+Phase 5 — Network Resilience implement ครบตาม automated checklist แล้ว: ทุก mutation มี idempotency contract และ transaction-safe replay ที่คืน status/body เดิม (observation UUID ซ้ำคืน HTTP 200 ตาม AC-1003), frontend มี durable IndexedDB queue, logical-write dedupe, optimistic status, exponential backoff/jitter, durable rejection review, beforeunload guard และ app-shell Service Worker; เหลือการทดสอบ UAT T-06/T-07 และ AC-1002/AC-1003 บน Safari iPad จริง
 
 ## สิ่งที่ implement แล้ว
 
@@ -48,19 +48,19 @@ Phase 5 — Network Resilience implement ครบตาม automated checklist 
 - checkpoint entry คืนจำนวนตั้งต้น/คงเหลือ, prior observation และ well position; bulk write คำนวณ HPA/deviation/interval/label สองภาษาและรองรับ UUID replay
 - embryo checkpoint UI มี 96-well/mobile list, all-alive/remaining-dead, exception cycling, backdate/live T+, official result, partial rejection retry และ correction/undo พร้อม operator/save status
 - monotonic survival, implied checkpoints, exit projection, correction และ soft delete ผ่าน audit/recalculation โดย snapshot เวลาอ้างอิงเดิมไม่เปลี่ยน
-- Phase 5 queue เก็บ payload/context/idempotency key แบบ durable ใน IndexedDB, dedupe logical write ที่ยังค้าง, drain แบบ single-flight และแยก 429/5xx/network retry ออกจาก 4xx rejection
+- Phase 5 queue เก็บ payload/context/idempotency key แบบ durable ใน IndexedDB, dedupe logical write ที่ยังค้าง, drain แบบ single-flight, แยก 429/5xx/network retry ออกจาก 4xx rejection และให้ตรวจเหตุผล/เปิดหน้าที่เกี่ยวข้อง/ลบทิ้งได้หลัง reload
 - Phase 5 UI แสดง `บันทึกแล้ว` / `กำลังส่ง…` / `ค้าง N รายการ`, เตือนก่อนปิดแท็บ และ sync/reconcile จาก queue events
 
 ## ผลตรวจล่าสุด
 
 - `ruff format --check` และ `ruff check`: ผ่าน
-- pytest memory suite: 56 passed, 4 database-only tests skipped
+- pytest memory suite: 57 passed, 4 database-only tests skipped
 - domain coverage: 96.91% (เกณฑ์ 90%)
 - PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–9, workflow เดิม, concurrent batch-code/live-well uniqueness และ concurrent observation/correction/soft-delete ใน PR #7
 - MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL รวม migration 9 และ Phase 4 concurrency/audit flow ใน PR #7
 - OpenAPI validation: 51 paths / 70 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
-- frontend: generated API/build ผ่าน และ 40 tests ผ่าน
+- frontend: generated API/build ผ่าน และ 42 tests ผ่าน
 - Compose configuration ทั้งสองไฟล์: ผ่าน
 - Docker image build: ผ่าน CI ของ PR #7; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
 

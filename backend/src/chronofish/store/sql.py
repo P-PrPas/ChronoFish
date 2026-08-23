@@ -437,7 +437,7 @@ class SQLStore:
                         if stored.startswith("base64:")
                         else stored.encode()
                     )
-                    return Response(content, 200, media_type=str(previous["content_type"]))
+                    return Response(content, int(previous["status_code"]), media_type=str(previous["content_type"]))
                 before = copy.deepcopy(state)
                 status, media_type, encoded = encode_result(operation(state))
                 self._persist(connection, before, state)
