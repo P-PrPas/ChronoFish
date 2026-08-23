@@ -673,8 +673,15 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
     },
   ]);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   useEffect(() => {
-    void get("/batches").then((data) => setBatches(data.items ?? []));
+    void get("/batches")
+      .then((data) => {
+        const items = data.items ?? [];
+        setBatches(items);
+        setBatchId((current) => current || String(items[0]?.id ?? ""));
+      })
+      .catch((e: Error) => setError(e.message));
     void get("/protocols")
       .then((data) => {
         const items = data.items ?? [];
@@ -685,6 +692,28 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
       })
       .catch(() => setProtocolId(seedProtocolId));
   }, []);
+  useEffect(() => {
+    if (!batchId) return;
+    const batch = batches.find((item) => item.id === batchId);
+    if (batch?.protocolId) setProtocolId(String(batch.protocolId));
+    void get(`/batches/${batchId}/control-arm-counts`)
+      .then((data) => {
+        const items = (data.items ?? []) as ControlRow[];
+        setRows(
+          items.length
+            ? items
+            : [
+                {
+                  armType: "NATURAL_BREEDING",
+                  stageCode: "stage_01_1C",
+                  nNormal: 0,
+                  nAbnormal: 0,
+                },
+              ],
+        );
+      })
+      .catch((e: Error) => setError(e.message));
+  }, [batchId, batches]);
   useEffect(() => {
     if (!protocolId) return;
     void get(`/protocols/${protocolId}/stages`)
@@ -704,13 +733,37 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
         position === index ? { ...row, ...value } : row,
       ),
     );
+  const totals = rows.reduce(
+    (current, row) => ({
+      normal: current.normal + row.nNormal,
+      abnormal: current.abnormal + row.nAbnormal,
+    }),
+    { normal: 0, abnormal: 0 },
+  );
   const save = async (event: FormEvent) => {
     event.preventDefault();
+    setError("");
+    const keys = rows.map((row) => `${row.armType}:${row.stageCode}`);
+    if (
+      !rows.length ||
+      rows.some(
+        (row) =>
+          !row.stageCode ||
+          !Number.isInteger(row.nNormal) ||
+          !Number.isInteger(row.nAbnormal) ||
+          row.nNormal < 0 ||
+          row.nAbnormal < 0,
+      ) ||
+      new Set(keys).size !== keys.length
+    ) {
+      setError("Use one row per arm and stage with non-negative whole counts");
+      return;
+    }
     try {
       await putQueue(`/batches/${batchId}/control-arm-counts`, { items: rows });
       setMessage(t.controlCountsSaved);
     } catch (e) {
-      setMessage((e as Error).message);
+      setError((e as Error).message);
     }
   };
   return (
@@ -723,6 +776,20 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
             Record multiple natural-breeding and IVF rows against real batch and
             stage data.
           </p>
+        </div>
+      </div>
+      <div className="metric-grid">
+        <div className="metric">
+          <span>Normal total</span>
+          <strong>{totals.normal}</strong>
+        </div>
+        <div className="metric">
+          <span>Abnormal total</span>
+          <strong>{totals.abnormal}</strong>
+        </div>
+        <div className="metric">
+          <span>Grand total</span>
+          <strong>{totals.normal + totals.abnormal}</strong>
         </div>
       </div>
       <form className="form-card" onSubmit={save}>
@@ -851,6 +918,7 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
           </button>
         </div>
       </form>
+      {error && <ErrorMessage message={error} />}
       {message && (
         <p className="notice" role="status">
           {message}

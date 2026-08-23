@@ -9,7 +9,11 @@ import { operatorId, type ApiItem, get } from "../api/client";
 import { putQueue, type QueuedWrite } from "../offline";
 import { type AppText } from "../types";
 import { Empty, ErrorMessage } from "../components";
-import { dateTimeLocalToRFC3339, rfc3339ToDateTimeLocal } from "../time";
+import {
+  dateTimeLocalToRFC3339,
+  formatBangkokDateTime,
+  rfc3339ToDateTimeLocal,
+} from "../time";
 
 const today = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Bangkok" }).format(
@@ -131,26 +135,28 @@ export function Batches({ t }: { t: AppText }) {
 }
 
 function BatchForm({
+  batch,
   onSaved,
   onQueued,
 }: {
+  batch?: ApiItem;
   onSaved: () => void;
-  onQueued: (batch: ApiItem) => void;
+  onQueued?: (batch: ApiItem) => void;
 }) {
   const [form, setForm] = useState({
-    batchCode: "",
-    dayNo: "",
-    experimentDate: today(),
-    siteId: "",
-    operatorId: operatorId(),
-    protocolId: "",
-    treatmentGroupId: "",
-    recipientEggLotId: "",
-    csofLotId: "",
-    clutchCode: "",
-    replicateNo: "",
-    incubationTempC: "",
-    notes: "",
+    batchCode: String(batch?.batchCode ?? ""),
+    dayNo: String(batch?.dayNo ?? ""),
+    experimentDate: String(batch?.experimentDate ?? today()),
+    siteId: String(batch?.siteId ?? ""),
+    operatorId: String(batch?.operatorId ?? operatorId()),
+    protocolId: String(batch?.protocolId ?? ""),
+    treatmentGroupId: String(batch?.treatmentGroupId ?? ""),
+    recipientEggLotId: String(batch?.recipientEggLotId ?? ""),
+    csofLotId: String(batch?.csofLotId ?? ""),
+    clutchCode: String(batch?.clutchCode ?? ""),
+    replicateNo: String(batch?.replicateNo ?? ""),
+    incubationTempC: String(batch?.incubationTempC ?? ""),
+    notes: String(batch?.notes ?? ""),
   });
   const [masters, setMasters] = useState<Record<string, ApiItem[]>>({
     sites: [],
@@ -171,7 +177,7 @@ function BatchForm({
         "recipient-egg-lots",
         "csof-lots",
       ].map((resource) =>
-        get(`/${resource}`).then(
+        get(`/${resource}${batch ? "?includeInactive=true" : ""}`).then(
           (data) => [resource, data.items ?? []] as [string, ApiItem[]],
         ),
       ),
@@ -206,15 +212,21 @@ function BatchForm({
       notes: form.notes || null,
     };
     try {
-      const result = (await putQueue("/batches", payload)) as ApiItem;
-      result.queued ? onQueued(form as unknown as ApiItem) : onSaved();
+      const result = (await putQueue(
+        batch ? `/batches/${batch.id}` : "/batches",
+        payload,
+        "application/json",
+        batch ? "PATCH" : "POST",
+      )) as ApiItem;
+      if (result.queued && onQueued) onQueued(form as unknown as ApiItem);
+      else onSaved();
     } catch (e) {
       setError((e as Error).message);
     }
   };
   return (
     <form className="form-card" onSubmit={submit}>
-      <h2>New batch</h2>
+      <h2>{batch ? "Edit batch" : "New batch"}</h2>
       <p className="muted">
         Suggested code:{" "}
         <code>{`${form.dayNo || "day_no"}_${form.operatorId || "operator"}_${form.treatmentGroupId || "treatment"}`}</code>
@@ -235,6 +247,7 @@ function BatchForm({
         <label>
           Batch code
           <input
+            required={Boolean(batch)}
             data-testid="batch-code"
             value={form.batchCode}
             placeholder={`${form.dayNo || "day_no"}_${form.operatorId || "operator"}_${form.treatmentGroupId || "treatment"}`}
@@ -286,6 +299,7 @@ function BatchForm({
           Protocol
           <select
             required
+            disabled={Boolean(batch)}
             value={form.protocolId}
             onChange={(e) => set("protocolId", e.target.value)}
           >
@@ -381,7 +395,7 @@ function BatchForm({
       </div>
       {error && <ErrorMessage message={error} />}
       <button className="button button--primary" type="submit">
-        Save batch
+        {batch ? "Save changes" : "Save batch"}
       </button>
     </form>
   );
@@ -398,8 +412,6 @@ function BatchDetail({
   const [embryos, setEmbryos] = useState<Record<string, ApiItem[]>>({});
   const [message, setMessage] = useState("");
   const [editing, setEditing] = useState(false);
-  const [editDate, setEditDate] = useState(String(batch.experimentDate ?? ""));
-  const [editCode, setEditCode] = useState(String(batch.batchCode ?? ""));
   const [lot, setLot] = useState({
     lotNo: "1",
     donorCellLineId: "",
@@ -477,29 +489,6 @@ function BatchDetail({
   }, [batch.id, load]);
   const setLotValue = (key: string, value: string) =>
     setLot((current) => ({ ...current, [key]: value }));
-  const saveBatch = async (event: FormEvent) => {
-    event.preventDefault();
-    const previous = detail;
-    setDetail((current) =>
-      current
-        ? { ...current, batchCode: editCode, experimentDate: editDate }
-        : current,
-    );
-    try {
-      await putQueue(
-        `/batches/${batch.id}`,
-        { batchCode: editCode, experimentDate: editDate },
-        "application/json",
-        "PATCH",
-      );
-      setEditing(false);
-      setMessage("Batch updated");
-      load();
-    } catch (e) {
-      setDetail(previous);
-      setMessage((e as Error).message);
-    }
-  };
   const duplicate = async () => {
     const requestedDate = window.prompt(
       "Experiment date (YYYY-MM-DD)",
@@ -561,6 +550,12 @@ function BatchDetail({
         nActivated: Number(lot.nActivated),
         wellPositions: positions,
       };
+      if (
+        !window.confirm(
+          `${templateId ? "Activate" : "Create"} lot ${lot.lotNo} with ${payload.nActivated} embryos?`,
+        )
+      )
+        return;
       const path = templateId
         ? `/injection-lots/${templateId}`
         : `/batches/${batch.id}/injection-lots`;
@@ -594,7 +589,7 @@ function BatchDetail({
           [optimisticId]: positions.map((wellPosition, index) => ({
             id: `${optimisticId}-${index + 1}`,
             injectionLotId: optimisticId,
-            embryoCode: `${String(batch.batchCode)}_${lot.lotNo}_${index + 1}`,
+            embryoCode: `${String(detail?.batchCode ?? batch.batchCode)}_${lot.lotNo}_${index + 1}`,
             wellPosition,
             queued: true,
           })),
@@ -705,8 +700,23 @@ function BatchDetail({
   const preview = Array.from(
     { length: Math.min(Math.max(Number(lot.nActivated) || 0, 0), 96) },
     (_, index) =>
-      `${editCode || String(batch.batchCode)}_${lot.lotNo}_${index + 1}`,
+      `${String(detail?.batchCode ?? batch.batchCode)}_${lot.lotNo}_${index + 1}`,
   );
+  const selectedWells = lot.wellPositions
+    .split(/[ ,\n]+/)
+    .map((value) => value.trim().toUpperCase())
+    .filter((value, index, values) =>
+      wells.includes(value) && values.indexOf(value) === index,
+    )
+    .slice(0, preview.length);
+  const toggleWell = (well: string) => {
+    const next = selectedWells.includes(well)
+      ? selectedWells.filter((value) => value !== well)
+      : selectedWells.length < preview.length
+        ? [...selectedWells, well]
+        : selectedWells;
+    setLotValue("wellPositions", next.join(", "));
+  };
   return (
     <section>
       <button className="back" onClick={onBack}>
@@ -715,12 +725,15 @@ function BatchDetail({
       <div className="page-heading">
         <div>
           <p className="eyebrow">EXPERIMENT</p>
-          <h1>{String(batch.batchCode)}</h1>
+          <h1>{String(detail?.batchCode ?? batch.batchCode)}</h1>
           <p className="muted">
-            {String(batch.experimentDate)} ·{" "}
-            {masterName(masters.sites, batch.siteId)} ·{" "}
-            {masterName(masters.operators, batch.operatorId)} ·{" "}
-            {masterName(masters["treatment-groups"], batch.treatmentGroupId)}
+            {String(detail?.experimentDate ?? batch.experimentDate)} ·{" "}
+            {masterName(masters.sites, detail?.siteId ?? batch.siteId)} ·{" "}
+            {masterName(masters.operators, detail?.operatorId ?? batch.operatorId)} ·{" "}
+            {masterName(
+              masters["treatment-groups"],
+              detail?.treatmentGroupId ?? batch.treatmentGroupId,
+            )}
           </p>
         </div>
         <div className="button-row">
@@ -739,27 +752,15 @@ function BatchDetail({
         </div>
       </div>
       {message && <ErrorMessage message={message} />}
-      {editing && (
-        <form className="form-card form-card--inline" onSubmit={saveBatch}>
-          <label>
-            Batch code
-            <input
-              required
-              value={editCode}
-              onChange={(event) => setEditCode(event.target.value)}
-            />
-          </label>
-          <label>
-            Experiment date
-            <input
-              required
-              type="date"
-              value={editDate}
-              onChange={(event) => setEditDate(event.target.value)}
-            />
-          </label>
-          <button className="button button--primary">Save changes</button>
-        </form>
+      {editing && detail && (
+        <BatchForm
+          batch={detail}
+          onSaved={() => {
+            setEditing(false);
+            setMessage("Batch updated");
+            load();
+          }}
+        />
       )}
       <form className="form-card" onSubmit={createLot}>
         <h2>{templateId ? "Activate injection lot template" : "Injection lot"}</h2>
@@ -910,14 +911,30 @@ function BatchDetail({
         <p className="muted">
           {preview.length} code(s); verify positions before saving.
         </p>
-        <div className="well-grid">
-          {preview.map((code, index) => (
-            <div className="well" key={code}>
-              <strong>{wells[index]}</strong>
-              <small>{code}</small>
-            </div>
-          ))}
+        <div className="well-grid well-grid--plate">
+          {wells.map((well) => {
+            const embryoIndex = selectedWells.indexOf(well);
+            return (
+              <button
+                type="button"
+                className="well"
+                aria-pressed={embryoIndex >= 0}
+                key={well}
+                onClick={() => toggleWell(well)}
+              >
+                <strong>{well}</strong>
+                <small>{embryoIndex >= 0 ? preview[embryoIndex] : "Available"}</small>
+              </button>
+            );
+          })}
         </div>
+        <ol className="well-list--mobile">
+          {preview.map((code, index) => (
+            <li key={code}>
+              <strong>{selectedWells[index] ?? "Unassigned"}</strong> {code}
+            </li>
+          ))}
+        </ol>
       </article>
       {(detail?.injectionLots ?? []).map((item: ApiItem) => (
         <article className="form-card" key={String(item.id)}>
@@ -931,7 +948,7 @@ function BatchDetail({
                   item.donorCellLineId,
                 )} ·{" "}
                 {String(item.nActivated ?? 0)} activated ·{" "}
-                {String(item.activatedAt ?? "")}
+                {formatBangkokDateTime(String(item.activatedAt ?? ""))}
               </p>
             </div>
             {item.activatedAt ? (

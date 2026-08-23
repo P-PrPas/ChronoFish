@@ -3,6 +3,11 @@ const bangkokFormatter = new Intl.DateTimeFormat('sv-SE', {
   hour: '2-digit', minute: '2-digit', hour12: false,
 })
 
+const bangkokDisplayFormatter = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+})
+
 /** Convert a browser datetime-local value to the API's explicit Bangkok offset. */
 export function dateTimeLocalToRFC3339(value: string): string {
   const trimmed = value.trim()
@@ -18,4 +23,8 @@ export function rfc3339ToDateTimeLocal(value: string): string {
   const parts = bangkokFormatter.formatToParts(new Date(value))
   const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]))
   return `${byType.year}-${byType.month}-${byType.day}T${byType.hour}:${byType.minute}`
+}
+
+export function formatBangkokDateTime(value: string): string {
+  return value ? bangkokDisplayFormatter.format(new Date(value)).replace(',', '') : ''
 }

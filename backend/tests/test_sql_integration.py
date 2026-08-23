@@ -153,3 +153,61 @@ def test_concurrent_timing_versions_are_serialized_with_one_current_profile():
     assert sum(profile["isCurrent"] for profile in profiles) == 1
     assert profiles[0]["version"] == versions[1]
     store.close()
+
+
+def test_concurrent_batch_codes_and_live_wells_remain_unique():
+    suffix = uuid7().split("-")[0]
+    store = SQLStore(_config())
+    client = TestClient(create_app(_config(), store))
+    site = client.post(
+        "/api/v1/sites", headers=_headers(), json={"code": f"W-{suffix}", "name": f"Well site {suffix}"}
+    ).json()
+    operator = client.post("/api/v1/operators", headers=_headers(), json={"name": f"Well tech {suffix}"}).json()
+    donor = client.post(
+        "/api/v1/donor-cell-lines",
+        headers=_headers(),
+        json={"strain": f"well-{suffix}", "preparation": "CHUNKS"},
+    ).json()
+    treatment = client.post(
+        "/api/v1/treatment-groups",
+        headers=_headers(),
+        json={"code": f"W-{suffix}", "name": "Well test", "armType": "SCNT"},
+    ).json()
+    batch_body = {
+        "batchCode": f"CONCURRENT-{suffix}",
+        "experimentDate": datetime.now(UTC).date().isoformat(),
+        "siteId": site["id"],
+        "operatorId": operator["id"],
+        "protocolId": PROTOCOL_ID,
+        "treatmentGroupId": treatment["id"],
+    }
+
+    def create_batch():
+        return client.post("/api/v1/batches", headers=_headers(), json=batch_body)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        batch_responses = list(executor.map(lambda _index: create_batch(), range(2)))
+
+    assert sorted(response.status_code for response in batch_responses) == [201, 409]
+    batch = next(response.json() for response in batch_responses if response.status_code == 201)
+    lot = client.post(
+        f"/api/v1/batches/{batch['id']}/injection-lots",
+        headers=_headers(),
+        json={
+            "lotNo": "1",
+            "donorCellLineId": donor["id"],
+            "activatedAt": (datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
+            "nActivated": 2,
+        },
+    ).json()
+
+    def claim_well(embryo_id: str):
+        return client.patch(f"/api/v1/embryos/{embryo_id}", headers=_headers(), json={"wellPosition": "A1"})
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        well_responses = list(executor.map(claim_well, [item["id"] for item in lot["embryos"]]))
+
+    assert sorted(response.status_code for response in well_responses) == [200, 409]
+    embryos = client.get(f"/api/v1/injection-lots/{lot['id']}/embryos").json()["items"]
+    assert sum(item.get("wellPosition") == "A1" for item in embryos) == 1
+    store.close()
