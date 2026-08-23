@@ -3,6 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 import pytest
+from starlette.requests import Request
 
 from chronofish.domain.rules import deviation_label, promotion_eligible_at, stage_code, stage_number
 from chronofish.runtime.values import uuid7
@@ -49,13 +50,31 @@ def test_master_create_normalizes_rejects_duplicate_and_replays(client, write_he
     first = client.post("/api/v1/sites", headers=write_headers, json={"code": " Lab-A ", "name": " Main site "})
     assert first.status_code == 201
     assert first.json()["code"] == "Lab-A"
-    assert (
-        client.post("/api/v1/sites", headers=write_headers, json={"code": " Lab-A ", "name": " Main site "}).content
-        == first.content
-    )
+    duplicate = client.post("/api/v1/sites", headers=write_headers, json={"code": " Lab-A ", "name": " Main site "})
+    assert duplicate.status_code == 201
+    assert duplicate.content == first.content
     conflict_headers = {**write_headers, "X-Idempotency-Key": "01900000-0000-7000-8000-000000000100"}
     conflict = client.post("/api/v1/sites", headers=conflict_headers, json={"code": "lab-a", "name": "Other"})
     assert conflict.status_code == 409
+
+
+def test_idempotency_replay_preserves_no_content_status(store, write_headers):
+    scope = {
+        "type": "http",
+        "method": "DELETE",
+        "path": "/api/v1/review-target",
+        "query_string": b"",
+        "headers": [(name.lower().encode(), value.encode()) for name, value in write_headers.items()],
+    }
+
+    def operation(_state):
+        return 204, b""
+
+    first = store.execute_mutation(Request(scope), {}, operation)
+    replay = store.execute_mutation(Request(scope), {}, operation)
+
+    assert first.status_code == replay.status_code == 204
+    assert replay.body == b""
 
 
 def test_inactive_master_is_hidden_by_default_but_resolvable_for_history(client, write_headers):

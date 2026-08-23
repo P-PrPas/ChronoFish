@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { get, operatorId } from "./api/client";
 import {
+  discardRejected,
   drainQueue,
   queueCount,
-  rejectedQueueCount,
+  rejectedQueueItems,
   retryRejected,
   startQueueSync,
+  type QueuedWriteRecord,
 } from "./offline";
 import { Dashboard } from "./pages/dashboard";
 import { Due } from "./pages/due";
@@ -17,6 +19,16 @@ import { Audit } from "./pages/audit";
 import { Export } from "./pages/export";
 import { type ApiItem, type Language, type Page, text } from "./types";
 
+function pageForWrite(path: string): Page {
+  if (path.startsWith("/observations/embryo")) return "due";
+  if (path.startsWith("/batches") || path.startsWith("/injection-lots") || path.startsWith("/embryos")) return "batches";
+  if (path.startsWith("/fish") || path.startsWith("/observations/fish")) return "fish";
+  if (path.startsWith("/timing-profiles")) return "timing";
+  if (path.startsWith("/promotions")) return "promotions";
+  if (path.includes("control-arm-counts")) return "controls";
+  return "master";
+}
+
 function App() {
   const [page, setPage] = useState<Page>(
     (location.hash.slice(1) as Page) || "dashboard",
@@ -24,7 +36,8 @@ function App() {
   const [language, setLanguage] = useState<Language>("th");
   const [online, setOnline] = useState(navigator.onLine);
   const [pending, setPending] = useState(0);
-  const [rejected, setRejected] = useState(0);
+  const [rejected, setRejected] = useState<QueuedWriteRecord[]>([]);
+  const [syncing, setSyncing] = useState(false);
   const [operators, setOperators] = useState<ApiItem[]>([]);
   const currentOperator = operatorId();
   const t = text[language];
@@ -43,10 +56,10 @@ function App() {
   }, [page]);
   useEffect(() => {
     const refreshQueue = () =>
-      void Promise.all([queueCount(), rejectedQueueCount()]).then(
-        ([count, rejectedCount]) => {
+      void Promise.all([queueCount(), rejectedQueueItems()]).then(
+        ([count, rejectedItems]) => {
           setPending(count);
-          setRejected(rejectedCount);
+          setRejected(rejectedItems);
         },
       );
     const on = () => {
@@ -54,14 +67,26 @@ function App() {
       void drainQueue().then(refreshQueue);
     };
     const off = () => setOnline(false);
+    const queueChanged = () => refreshQueue();
+    const syncStarted = () => setSyncing(true);
+    const syncIdle = () => {
+      setSyncing(false);
+      refreshQueue();
+    };
     const beforeClose = (event: BeforeUnloadEvent) => {
-      if (pending > 0) {
+      if (pending + rejected.length > 0) {
         event.preventDefault();
         event.returnValue = "";
       }
     };
     window.addEventListener("online", on);
     window.addEventListener("offline", off);
+    window.addEventListener("chronofish:queue-enqueued", queueChanged);
+    window.addEventListener("chronofish:queue-drained", queueChanged);
+    window.addEventListener("chronofish:queue-rejected", queueChanged);
+    window.addEventListener("chronofish:queue-discarded", queueChanged);
+    window.addEventListener("chronofish:queue-syncing", syncStarted);
+    window.addEventListener("chronofish:queue-sync-idle", syncIdle);
     window.addEventListener("beforeunload", beforeClose);
     void drainQueue().then(refreshQueue);
     const stopQueueSync = startQueueSync(refreshQueue);
@@ -69,9 +94,15 @@ function App() {
       stopQueueSync();
       window.removeEventListener("online", on);
       window.removeEventListener("offline", off);
+      window.removeEventListener("chronofish:queue-enqueued", queueChanged);
+      window.removeEventListener("chronofish:queue-drained", queueChanged);
+      window.removeEventListener("chronofish:queue-rejected", queueChanged);
+      window.removeEventListener("chronofish:queue-discarded", queueChanged);
+      window.removeEventListener("chronofish:queue-syncing", syncStarted);
+      window.removeEventListener("chronofish:queue-sync-idle", syncIdle);
       window.removeEventListener("beforeunload", beforeClose);
     };
-  }, [pending]);
+  }, [pending, rejected.length]);
 
   const navigate = (next: Page) => setPage(next);
   return (
@@ -116,20 +147,34 @@ function App() {
             {online ? t.online : t.offline}
           </span>
           <span className="queue" aria-live="polite">
-            {pending ? `${t.pending} ${pending}` : "✓"}
+            {syncing ? t.syncing : pending + rejected.length ? `${t.pending} ${pending + rejected.length}` : t.saved}
           </span>
-          {rejected > 0 && (
-            <button
-              className="queue-retry"
-              onClick={() =>
-                void retryRejected().then(() => {
-                  void queueCount().then(setPending);
-                  void rejectedQueueCount().then(setRejected);
-                })
-              }
-            >
-              {t.retryRejected} ({rejected})
-            </button>
+          {rejected.length > 0 && (
+            <details className="queue-review">
+              <summary>{t.reviewRejected} ({rejected.length})</summary>
+              <div className="queue-review__panel">
+                {rejected.map(({ id, value }) => (
+                  <div className="queue-review__item" key={String(id)}>
+                    <strong>{value.method} {value.path}</strong>
+                    <span>{value.lastError || t.rejectedFallback}</span>
+                    <div>
+                      <button type="button" onClick={() => navigate(pageForWrite(value.path))}>{t.openRelated}</button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm(t.confirmDiscard)) void discardRejected(id);
+                        }}
+                      >
+                        {t.discardRejected}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <button className="queue-retry" type="button" onClick={() => void retryRejected()}>
+                  {t.retryRejected}
+                </button>
+              </div>
+            </details>
           )}
           <button
             className="language"
@@ -170,9 +215,9 @@ function App() {
         </nav>
         <main className="content">
           {page === "dashboard" && <Dashboard onNavigate={navigate} t={t} />}
-          {page === "due" && <Due t={t} onPendingChange={setPending} />}
+          {page === "due" && <Due t={t} />}
           {page === "batches" && <Batches t={t} />}
-          {page === "fish" && <Fish t={t} onPendingChange={setPending} />}
+          {page === "fish" && <Fish t={t} />}
           {page === "master" && <Master t={t} />}
           {page === "timing" && <Timing t={t} />}
           {page === "promotions" && <Promotions t={t} />}

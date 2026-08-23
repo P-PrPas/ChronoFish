@@ -49,7 +49,9 @@ def test_sql_store_persists_workflow_idempotency_and_audit_across_instances():
     site_body = {"code": f"SQL-{suffix}", "name": f"SQL site {suffix}"}
     site_response = first.post("/api/v1/sites", headers=site_headers, json=site_body)
     assert site_response.status_code == 201, site_response.text
-    assert first.post("/api/v1/sites", headers=site_headers, json=site_body).content == site_response.content
+    duplicate_site = first.post("/api/v1/sites", headers=site_headers, json=site_body)
+    assert duplicate_site.status_code == 201
+    assert duplicate_site.content == site_response.content
     site = site_response.json()
     donor = first.post(
         "/api/v1/donor-cell-lines",
@@ -281,12 +283,10 @@ def test_concurrent_observation_save_correction_and_soft_delete_are_consistent()
         json={"condition": "ABNORMAL", "correctionReason": "microscope review"},
     )
     assert corrected.status_code == 200, corrected.text
-    assert (
-        client.delete(
-            f"/api/v1/observations/embryo/{observation_id}?reason=duplicate-lab-entry", headers=_headers()
-        ).status_code
-        == 204
-    )
+    delete_headers = _headers()
+    delete_path = f"/api/v1/observations/embryo/{observation_id}?reason=duplicate-lab-entry"
+    assert client.delete(delete_path, headers=delete_headers).status_code == 204
+    assert client.delete(delete_path, headers=delete_headers).status_code == 204
     audits = client.get(f"/api/v1/audit-log?table=embryo_observation&recordId={observation_id}").json()["items"]
     assert {item["action"] for item in audits} == {"INSERT", "UPDATE", "DELETE"}
     store.close()

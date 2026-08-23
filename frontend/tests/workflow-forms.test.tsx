@@ -135,7 +135,7 @@ describe('lab workflow forms', () => {
       return json({ items: [] })
     }))
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
-    await act(async () => { root.render(<Fish t={text.en} onPendingChange={() => undefined} />); await Promise.resolve() })
+    await act(async () => { root.render(<Fish t={text.en} />); await Promise.resolve() })
     expect(document.body.textContent).toContain('Bangkok date')
     expect(document.body.textContent).toContain('Frozen')
     const registryTab = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Fish registry')
