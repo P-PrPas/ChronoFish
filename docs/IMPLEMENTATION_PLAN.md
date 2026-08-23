@@ -202,7 +202,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [x] implement list/create/update-or-deactivate สำหรับ Site, Operator, Donor Cell Line, Recipient Egg Lot, CSOF Lot, Treatment Group และ Fish Box
 - [x] normalize `trim` แล้วเทียบ uniqueness แบบ case-insensitive พร้อมรับ DB unique violation เพื่อกัน race condition
 - [x] ทุก master list query ไม่คืน soft-deleted rows และเรียงผล deterministic
-- [ ] รายการสำหรับ dropdown คืนเฉพาะ `active = true` แต่หน้ารายละเอียดเก่าต้อง resolve master ที่ inactive ได้ตาม FR-111
+- [x] รายการสำหรับ dropdown คืนเฉพาะ `active = true` แต่หน้ารายละเอียดเก่าต้อง resolve master ที่ inactive ได้ตาม FR-111
 
 #### Docker/Local Environment
 

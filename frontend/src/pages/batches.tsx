@@ -25,6 +25,19 @@ const wells = Array.from(
     `${String.fromCharCode(65 + Math.floor(index / 12))}${(index % 12) + 1}`,
 );
 
+const masterName = (items: ApiItem[] | undefined, id: unknown) => {
+  const item = items?.find((candidate) => candidate.id === id);
+  return String(
+    item?.name ??
+      item?.strain ??
+      item?.label ??
+      item?.lotCode ??
+      item?.code ??
+      id ??
+      "",
+  );
+};
+
 export function Batches({ t }: { t: AppText }) {
   const [items, setItems] = useState<ApiItem[]>([]);
   const [selected, setSelected] = useState<ApiItem | null>(null);
@@ -402,7 +415,7 @@ function BatchDetail({
     wellPositions: "",
   });
   const [templateId, setTemplateId] = useState<string | null>(null);
-  const [donors, setDonors] = useState<ApiItem[]>([]);
+  const [masters, setMasters] = useState<Record<string, ApiItem[]>>({});
   const [count, setCount] = useState(1);
   const load = useCallback(() => {
     void get(`/batches/${batch.id}`)
@@ -428,7 +441,21 @@ function BatchDetail({
   }, [batch.id]);
   useEffect(load, [load]);
   useEffect(() => {
-    void get("/donor-cell-lines").then((data) => setDonors(data.items ?? []));
+    const resources = [
+      "sites",
+      "operators",
+      "treatment-groups",
+      "donor-cell-lines",
+    ];
+    void Promise.all(
+      resources.map((resource) =>
+        get(`/${resource}?includeInactive=true`).then(
+          (data) => [resource, data.items ?? []] as [string, ApiItem[]],
+        ),
+      ),
+    )
+      .then((items) => setMasters(Object.fromEntries(items)))
+      .catch((error: Error) => setMessage(error.message));
   }, []);
   useEffect(() => {
     const rejected = (event: Event) => {
@@ -690,7 +717,10 @@ function BatchDetail({
           <p className="eyebrow">EXPERIMENT</p>
           <h1>{String(batch.batchCode)}</h1>
           <p className="muted">
-            {String(batch.experimentDate)} · {String(batch.siteId ?? "")}
+            {String(batch.experimentDate)} ·{" "}
+            {masterName(masters.sites, batch.siteId)} ·{" "}
+            {masterName(masters.operators, batch.operatorId)} ·{" "}
+            {masterName(masters["treatment-groups"], batch.treatmentGroupId)}
           </p>
         </div>
         <div className="button-row">
@@ -752,11 +782,13 @@ function BatchDetail({
               }
             >
               <option value="">Select donor</option>
-              {donors.map((item) => (
-                <option key={String(item.id)} value={String(item.id)}>
-                  {String(item.strain ?? item.batchCode ?? item.id)}
-                </option>
-              ))}
+              {(masters["donor-cell-lines"] ?? [])
+                .filter((item) => item.active !== false)
+                .map((item) => (
+                  <option key={String(item.id)} value={String(item.id)}>
+                    {String(item.strain ?? item.batchCode ?? item.id)}
+                  </option>
+                ))}
             </select>
           </label>
           <label>
@@ -893,6 +925,11 @@ function BatchDetail({
             <div>
               <h2>Lot {String(item.lotNo)}</h2>
               <p className="muted">
+                Donor{" "}
+                {masterName(
+                  masters["donor-cell-lines"],
+                  item.donorCellLineId,
+                )} ·{" "}
                 {String(item.nActivated ?? 0)} activated ·{" "}
                 {String(item.activatedAt ?? "")}
               </p>

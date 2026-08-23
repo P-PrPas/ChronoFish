@@ -1,7 +1,7 @@
 # ChronoFish Development Status
 
 > อัปเดตล่าสุด: 23 สิงหาคม 2026  
-> Branch: `feat/phase-1-hardening`
+> Branch: `refactor/backend-structure-phase-1`
 > Go baseline ก่อนย้ายภาษา: `6adc25e`
 
 ## สรุปสถานะ
@@ -21,19 +21,21 @@ Frontend ยังคงเป็น Vite + React + TypeScript แบบ static 
 - middleware สำหรับ CORS, IP allowlist, rate limit, body-size limit, generic error redaction, security headers และ metadata-only request logging
 - บังคับ content type ตาม OpenAPI (JSON และ CSV import) และแปลง FastAPI request-validation failure เป็น `ErrorResponse`/HTTP 400 ตาม SRS
 - native required-field validation สำหรับ master-data forms พร้อม tests ของ operator/device persistence
+- historical batch detail resolve Site, Operator, Treatment Group และ Donor Cell Line ที่ inactive ได้ โดย dropdown สร้างรายการใหม่ยังคืนเฉพาะ active ตาม FR-111
+- backend package แยกเป็น `api/routes`, `domain`, `runtime`, `store` และ `reporting`; ลบ `core.py` และโครงสร้าง Go ว่างออกจาก working tree
 - Dockerfile แบบ non-root, Compose สำหรับ PostgreSQL/MySQL, native virtual-environment workflow และ Python CI
 - route-contract test เทียบ OpenAPI ทั้ง 70 operations และ pytest behavior/integration suite
 
 ## ผลตรวจล่าสุด
 
 - `ruff format --check` และ `ruff check`: ผ่าน
-- pytest memory suite: 28 passed, 1 database-only test skipped
-- domain coverage: 91.30% (เกณฑ์ 90%)
+- pytest memory suite: 29 passed, 1 database-only test skipped
+- domain coverage: 94.67% (เกณฑ์ 90%)
 - PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–8 และ workflow write/replay/duplicate-draft/restart/activate/audit
 - MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL
 - OpenAPI validation: 51 paths / 70 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
-- frontend: build ผ่าน และ 21 tests ผ่าน
+- frontend: build ผ่าน และ 22 tests ผ่าน
 - Compose configuration ทั้งสองไฟล์: ผ่าน
 - Docker image build: ผ่าน CI ของ PR #1; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
 
@@ -41,6 +43,7 @@ Frontend ยังคงเป็น Vite + React + TypeScript แบบ static 
 
 - Backend entrypoint: `python -m chronofish`
 - Migration command: `python -m chronofish migrate`
+- Store seam: `store.Store` มี memory และ SQL adapters; route modules ไม่ผูกกับ adapter ใด adapter หนึ่ง
 - Production state: database เป็น source of truth; memory driver ใช้ได้เฉพาะ development/test
 - Deployment artifact หลัก: Python Docker image; native venv เป็นทางเลือก
 - Migration source: `backend/db/migrations/postgres`; MySQL copy generate ด้วย `scripts/gen_mysql_migrations.py`

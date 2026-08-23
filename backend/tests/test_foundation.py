@@ -42,6 +42,19 @@ def test_master_create_normalizes_rejects_duplicate_and_replays(client, write_he
     assert conflict.status_code == 409
 
 
+def test_inactive_master_is_hidden_by_default_but_resolvable_for_history(client, write_headers):
+    created = client.post("/api/v1/sites", headers=write_headers, json={"code": "OLD", "name": "Old lab"}).json()
+    update_headers = {**write_headers, "X-Idempotency-Key": "01900000-0000-7000-8000-000000000102"}
+    assert (
+        client.patch(f"/api/v1/sites/{created['id']}", headers=update_headers, json={"active": False}).status_code
+        == 200
+    )
+
+    assert client.get("/api/v1/sites").json()["items"] == []
+    historical = client.get("/api/v1/sites?includeInactive=true").json()["items"]
+    assert [(item["id"], item["name"], item["active"]) for item in historical] == [(created["id"], "Old lab", False)]
+
+
 def test_idempotency_key_rejects_different_payload(client, write_headers):
     write_headers = {**write_headers, "X-Idempotency-Key": "01900000-0000-7000-8000-000000000101"}
     assert client.post("/api/v1/sites", headers=write_headers, json={"code": "A", "name": "A"}).status_code == 201

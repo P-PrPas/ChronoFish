@@ -12,6 +12,13 @@ docs/       Requirements and SRS
 scripts/    Contract and migration checks
 ```
 
+The backend uses a Python `src` layout. Inside `backend/src/chronofish`, `app.py`
+composes FastAPI, `api/routes` groups HTTP routes by domain capability, `domain`
+contains state and pure rules, `runtime` owns shared request behavior, `store`
+contains the memory/SQL adapters and migrations, and `reporting` contains file
+encoders. Keep new code in the narrowest existing module; add a package only
+when it has real implementation.
+
 ## Run locally
 
 Requirements: Python 3.13+, Node.js 22+, npm.
