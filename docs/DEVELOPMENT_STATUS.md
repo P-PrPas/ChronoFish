@@ -52,13 +52,13 @@ Phase 4 — Due Now และ Embryo Checkpoint Entry implement ครบตา�
 - `ruff format --check` และ `ruff check`: ผ่าน
 - pytest memory suite: 56 passed, 4 database-only tests skipped
 - domain coverage: 96.91% (เกณฑ์ 90%)
-- PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–9, workflow เดิม และ concurrent batch-code/live-well uniqueness ใน PR #6
-- MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL รวม migration 9 และ concurrency constraints ใน PR #6
+- PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–9, workflow เดิม, concurrent batch-code/live-well uniqueness และ concurrent observation/correction/soft-delete ใน PR #7
+- MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL รวม migration 9 และ Phase 4 concurrency/audit flow ใน PR #7
 - OpenAPI validation: 51 paths / 70 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
 - frontend: generated API/build ผ่าน และ 34 tests ผ่าน
 - Compose configuration ทั้งสองไฟล์: ผ่าน
-- Docker image build: ผ่าน CI ของ PR #1; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
+- Docker image build: ผ่าน CI ของ PR #7; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
 
 ## Architecture ปัจจุบัน
 
