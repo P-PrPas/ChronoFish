@@ -629,8 +629,8 @@ export interface paths {
          *
          *     Recording `DEAD` or `DEGENERATED` also writes the embryo's exit event.
          *     Marking an embryo `ALIVE` after it already has one violates monotonic
-         *     survival (BR-07) and is rejected with `409` unless `overrideReason` is
-         *     supplied.
+         *     survival (BR-07) and is reported as a rejected item unless
+         *     `overrideReason` is supplied. Request-level conflicts still use `409`.
          *
          *     Partial success is normal: each item reports its own status, so one bad
          *     row never discards the rest of the checkpoint.
