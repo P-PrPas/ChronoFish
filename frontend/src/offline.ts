@@ -166,7 +166,7 @@ async function transmit(db: IDBDatabase, record: { key: IDBValidKey; value: Queu
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })
-    window.dispatchEvent(new CustomEvent('chronofish:queue-drained', { detail: item }))
+    window.dispatchEvent(new CustomEvent('chronofish:queue-drained', { detail: { ...item, result } }))
     return result
   } catch (error) {
     const status = (error as Error & { status?: number }).status

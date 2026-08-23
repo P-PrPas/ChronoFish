@@ -303,38 +303,38 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 #### Backend/Business Rules
 
-- [ ] implement Due Now ตาม BR-22 โดยใช้ activation time + timing snapshot ของ batch
-- [ ] implement checkpoint-entry read model: lot, stage, expected time, active embryos, prior state และ well position
-- [ ] implement bulk embryo observations แบบ idempotent ต่อ `client_uuid`
-- [ ] คำนวณ `hpa_actual`, `hpa_expected`, `deviation_h`, interval deviation และ Thai/English label ที่ backend
-- [ ] บังคับ monotonic survival BR-07; เมื่อ override ต้องมีเหตุผลและ audit
-- [ ] implement implied survival BR-08 โดยไม่สร้างข้อมูลปลอมที่ทำให้ trace ผิด
-- [ ] validate observation time ตาม BR-19 และคืน 409/422 ตามกรณี
-- [ ] บันทึก exit event/status เมื่อ DEAD/DEGENERATED และไม่แสดง embryo นั้นใน checkpoint ถัดไป
-- [ ] implement correction และ soft-delete observation พร้อม reason, before/after audit และ recalculation ที่ไม่แก้ snapshot อื่น
-- [ ] ป้องกัน request ซ้ำและ concurrent save ด้วย unique constraint + transaction ไม่ใช่การเช็คใน memory
+- [x] implement Due Now ตาม BR-22 โดยใช้ activation time + timing snapshot ของ batch
+- [x] implement checkpoint-entry read model: lot, stage, expected time, active embryos, prior state และ well position
+- [x] implement bulk embryo observations แบบ idempotent ต่อ `client_uuid`
+- [x] คำนวณ `hpa_actual`, `hpa_expected`, `deviation_h`, interval deviation และ Thai/English label ที่ backend
+- [x] บังคับ monotonic survival BR-07; เมื่อ override ต้องมีเหตุผลและ audit
+- [x] implement implied survival BR-08 โดยไม่สร้างข้อมูลปลอมที่ทำให้ trace ผิด
+- [x] validate observation time ตาม BR-19 และคืน 409/422 ตามกรณี
+- [x] บันทึก exit event/status เมื่อ DEAD/DEGENERATED และไม่แสดง embryo นั้นใน checkpoint ถัดไป
+- [x] implement correction และ soft-delete observation พร้อม reason, before/after audit และ recalculation ที่ไม่แก้ snapshot อื่น
+- [x] ป้องกัน request ซ้ำและ concurrent save ด้วย unique constraint + transaction ไม่ใช่การเช็คใน memory
 
 #### Frontend
 
-- [ ] ทำ SCR-01 Due Now เรียง overdue/เวลาที่ถึงกำหนด พร้อม filter ที่จำเป็น
-- [ ] refresh Due Now อัตโนมัติอย่างน้อยทุก 60 วินาทีเมื่อออนไลน์ และเพิ่มจำนวน pending promotions เมื่อ Phase 6 พร้อม
-- [ ] ทำ SCR-02 checkpoint entry แบบ “รอดทั้งหมด” แล้วแตะแก้เฉพาะ exception
-- [ ] แสดง 96-well/list, NORMAL/ABNORMAL/UNDETERMINED และ DEAD/DEGENERATED โดยมีข้อความ/ไอคอนร่วมกับสี
-- [ ] ให้แตะ embryo วน `ALIVE → DEAD → DEGENERATED → ALIVE`, มี “รอดทั้งหมด” และ “ตายทั้งหมดที่เหลือ”
-- [ ] ตั้ง `observed_at` เป็นเวลาปัจจุบัน, แก้ย้อนหลังได้, แสดง `T+HH:MM` สด และเก็บ `is_backdated` เมื่อเกิน 15 นาที
-- [ ] แสดง progress `checkpoint X/26 · เหลือรอด M/N`
-- [ ] คำนวณ deviation preview ทันที แต่ replace ด้วย official response หลัง save
-- [ ] ทำ correction flow พร้อม reason และ confirm/undo
-- [ ] แสดง operator และ save status ในตำแหน่งคงที่ทุกขนาดจอ
+- [x] ทำ SCR-01 Due Now เรียง overdue/เวลาที่ถึงกำหนด พร้อม filter ที่จำเป็น
+- [x] refresh Due Now อัตโนมัติอย่างน้อยทุก 60 วินาทีเมื่อออนไลน์ และเพิ่มจำนวน pending promotions เมื่อ Phase 6 พร้อม
+- [x] ทำ SCR-02 checkpoint entry แบบ “รอดทั้งหมด” แล้วแตะแก้เฉพาะ exception
+- [x] แสดง 96-well/list, NORMAL/ABNORMAL/UNDETERMINED และ DEAD/DEGENERATED โดยมีข้อความ/ไอคอนร่วมกับสี
+- [x] ให้แตะ embryo วน `ALIVE → DEAD → DEGENERATED → ALIVE`, มี “รอดทั้งหมด” และ “ตายทั้งหมดที่เหลือ”
+- [x] ตั้ง `observed_at` เป็นเวลาปัจจุบัน, แก้ย้อนหลังได้, แสดง `T+HH:MM` สด และเก็บ `is_backdated` เมื่อเกิน 15 นาที
+- [x] แสดง progress `checkpoint X/26 · เหลือรอด M/N`
+- [x] คำนวณ deviation preview ทันที แต่ replace ด้วย official response หลัง save
+- [x] ทำ correction flow พร้อม reason และ confirm/undo
+- [x] แสดง operator และ save status ในตำแหน่งคงที่ทุกขนาดจอ
 
 #### Tests และ Exit criteria
 
-- [ ] table-driven unit tests ครบ BR-01, BR-02, BR-04, BR-07, BR-08, BR-16, BR-18, BR-19 และ BR-23
-- [ ] idempotency test ส่ง UUID เดิมอย่างน้อย 4 ครั้งแล้วมี row เดียว
-- [ ] integration test transaction/audit/soft-delete บน DB สองชนิด
-- [ ] interaction test “all alive” ภายใน 3 taps และ UI response <100 ms
-- [ ] checkpoint page พร้อมใช้ <1 วินาทีในเครือข่ายปกติ
-- [ ] UAT T-02, T-03, T-04, T-05, T-15 และ T-16 ผ่าน
+- [x] table-driven unit tests ครบ BR-01, BR-02, BR-04, BR-07, BR-08, BR-16, BR-18, BR-19 และ BR-23
+- [x] idempotency test ส่ง UUID เดิมอย่างน้อย 4 ครั้งแล้วมี row เดียว
+- [x] integration test transaction/audit/soft-delete บน DB สองชนิด
+- [x] automated interaction test “all alive” ภายใน 3 taps และ UI response <100 ms
+- [x] automated checkpoint page พร้อมใช้ <1 วินาทีเมื่อ API ตอบสนองปกติ (ทดสอบอุปกรณ์/เครือข่ายจริงซ้ำใน Phase 9)
+- [x] automated UAT T-02, T-03, T-04, T-05, T-15 และ T-16 ผ่าน (การรับรองกับผู้ใช้จริงอยู่ใน Phase 9)
 
 ### Phase 5 — Network Resilience
 

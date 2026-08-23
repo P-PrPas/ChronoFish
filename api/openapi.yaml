@@ -1017,8 +1017,8 @@ paths:
 
         Recording `DEAD` or `DEGENERATED` also writes the embryo's exit event.
         Marking an embryo `ALIVE` after it already has one violates monotonic
-        survival (BR-07) and is rejected with `409` unless `overrideReason` is
-        supplied.
+        survival (BR-07) and is reported as a rejected item unless
+        `overrideReason` is supplied. Request-level conflicts still use `409`.
 
         Partial success is normal: each item reports its own status, so one bad
         row never discards the rest of the checkpoint.
@@ -1096,8 +1096,9 @@ paths:
       description: |
         Corrections are recorded, not hidden (FR-1101, FR-1102). Editing the
         outcome recalculates the embryo's exit event; editing the condition can
-        clear or move `firstAbnormal` (BR-12). `hpaExpectedSnapshot` is only
-        recomputed if `observedAt` changes.
+        clear or move `firstAbnormal` (BR-12). `hpaExpectedSnapshot` remains
+        frozen; editing `observedAt` recalculates `hpaActual` and `deviationH`
+        against that original snapshot (BR-03).
       operationId: updateEmbryoObservation
       parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
@@ -2302,7 +2303,7 @@ components:
 
     CheckpointEntry:
       type: object
-      required: [injectionLotId, batchCode, lotNo, stage, activatedAt, expectedHpa, embryos]
+      required: [injectionLotId, batchCode, lotNo, stage, activatedAt, expectedHpa, totalEmbryos, embryosRemaining, embryos]
       properties:
         injectionLotId: { type: string, format: uuid }
         batchCode: { type: string }
@@ -2312,6 +2313,7 @@ components:
         expectedHpa: { type: number, examples: [2.5] }
         dueAt: { type: string, format: date-time }
         totalEmbryos: { type: integer }
+        embryosRemaining: { type: integer }
         embryos:
           type: array
           items:
@@ -2324,6 +2326,9 @@ components:
               defaultCondition:
                 $ref: '#/components/schemas/Condition'
                 description: Carried forward from the previous observation (FR-409).
+              priorOutcome:
+                oneOf: [ { $ref: '#/components/schemas/EmbryoOutcome' }, { type: 'null' } ]
+              priorStageCode: { type: [string, 'null'] }
               firstAbnormalStageLabel: { type: [string, 'null'] }
 
     EmbryoObservationInput:
@@ -2358,10 +2363,19 @@ components:
         hpaActual: { type: [number, 'null'], examples: [2.6333] }
         hpaExpected: { type: [number, 'null'], examples: [2.5] }
         deviationH: { type: [number, 'null'], examples: [0.1333] }
+        deviationPct: { type: [number, 'null'], examples: [5.33] }
+        intervalActual: { type: [number, 'null'] }
+        intervalExpected: { type: [number, 'null'] }
+        intervalDeviationH: { type: [number, 'null'] }
         deviationLabel:
           type: [string, 'null']
           description: Preformatted for display per BR-23, so both platforms word it identically.
           examples: ['ช้ากว่าสากล 8 นาที']
+        deviationLabelEn:
+          type: [string, 'null']
+          description: English BR-23 display label.
+          examples: ['8 minutes slower than reference']
+        isBackdated: { type: [boolean, 'null'] }
         exitRecorded: { type: [boolean, 'null'] }
         error: { type: [object, 'null'], additionalProperties: true }
 

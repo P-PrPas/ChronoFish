@@ -1,7 +1,7 @@
 # ChronoFish Development Status
 
 > อัปเดตล่าสุด: 23 สิงหาคม 2026  
-> Branch: `feat/phase-3-batch-registration`
+> Branch: `feat/phase-4-due-checkpoints`
 > Go baseline ก่อนย้ายภาษา: `6adc25e`
 
 ## สรุปสถานะ
@@ -13,6 +13,8 @@ Frontend ยังคงเป็น Vite + React + TypeScript แบบ static 
 Phase 2 — Protocol และ Timing Profile implement ครบตาม checklist แล้ว ทั้ง canonical 36 stages, version history, atomic current profile, snapshot protection, CSV round-trip/row errors และหน้า SCR-15 โดย PostgreSQL/MySQL integration jobs ของ PR #5 ผ่านแล้ว
 
 Phase 3 — Batch, Injection Lot, Embryo และ Control Registration implement ครบตาม automated checklist แล้ว ครอบคลุม batch create/edit/duplicate, timing-profile pinning, atomic lot/embryo creation, deterministic control counts, database uniqueness สำหรับ batch code/sequence/live well, ผัง 96-well และ mobile list, Bangkok time และ automated T-01; เหลือการรับรอง UAT กับผู้ใช้จริงใน Phase 9
+
+Phase 4 — Due Now และ Embryo Checkpoint Entry implement ครบตาม automated checklist แล้ว ครอบคลุม BR-07/08/19/22/23, bulk idempotency, checkpoint read model, exit/correction/soft-delete audit, SCR-01/SCR-02, ผัง 96-well responsive, official timing response และ automated UAT T-02/T-03/T-04/T-05/T-15/T-16; เหลือการรับรองด้านอุปกรณ์ เครือข่าย และผู้ใช้จริงใน Phase 9
 
 ## สิ่งที่ implement แล้ว
 
@@ -40,17 +42,21 @@ Phase 3 — Batch, Injection Lot, Embryo และ Control Registration implemen
 - SCR-04/05/06 ใช้ batch form ร่วมกันสำหรับ create/edit, duplicate batch, ยืนยันก่อนสร้าง lot และ preview รหัสบน plate 96 หลุม; หน้าจอเล็กใช้รายการแทน
 - SCR-11 โหลด control counts เดิม แสดงยอด normal/abnormal/รวม และ validate duplicate/non-negative integer ก่อนบันทึก
 - automated T-01 สร้าง 1 batch, 3 lots, lot ละ 5 embryos ได้ 15 records พร้อมรหัสตามลำดับและไม่มี partial lot
+- Due Now ใช้ activation time และ timing-profile snapshot ของ batch พร้อมลำดับ overdue/upcoming, site/operator filters, refresh 60 วินาที และ pending promotion count
+- checkpoint entry คืนจำนวนตั้งต้น/คงเหลือ, prior observation และ well position; bulk write คำนวณ HPA/deviation/interval/label สองภาษาและรองรับ UUID replay
+- embryo checkpoint UI มี 96-well/mobile list, all-alive/remaining-dead, exception cycling, backdate/live T+, official result, partial rejection retry และ correction/undo พร้อม operator/save status
+- monotonic survival, implied checkpoints, exit projection, correction และ soft delete ผ่าน audit/recalculation โดย snapshot เวลาอ้างอิงเดิมไม่เปลี่ยน
 
 ## ผลตรวจล่าสุด
 
 - `ruff format --check` และ `ruff check`: ผ่าน
-- pytest memory suite: 42 passed, 3 database-only tests skipped
-- domain coverage: 95.70% (เกณฑ์ 90%)
+- pytest memory suite: 56 passed, 4 database-only tests skipped
+- domain coverage: 96.91% (เกณฑ์ 90%)
 - PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–9, workflow เดิม และ concurrent batch-code/live-well uniqueness ใน PR #6
 - MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL รวม migration 9 และ concurrency constraints ใน PR #6
 - OpenAPI validation: 51 paths / 70 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
-- frontend: generated API/build ผ่าน และ 29 tests ผ่าน
+- frontend: generated API/build ผ่าน และ 34 tests ผ่าน
 - Compose configuration ทั้งสองไฟล์: ผ่าน
 - Docker image build: ผ่าน CI ของ PR #1; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from datetime import date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -155,10 +154,15 @@ def is_backdated(observed: datetime, received: datetime) -> bool:
     return abs((received - observed).total_seconds()) > 15 * 60
 
 
-def deviation_label(value: float) -> str:
-    if math.isclose(value, 0.0, abs_tol=1 / 60):
-        return "ตรงกับสากล"
+def deviation_label(value: float, language: str = "th") -> str:
+    if abs(value) < 1 / 60:
+        return "ตรงกับสากล" if language == "th" else "matches reference"
     minutes = round(abs(value) * 60)
+    if language == "en":
+        direction = "faster than reference" if value < 0 else "slower than reference"
+        if minutes < 60:
+            return f"{minutes} {'minute' if minutes == 1 else 'minutes'} {direction}"
+        return f"{minutes // 60} hr {minutes % 60} min {direction}"
     direction = "เร็วกว่าสากล" if value < 0 else "ช้ากว่าสากล"
     return f"{direction} {minutes} นาที" if minutes < 60 else f"{direction} {minutes // 60} ชม. {minutes % 60} นาที"
 
