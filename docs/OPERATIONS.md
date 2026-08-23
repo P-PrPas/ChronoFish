@@ -72,4 +72,4 @@ Deploy the immutable API image, wait for the health check, and inspect logs for 
 
 ## Verification
 
-The CI workflow validates OpenAPI, generated MySQL migrations, frontend build, Go tests/race tests, and boot/idempotency/restart smoke tests on PostgreSQL 16 and MySQL 8. Production UAT, browser/device validation, reference-export reconciliation, and the restore drill require the deployment owner and are not replaced by CI.
+The CI workflow validates OpenAPI, generated MySQL migrations, frontend build, Python tests/coverage, and boot/idempotency/restart smoke tests on PostgreSQL 16 and MySQL 8. Production UAT, browser/device validation, reference-export reconciliation, and the restore drill require the deployment owner and are not replaced by CI.

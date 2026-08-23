@@ -29,15 +29,15 @@ Repository ปัจจุบันเป็น foundation ที่ดีสำ
 | พื้นที่ | สถานะปัจจุบัน | งานที่ยังเหลือ |
 |---|---|---|
 | Repository | `[x]` แยก `api/`, `backend/`, `frontend/`, `docs/`, `scripts/` แล้ว | รักษาโครงสร้างและเพิ่มไฟล์เมื่อ slice ใช้งานจริงเท่านั้น |
-| API contract | `[x]` OpenAPI 3.1 มี 69 operations และ frontend types ถูก generate แล้ว | generate Go server types/stubs และ implement 68 business operations; ปัจจุบันมีเพียง health endpoint |
-| Backend | `[x]` Go HTTP server, health endpoint, CORS และ test ขั้นต้น | config ฐานข้อมูล, migration runner, service layer, data access, validation, audit, rate limit และ business endpoints |
-| Database | `[x]` schema, protocol/stage seed, optional master seed และ constraint checks สำหรับ PostgreSQL/MySQL | runtime connection, sqlc queries, repository integration tests, migration lifecycle และ backup/restore |
-| Frontend | `[x]` Vite + React + TypeScript shell, responsive baseline และ generated API types | routing/navigation, API client, operator/device context, i18n, ทุกหน้าจอ SCR-01 ถึง SCR-18, offline queue และ tests |
-| CI | `[x]` ตรวจ Go, frontend build, OpenAPI, generated types, migrations และ constraints บนฐานข้อมูลสองชนิด | เพิ่ม unit/integration/UI/E2E/performance gates ตามแต่ละ phase |
-| Container | ยังไม่มี Dockerfile/Compose | เพิ่ม development container ใน Phase 1 และทำ production hardening ใน Phase 9 โดยต้องคงวิธีรันแบบ binary + static ไว้ |
+| API contract | `[x]` OpenAPI 3.1 มี 69 operations และ frontend types ถูก generate แล้ว | ทำ contract tests ให้ Python implementation ครบทั้ง 69 operations |
+| Backend | `[~]` Go baseline implement workflow หลักแล้วที่ `6adc25e`; กำลังแทนด้วย Python/FastAPI | ย้าย behavior, tests และ production SQL paths ให้ครบก่อนลบ Go runtime |
+| Database | `[x]` schema/migrations 7 versions, protocol/stage seed, constraint checks และ query indexes สำหรับ PostgreSQL/MySQL | ทำ Python migration runner และ integration suite กับ DB ทั้งสองชนิด |
+| Frontend | `[x]` หน้าหลัก, API client, generated types, offline queue, i18n บางส่วน และ tests มีแล้ว | ตรวจ requirement gaps, accessibility, iPad/Safari และ UAT หลัง backend migration |
+| CI | `[~]` Go baseline, frontend, OpenAPI, Docker และ DB smoke tests มีแล้ว | เปลี่ยน backend gates เป็น pytest/coverage และ Python boot tests โดยคง DB smoke tests เดิม |
+| Container | `[x]` Dockerfile/Compose สำหรับ baseline เดิมมีแล้ว | เปลี่ยน image/healthcheck เป็น Python และ pin runtime/dependencies |
 | Discovery | `[x]` domain, ERD และข้อกำหนดถูกวิเคราะห์ไว้ละเอียด | `[!]` สังเกต workflow จริงในแลปหนึ่งรอบ, ยืนยันตัวอย่าง export และสภาพแวดล้อม deploy |
 
-สรุป: งาน foundation ด้าน contract และ schema เดินหน้าไปมากแล้ว แต่ feature ตาม FR-100 ถึง FR-1100 ยังต้อง implement เกือบทั้งหมด
+สรุป: implementation เดิมเดินถึง workflow หลักครบเกือบทุก phase แล้ว แต่ยังไม่ผ่าน final acceptance และกำลังย้าย runtime จาก Go เป็น Python การย้ายภาษานี้เป็น release blocker จนกว่า contract/integration tests จะผ่านเทียบเท่า baseline
 
 ## 3. ขอบเขต Definition of Done ของระบบ v1
 
@@ -48,13 +48,13 @@ Repository ปัจจุบันเป็น foundation ที่ดีสำ
 - UAT T-01 ถึง T-23 ผ่าน; ข้อ SHOULD ที่ยังไม่ทำต้องระบุและได้รับการยอมรับอย่างชัดเจน
 - business rules ใน SRS บทที่ 6 ถูกคำนวณที่ backend และมี unit test coverage อย่างน้อย 90%
 - integration tests ชุดเดียวกันผ่านทั้ง PostgreSQL 16 และ MySQL 8 ทุก push
-- frontend build เป็น static files และ backend build เป็น executable เดียว
+- frontend build เป็น static files และ backend ส่งมอบเป็น version-pinned Docker image พร้อม native virtual-environment workflow
 - การเขียนข้อมูลทุกครั้งมี `operator_id`, `device_id`, audit record และไม่มี hard delete
 - observation ซ้ำด้วย `client_uuid` ไม่สร้างข้อมูลซ้ำ และ offline queue ไม่ทำข้อมูลหายเมื่อ refresh
 - Excel 14 sheets, R-ready table และ browser PDF ผ่านการตรวจรับ
 - performance, accessibility, browser compatibility, backup/restore และ security controls ตาม NFR ผ่าน
 - เดินระบบคู่ขนานกับ Excel เดิมหนึ่งรอบทดลองเต็มและตัวเลขตรงกัน
-- มี binary/static artifacts, Dockerfile, environment configuration และคู่มือ deploy/restore/ใช้งาน
+- มี Python dependency manifest/static artifacts, Dockerfile, environment configuration และคู่มือ deploy/restore/ใช้งาน
 
 ### สิ่งที่ไม่อยู่ใน v1
 
@@ -111,17 +111,15 @@ api/
 compose.yaml                   # local API + PostgreSQL; MySQL compatibility profile
 
 backend/
-  Dockerfile                   # multi-stage build ของ Go executable
-  cmd/api/                     # composition root และ executable
-  internal/config/             # อ่าน/validate environment
-  internal/httpapi/            # generated API types + handlers/middleware
-  internal/service/            # business use cases และ rules
-  internal/store/              # contract ที่มี PostgreSQL/MySQL implementations จริง
-    postgres/                  # sqlc generated code + adapter
-    mysql/                     # sqlc generated code + adapter
-  db/queries/
-    postgres/                  # SQL input ของ sqlc
-    mysql/
+  Dockerfile                   # Python runtime image แบบ non-root
+  pyproject.toml               # runtime/dev dependencies และ tooling
+  src/chronofish/
+    __main__.py                # composition root
+    config.py                  # อ่าน/validate environment
+    api/                       # FastAPI routers/middleware/error mapping
+    domain/                    # business rules ที่ไม่ผูก HTTP/DB
+    services/                  # use cases และ transaction boundaries
+    store/                     # SQLAlchemy/DBAPI access สำหรับ PostgreSQL/MySQL
   db/migrations/               # มีอยู่แล้ว
   db/seeds/                    # มีอยู่แล้ว
   db/tests/                    # มีอยู่แล้ว
@@ -191,10 +189,10 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 #### Backend
 
 - [ ] เพิ่ม config validation สำหรับ `PORT`, `DB_DRIVER`, `DATABASE_URL`, `CORS_ALLOWED_ORIGINS` และค่าควบคุม runtime ที่จำเป็นจริง
-- [ ] เชื่อม `database/sql`, ping ตอน startup, ตั้ง connection pool และปิด connection แบบ graceful shutdown
-- [ ] ใช้ `golang-migrate` กับ SQL เดิมผ่าน executable เดียว เช่น flag `-migrate-only`; SQL ต้องยังเปิดอ่านและรันด้วยมือได้
-- [ ] เพิ่ม `sqlc` config สำหรับ PostgreSQL/MySQL และ CI check ว่า generated code ไม่ค้าง
-- [ ] generate Go types/server contract จาก OpenAPI 3.1 ด้วย `oapi-codegen`
+- [ ] เชื่อม SQLAlchemy synchronous, ping ตอน startup, ตั้ง connection pool และปิด engine แบบ graceful shutdown
+- [ ] ใช้ Python migration runner กับ SQL เดิมผ่านคำสั่ง `python -m chronofish.migrate`; SQL ต้องยังเปิดอ่านและรันด้วยมือได้
+- [ ] ทำ repository queries ที่ explicit และมี integration test เดียวกันบน PostgreSQL/MySQL
+- [ ] ทำ contract test เทียบ route/method/status/schema กับ OpenAPI 3.1
 - [ ] เพิ่ม middleware: request logging ที่ไม่เก็บ PII, panic recovery, JSON content type, body-size limit, CORS, write headers และ rate limit
 - [ ] ทำ error mapper ให้ตอบ `ErrorResponse` และ HTTP 400/404/409/422/429/500 ตาม SRS
 - [ ] สร้าง audit writer ที่ทำงานใน transaction เดียวกับ mutation
@@ -205,12 +203,12 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 #### Docker/Local Environment
 
-- [ ] เพิ่ม `backend/Dockerfile` แบบ multi-stage: build Go executable ใน build stage และใส่เฉพาะ executable/CA certificates ที่จำเป็นใน runtime stage
+- [ ] เพิ่ม `backend/Dockerfile` จาก Python slim image ที่ pin version, ติดตั้งเฉพาะ runtime dependencies และรันแบบ non-root
 - [ ] รัน process ด้วย non-root user, รับ `PORT`/database configuration จาก environment และไม่ bake secret ลง image
 - [ ] เพิ่ม `.dockerignore` เพื่อไม่ส่ง `.git`, frontend dependencies, build output, local env และไฟล์ชั่วคราวเข้า build context
 - [ ] เพิ่ม root `compose.yaml`: API + PostgreSQL 16 เป็น local default และ MySQL 8 เป็น compatibility profile
 - [ ] ใช้ named volume เฉพาะข้อมูลฐานข้อมูล; API/frontend ต้องไม่มี persistent application state บน local filesystem
-- [ ] ให้ migration mode ของ executable ใช้ได้เหมือนกันทั้ง native และ container
+- [ ] ให้ migration command ใช้ได้เหมือนกันทั้ง native และ container
 - [ ] ระบุคำสั่งเริ่ม/หยุด/reset เฉพาะ local database และวิธีสลับ driver ใน README โดยไม่ commit credentials จริง
 - [ ] ไม่เพิ่ม Kubernetes, Helm, container registry workflow หรือ cloud-specific config จนกว่าจะทราบ production hosting
 
@@ -231,7 +229,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [ ] repository integration tests ของ CRUD/unique/soft delete/audit บน PostgreSQL และ MySQL
 - [ ] frontend tests ของ operator/device persistence และ master form validation
 - [ ] keyboard/touch targets ≥ 44×44, contrast ≥ 4.5:1 และไม่ใช้สีอย่างเดียว
-- [ ] API executable start ได้กับ DB ทั้งสองชนิด และ master data CRUD ผ่าน UI จริง
+- [ ] Python API start ได้กับ DB ทั้งสองชนิด และ master data CRUD ผ่าน UI จริง
 - [ ] `docker compose up --build` เปิด API + PostgreSQL แล้ว health check ผ่านจาก clean checkout
 - [ ] MySQL compatibility profile เปิดฐานข้อมูลและรัน migration/integration suite ผ่าน
 - [ ] `go build` และ static frontend build ยังส่งมอบได้โดยไม่ต้องมี Docker
@@ -478,7 +476,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [ ] ตรวจ rate limit, CORS, body limits, SQL parameters, output escaping และ error redaction
 - [ ] harden Docker image จาก Phase 1: pin base versions, non-root, minimal runtime files, image labels และ vulnerability scan
 - [ ] ทดสอบ production image กับ environment จริงโดยใช้ artifact เดียวกับที่ผ่าน UAT
-- [ ] ส่งมอบ Dockerfile/image build instructions ควบคู่กับ Go binary + `frontend/dist/`; ห้ามบังคับให้ปลายทางต้องใช้ container
+- [ ] ส่งมอบ Dockerfile/image instructions ควบคู่กับ Python dependency manifest + `frontend/dist/`; ห้ามบังคับให้ปลายทางต้องใช้ container
 - [ ] หาก hosting ต้องการ frontend container ให้เพิ่ม static web-server configuration ที่รองรับ SPA fallback โดยไม่เพิ่ม Node runtime ฝั่ง production
 - [ ] ทดสอบ fresh install จาก migration + seed บน PostgreSQL และ MySQL
 - [ ] ตั้ง daily backup เก็บ 30 วัน และทำ restore drill อย่างน้อยหนึ่งครั้ง
@@ -547,7 +545,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 1. OpenAPI validation และ generated frontend/backend types clean
 2. PostgreSQL canonical migration → generated MySQL migration clean
-3. Go format/vet/test และ business-rule coverage
+3. Ruff/pytest และ business-rule coverage
 4. build backend Docker image และตรวจว่า container start/health ผ่าน
 5. PostgreSQL integration suite
 6. MySQL integration suite เดียวกันในเชิงพฤติกรรม
@@ -569,14 +567,14 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [ ] UI มี loading/empty/error/success/pending state และ touch/accessibility basics
 - [ ] automated test ที่เล็กที่สุดแต่จับ regression สำคัญถูกเพิ่ม
 - [ ] commands ใน README ยังรันผ่านจาก clean checkout
-- [ ] เมื่อเปลี่ยน runtime/dependency Docker image และ native binary ต้อง build ผ่านทั้งคู่
+- [ ] เมื่อเปลี่ยน runtime/dependency Docker image และ native virtual-environment run ต้องผ่านทั้งคู่
 - [ ] ไม่มี secret, temporary export หรือ generated junk ถูก commit
 
 ## 11. ลำดับ PR/Commit ที่แนะนำสำหรับเริ่มงานทันที
 
 ให้เริ่มจาก slice เล็กและพิสูจน์ architecture ด้วยของจริง:
 
-1. **Runtime DB + Docker + write-idempotency contract + code generation** — config, connection, migration mode, OpenAPI สำหรับ non-bulk write retries, backend Dockerfile, Compose, sqlc/oapi generation และ CI
+1. **Python runtime migration + DB + Docker + write-idempotency contract** — config, connection, migration command, OpenAPI contract tests, backend Dockerfile, Compose และ CI
 2. **Site + Operator end-to-end** — สอง master types แรก, audit, headers, operator/device UI
 3. **Remaining Master Data** — ขยาย pattern ที่พิสูจน์แล้วไปอีกห้าประเภท
 4. **Timing Profile read** — protocol/stages/current/history

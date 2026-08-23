@@ -6,7 +6,7 @@ ChronoFish tracks SCNT zebrafish experiments from injection through embryo check
 
 ```text
 api/        OpenAPI 3.1 contract (single source of truth)
-backend/    Go API and portable PostgreSQL/MySQL migrations
+backend/    Python API and portable PostgreSQL/MySQL migrations
 frontend/   Static React + TypeScript application
 docs/       Requirements and SRS
 scripts/    Contract and migration checks
@@ -14,14 +14,15 @@ scripts/    Contract and migration checks
 
 ## Run locally
 
-Requirements: Go 1.24+, Node.js 22+, npm, Python 3.12+.
+Requirements: Python 3.13+, Node.js 22+, npm.
 
 ```powershell
 # terminal 1
 cd backend
 $env:APP_ENV="development"
 $env:DB_DRIVER="memory"
-go run ./cmd/api
+python -m pip install -e ".[dev]"
+python -m chronofish
 
 # terminal 2
 cd frontend
@@ -29,13 +30,13 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. Vite proxies `/api` to the Go server on port 8080.
+Open `http://localhost:5173`. Vite proxies `/api` to the Python server on port 8080.
 
 ## Validate
 
 ```powershell
 cd backend
-go test ./...
+python -m pytest
 cd ..
 python -m pip install -r requirements-dev.txt
 python scripts/validate_openapi.py
@@ -63,7 +64,7 @@ a VPN/reverse proxy; otherwise enforce HTTPS, IP allowlisting and TLS at the
 reverse proxy. API requests are rate limited per source IP. Never commit
 credentials in `.env` files.
 
-Database migrations are applied by golang-migrate from the versioned SQL files.
+Database migrations are applied by the Python migration runner from the versioned SQL files.
 PostgreSQL is canonical; regenerate the MySQL copies after every schema change.
 CI boots both database engines, applies all migrations, and runs constraint
 smoke checks.
