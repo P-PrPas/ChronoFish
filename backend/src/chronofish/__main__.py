@@ -16,7 +16,7 @@ def main() -> None:
                 raise SystemExit(1)
         return
     if len(sys.argv) > 1 and sys.argv[1] == "migrate":
-        from .migrate import migrate
+        from .store.migrations import migrate
 
         migrate(config)
         return

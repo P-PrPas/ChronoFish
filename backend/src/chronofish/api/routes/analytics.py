@@ -8,8 +8,10 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query, Request
 
-from ..core import MemoryStore, State, parse_datetime, utc_now
-from ..domain.rules import age_days_on, round4, stage_code, stage_label, stage_number
+from ...domain.rules import age_days_on, round4, stage_code, stage_label, stage_number
+from ...domain.state import State
+from ...runtime.values import parse_datetime, utc_now
+from ...store import Store
 from .fish import _enrich_fish
 from .observations import _expected_hpa
 
@@ -221,7 +223,7 @@ def query_dict(request: Request) -> dict[str, str]:
     return {key: value for key, value in request.query_params.items() if value}
 
 
-def build_analytics_router(store: MemoryStore) -> APIRouter:
+def build_analytics_router(store: Store) -> APIRouter:
     router = APIRouter(prefix="/api/v1/analytics")
 
     @router.get("/kpi")

@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from chronofish.app import create_app
 from chronofish.config import Config
-from chronofish.core import MemoryStore
+from chronofish.store import MemoryStore
 
 
 @pytest.fixture

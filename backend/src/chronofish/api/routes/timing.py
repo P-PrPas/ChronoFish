@@ -9,11 +9,15 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import Response
 
-from ..core import APIError, MemoryStore, State, audit, iso_now, mutate, normalize, uuid7
-from ..domain.rules import stage_label, stage_number
+from ...domain.rules import stage_label, stage_number
+from ...domain.state import State
+from ...runtime.errors import APIError
+from ...runtime.mutations import audit
+from ...runtime.values import iso_now, normalize, uuid7
+from ...store import Store
 
 
-def build_timing_router(store: MemoryStore) -> APIRouter:
+def build_timing_router(store: Store) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
 
     @router.get("/protocols")
@@ -141,7 +145,7 @@ def build_timing_router(store: MemoryStore) -> APIRouter:
             audit(state, request, "INSERT", "stage_timing_profile", profile_id, None, profile)
             return 201, profile
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     router.add_api_route("/timing-profiles", create_profile, methods=["POST"])
 

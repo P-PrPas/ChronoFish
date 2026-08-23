@@ -4,7 +4,7 @@ import re
 
 from sqlalchemy import text
 
-from .config import Config
+from ..config import Config
 from .database import create_database_engine
 
 MIGRATION = re.compile(r"^(\d+)_.*\.up\.sql$")

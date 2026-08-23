@@ -8,8 +8,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query, Request
 
-from ..core import APIError, MemoryStore, State, audit, iso_now, mutate, normalize, parse_datetime, utc_now, uuid7
-from ..domain.rules import (
+from ...domain.rules import (
     condition_valid,
     default_expected_hpa,
     deviation_label,
@@ -20,6 +19,11 @@ from ..domain.rules import (
     stage_label,
     stage_number,
 )
+from ...domain.state import State
+from ...runtime.errors import APIError
+from ...runtime.mutations import audit
+from ...runtime.values import iso_now, normalize, parse_datetime, utc_now, uuid7
+from ...store import Store
 
 BANGKOK = ZoneInfo("Asia/Bangkok")
 EMBRYO_OUTCOMES = {"ALIVE", "DEAD", "DEGENERATED", "NOT_OBSERVED"}
@@ -175,7 +179,7 @@ def _pending_promotions(state: State, now: datetime) -> int:
     return count
 
 
-def build_observations_router(store: MemoryStore) -> APIRouter:
+def build_observations_router(store: Store) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
 
     @router.get("/due-checkpoints")
@@ -369,7 +373,7 @@ def build_observations_router(store: MemoryStore) -> APIRouter:
                     audit(state, request, "UPDATE", "embryo", embryo_id, old, state.entities["embryos"][embryo_id])
             return 200, {"results": results}
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     def change_observation(observation_id: str, request: Request, body: dict[str, Any] | None, reason: str = ""):
         payload = normalize(body or {})
@@ -430,7 +434,7 @@ def build_observations_router(store: MemoryStore) -> APIRouter:
             audit(state, request, action, "embryo_observation", observation_id, old, observation)
             return status, result
 
-        return mutate(store, request, payload, operation)
+        return store.execute_mutation(request, payload, operation)
 
     @router.patch("/observations/embryo/{id}")
     async def update_observation(id: str, request: Request, body: dict[str, Any]):

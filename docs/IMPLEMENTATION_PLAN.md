@@ -117,10 +117,12 @@ backend/
   src/chronofish/
     __main__.py                # composition root
     config.py                  # อ่าน/validate environment
-    api/                       # FastAPI routers/middleware/error mapping
-    domain/                    # business rules ที่ไม่ผูก HTTP/DB
-    services/                  # use cases และ transaction boundaries
-    store/                     # SQLAlchemy/DBAPI access สำหรับ PostgreSQL/MySQL
+    app.py                     # FastAPI composition และ middleware
+    api/routes/                # route modules แยกตาม domain capability
+    domain/                    # state model และ business rules ที่ไม่ผูก HTTP/DB
+    runtime/                   # error, request mutation และ value primitives ที่ใช้ข้าม route
+    reporting/                 # portable report encoders เช่น XLSX
+    store/                     # Store interface + memory/SQL adapters, engine และ migration runner
   db/migrations/               # มีอยู่แล้ว
   db/seeds/                    # มีอยู่แล้ว
   db/tests/                    # มีอยู่แล้ว
@@ -200,7 +202,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [x] implement list/create/update-or-deactivate สำหรับ Site, Operator, Donor Cell Line, Recipient Egg Lot, CSOF Lot, Treatment Group และ Fish Box
 - [x] normalize `trim` แล้วเทียบ uniqueness แบบ case-insensitive พร้อมรับ DB unique violation เพื่อกัน race condition
 - [x] ทุก master list query ไม่คืน soft-deleted rows และเรียงผล deterministic
-- [ ] รายการสำหรับ dropdown คืนเฉพาะ `active = true` แต่หน้ารายละเอียดเก่าต้อง resolve master ที่ inactive ได้ตาม FR-111
+- [x] รายการสำหรับ dropdown คืนเฉพาะ `active = true` แต่หน้ารายละเอียดเก่าต้อง resolve master ที่ inactive ได้ตาม FR-111
 
 #### Docker/Local Environment
 

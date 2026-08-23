@@ -7,8 +7,12 @@ from typing import Any
 
 from fastapi import APIRouter, Query, Request
 
-from ..core import APIError, MemoryStore, State, audit, iso_now, mutate, normalize, parse_datetime, uuid7
-from ..domain.rules import enu_window, stage_number
+from ...domain.rules import enu_window, stage_number
+from ...domain.state import State
+from ...runtime.errors import APIError
+from ...runtime.mutations import audit
+from ...runtime.values import iso_now, normalize, parse_datetime, uuid7
+from ...store import Store
 
 
 def _active(state: State, resource: str, item_id: str, label: str | None = None) -> dict[str, Any]:
@@ -165,7 +169,7 @@ def _create_embryos(
     return embryos
 
 
-def build_experiments_router(store: MemoryStore) -> APIRouter:
+def build_experiments_router(store: Store) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
 
     @router.get("/batches")
@@ -205,7 +209,7 @@ def build_experiments_router(store: MemoryStore) -> APIRouter:
         def operation(state: State):
             return 201, _create_batch(state, request, body)
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     @router.get("/batches/{id}")
     def get_batch(id: str) -> dict[str, Any]:
@@ -258,7 +262,7 @@ def build_experiments_router(store: MemoryStore) -> APIRouter:
             audit(state, request, "UPDATE", "experiment_batch", batch_id, old, updated)
             return 200, updated
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     @router.post("/batches/{id}/duplicate")
     async def duplicate_batch(id: str, request: Request, body: dict[str, Any]):
@@ -295,7 +299,7 @@ def build_experiments_router(store: MemoryStore) -> APIRouter:
                     audit(state, request, "INSERT", "injection_lot", lot["id"], None, lot)
             return 201, created
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     @router.post("/batches/{id}/injection-lots")
     async def create_lot(id: str, request: Request, body: dict[str, Any]):
@@ -324,7 +328,7 @@ def build_experiments_router(store: MemoryStore) -> APIRouter:
                 result["warnings"] = [warning]
             return 201, result
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     @router.patch("/injection-lots/{id}")
     async def activate_lot_template(id: str, request: Request, body: dict[str, Any]):
@@ -367,7 +371,7 @@ def build_experiments_router(store: MemoryStore) -> APIRouter:
                 result["warnings"] = [warning]
             return 200, result
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     @router.get("/injection-lots/{id}/embryos")
     def list_embryos(id: str, aliveOnly: bool = False) -> dict[str, Any]:
@@ -425,7 +429,7 @@ def build_experiments_router(store: MemoryStore) -> APIRouter:
                 audit(state, request, "INSERT", "embryo", item_id, None, embryo)
             return 201, {"items": created}
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     @router.patch("/embryos/{id}")
     async def update_embryo(id: str, request: Request, body: dict[str, Any]):
@@ -447,7 +451,7 @@ def build_experiments_router(store: MemoryStore) -> APIRouter:
             audit(state, request, "UPDATE", "embryo", embryo_id, old, updated)
             return 200, updated
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     @router.delete("/embryos/{id}")
     async def delete_embryo(id: str, request: Request):
@@ -462,7 +466,7 @@ def build_experiments_router(store: MemoryStore) -> APIRouter:
             audit(state, request, "UPDATE", "embryo", embryo_id, old, embryo)
             return 204, b""
 
-        return mutate(store, request, {}, operation)
+        return store.execute_mutation(request, {}, operation)
 
     @router.get("/batches/{id}/control-arm-counts")
     def get_control_counts(id: str) -> dict[str, Any]:
@@ -538,6 +542,6 @@ def build_experiments_router(store: MemoryStore) -> APIRouter:
                     audit(state, request, "UPDATE", "control_arm_count", existing["id"], old, existing)
             return 200, {"items": result}
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     return router

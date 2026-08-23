@@ -52,6 +52,30 @@ describe('lab workflow forms', () => {
     root.unmount()
   })
 
+  it('resolves inactive master data in historical batch details without offering it for new records', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.endsWith('/batches')) return json({ items: [{ id: 'batch-1', batchCode: 'B-1', experimentDate: '2026-08-23', siteId: 'site-old', operatorId: 'operator-old', treatmentGroupId: 'treatment-old' }] })
+      if (path.endsWith('/batches/batch-1')) return json({ id: 'batch-1', batchCode: 'B-1', experimentDate: '2026-08-23', siteId: 'site-old', operatorId: 'operator-old', treatmentGroupId: 'treatment-old', injectionLots: [{ id: 'lot-1', lotNo: '1', donorCellLineId: 'donor-old', activatedAt: '2026-08-23T01:00:00Z', nActivated: 1 }] })
+      if (path.includes('/injection-lots/lot-1/embryos')) return json({ items: [] })
+      if (path.endsWith('/sites?includeInactive=true')) return json({ items: [{ id: 'site-old', code: 'OLD', name: 'Archived Lab', active: false }] })
+      if (path.endsWith('/operators?includeInactive=true')) return json({ items: [{ id: 'operator-old', name: 'Archived Operator', active: false }] })
+      if (path.endsWith('/treatment-groups?includeInactive=true')) return json({ items: [{ id: 'treatment-old', code: 'OLD-TX', name: 'Archived Treatment', active: false }] })
+      if (path.endsWith('/donor-cell-lines?includeInactive=true')) return json({ items: [{ id: 'donor-old', strain: 'Archived Donor', active: false }] })
+      return json({ items: [] })
+    }))
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Batches t={text.en} />); await Promise.resolve() })
+    await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement)?.click(); await Promise.resolve(); await new Promise((resolve) => setTimeout(resolve, 0)) })
+
+    expect(document.body.textContent).toContain('Archived Lab')
+    expect(document.body.textContent).toContain('Archived Operator')
+    expect(document.body.textContent).toContain('Archived Treatment')
+    expect(document.body.textContent).toContain('Archived Donor')
+    expect(Array.from(document.querySelectorAll('option')).some((option) => option.textContent === 'Archived Donor')).toBe(false)
+    root.unmount()
+  })
+
   it('exposes Bangkok roll-call outcomes and registry filters', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input)

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from chronofish.core import uuid7
 from chronofish.domain.rules import deviation_label, promotion_eligible_at, stage_code, stage_number
+from chronofish.runtime.values import uuid7
 
 
 def test_health(client):
@@ -40,6 +40,19 @@ def test_master_create_normalizes_rejects_duplicate_and_replays(client, write_he
     conflict_headers = {**write_headers, "X-Idempotency-Key": "01900000-0000-7000-8000-000000000100"}
     conflict = client.post("/api/v1/sites", headers=conflict_headers, json={"code": "lab-a", "name": "Other"})
     assert conflict.status_code == 409
+
+
+def test_inactive_master_is_hidden_by_default_but_resolvable_for_history(client, write_headers):
+    created = client.post("/api/v1/sites", headers=write_headers, json={"code": "OLD", "name": "Old lab"}).json()
+    update_headers = {**write_headers, "X-Idempotency-Key": "01900000-0000-7000-8000-000000000102"}
+    assert (
+        client.patch(f"/api/v1/sites/{created['id']}", headers=update_headers, json={"active": False}).status_code
+        == 200
+    )
+
+    assert client.get("/api/v1/sites").json()["items"] == []
+    historical = client.get("/api/v1/sites?includeInactive=true").json()["items"]
+    assert [(item["id"], item["name"], item["active"]) for item in historical] == [(created["id"], "Old lab", False)]
 
 
 def test_idempotency_key_rejects_different_payload(client, write_headers):

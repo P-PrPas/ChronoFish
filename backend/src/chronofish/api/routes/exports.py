@@ -10,9 +10,11 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
-from ..core import MemoryStore, State, iso_now, mutate
-from ..domain.rules import stage_code, stage_label, stage_number
-from ..exporting import Sheet, build_xlsx
+from ...domain.rules import stage_code, stage_label, stage_number
+from ...domain.state import State
+from ...reporting.xlsx import Sheet, build_xlsx
+from ...runtime.values import iso_now
+from ...store import Store
 from .analytics import (
     checkpoint_status,
     filtered_batches,
@@ -599,7 +601,7 @@ def _sheets(state: State, query: dict[str, str]) -> list[Sheet]:
     return sheets
 
 
-def build_export_router(store: MemoryStore) -> APIRouter:
+def build_export_router(store: Store) -> APIRouter:
     router = APIRouter(prefix="/api/v1/exports")
 
     @router.get("/r-table")
@@ -626,7 +628,7 @@ def build_export_router(store: MemoryStore) -> APIRouter:
                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
 
-        response = mutate(store, request, body, operation)
+        response = store.execute_mutation(request, body, operation)
         response.headers["Content-Disposition"] = 'attachment; filename="chronofish-export.xlsx"'
         return response
 

@@ -5,7 +5,11 @@ from typing import Any
 
 from fastapi import APIRouter, Query, Request
 
-from ..core import APIError, MemoryStore, State, audit, iso_now, mutate, normalize, uuid7
+from ...domain.state import State
+from ...runtime.errors import APIError
+from ...runtime.mutations import audit
+from ...runtime.values import iso_now, normalize, uuid7
+from ...store import Store
 
 MASTER = {
     "sites": {"required": ("code", "name"), "unique": ("code",)},
@@ -43,7 +47,7 @@ def _validate(state: State, resource: str, item: dict[str, Any], current_id: str
             raise APIError(409, "conflict", "ข้อมูลซ้ำกับรายการที่มีอยู่แล้ว")
 
 
-def build_master_router(store: MemoryStore) -> APIRouter:
+def build_master_router(store: Store) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
     for resource in MASTER:
 
@@ -83,7 +87,7 @@ def build_master_router(store: MemoryStore) -> APIRouter:
                     audit(state, request, "INSERT", current_resource, item_id, None, item)
                     return 201, item
 
-                return mutate(store, request, body, operation)
+                return store.execute_mutation(request, body, operation)
 
             async def update_endpoint(id: str, request: Request, body: dict[str, Any]):
                 item_id = id
@@ -106,7 +110,7 @@ def build_master_router(store: MemoryStore) -> APIRouter:
                     audit(state, request, "UPDATE", current_resource, item_id, old, updated)
                     return 200, updated
 
-                return mutate(store, request, body, operation)
+                return store.execute_mutation(request, body, operation)
 
             return list_endpoint, create_endpoint, update_endpoint
 
