@@ -20,6 +20,8 @@ info:
     * All hour values are decimal hours with 4 decimal places (DR-05).
     * Writes carry `X-Operator-Id` and `X-Device-Id` (API-03) because the
       system has no login (CON-01) and still has to record who did what.
+    * Every mutation also accepts `X-Idempotency-Key`. Clients persist this
+      stable key with the queued write; retries return the original result.
     * Bulk write endpoints are idempotent on `clientUuid` (BR-18). Re-sending
       is always safe and is the normal case, not an error — the offline write
       queue retries freely.
@@ -85,7 +87,7 @@ paths:
       tags: [Master data]
       summary: Create a site
       operationId: createSite
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -106,7 +108,7 @@ paths:
       tags: [Master data]
       summary: Update a site
       operationId: updateSite
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -143,7 +145,7 @@ paths:
       tags: [Master data]
       summary: Create an operator
       operationId: createOperator
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -179,7 +181,7 @@ paths:
       tags: [Master data]
       summary: Create a donor cell line
       operationId: createDonorCellLine
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -215,7 +217,7 @@ paths:
       tags: [Master data]
       summary: Create a recipient egg lot
       operationId: createRecipientEggLot
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -251,7 +253,7 @@ paths:
       tags: [Master data]
       summary: Create a CSOF lot
       operationId: createCsofLot
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -289,7 +291,7 @@ paths:
       tags: [Master data]
       summary: Create a treatment group
       operationId: createTreatmentGroup
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -325,7 +327,7 @@ paths:
       tags: [Master data]
       summary: Create a fish box
       operationId: createFishBox
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -345,7 +347,7 @@ paths:
       tags: [Master data]
       summary: Update or deactivate an operator
       operationId: updateOperator
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -366,7 +368,7 @@ paths:
       tags: [Master data]
       summary: Update or deactivate a donor cell line
       operationId: updateDonorCellLine
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -387,7 +389,7 @@ paths:
       tags: [Master data]
       summary: Update or deactivate a recipient egg lot
       operationId: updateRecipientEggLot
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -408,7 +410,7 @@ paths:
       tags: [Master data]
       summary: Update or deactivate a CSOF lot
       operationId: updateCsofLot
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -429,7 +431,7 @@ paths:
       tags: [Master data]
       summary: Update or deactivate a treatment group
       operationId: updateTreatmentGroup
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -450,7 +452,7 @@ paths:
       tags: [Master data]
       summary: Update or deactivate a fish box
       operationId: updateFishBox
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -558,7 +560,7 @@ paths:
         recomputed (NFR-203, AC-204). This is what lets the lab adjust the
         reference times freely without silently rewriting past results.
       operationId: createTimingProfileVersion
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -615,7 +617,7 @@ paths:
       tags: [Timing]
       summary: Upload reference timing as CSV, creating a new version
       operationId: importTimingCsv
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -664,7 +666,7 @@ paths:
         creation time (FR-303) and suggests `batchCode` as
         `{dayNo}_{operator}_{treatmentGroup}` when the caller omits it (FR-302).
       operationId: createBatch
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -696,7 +698,7 @@ paths:
       tags: [Experiments]
       summary: Update a batch
       operationId: updateBatch
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -717,7 +719,7 @@ paths:
       summary: Create a new batch by copying this one
       description: Copies everything except dates and times (FR-305) — enucleation settings repeat almost every run.
       operationId: duplicateBatch
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -752,7 +754,7 @@ paths:
         `activatedAt` is mandatory (FR-307): it is T0 for every downstream
         calculation and for the fish date of birth (BR-01, BR-10).
       operationId: createInjectionLot
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -764,6 +766,32 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/InjectionLotDetail' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/UnprocessableEntity' }
+
+  /injection-lots/{id}:
+    parameters: [ $ref: '#/components/parameters/PathId' ]
+    patch:
+      tags: [Experiments]
+      summary: Activate a lot template copied with a batch
+      description: |
+        Supplies T0 and creates the embryos for a draft lot created by
+        `duplicateBatch`. An activated lot cannot be changed through this
+        operation because changing T0 would invalidate downstream results.
+      operationId: activateInjectionLotTemplate
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InjectionLotActivationInput' }
+      responses:
+        '200':
+          description: Template activated and embryos created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InjectionLotDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
 
@@ -795,7 +823,7 @@ paths:
       summary: Add extra embryos to a lot
       description: For when the real count differs from what was entered initially (FR-310).
       operationId: addLotEmbryos
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -824,7 +852,7 @@ paths:
       tags: [Experiments]
       summary: Update an embryo
       operationId: updateEmbryo
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -848,7 +876,7 @@ paths:
       summary: Soft-delete an embryo
       description: Sets `deletedAt`; nothing is ever physically removed (CON-08, BR-20).
       operationId: deleteEmbryo
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       responses:
         '204': { description: Soft-deleted }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -879,7 +907,7 @@ paths:
         Q6), matching how the lab already records them. Sending a row for an
         existing (armType, stageCode) pair replaces it.
       operationId: putControlArmCounts
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -995,7 +1023,7 @@ paths:
         Partial success is normal: each item reports its own status, so one bad
         row never discards the rest of the checkpoint.
       operationId: createEmbryoObservations
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -1071,7 +1099,7 @@ paths:
         clear or move `firstAbnormal` (BR-12). `hpaExpectedSnapshot` is only
         recomputed if `observedAt` changes.
       operationId: updateEmbryoObservation
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -1096,7 +1124,7 @@ paths:
       tags: [Observations]
       summary: Soft-delete an observation
       operationId: deleteEmbryoObservation
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       responses:
         '204': { description: Soft-deleted }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -1144,7 +1172,7 @@ paths:
         For a consecutive date range, the client expands each fish/date into a
         separate item with its own `clientUuid`. This keeps retries idempotent.
       operationId: createFishObservations
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -1177,7 +1205,7 @@ paths:
       tags: [Observations]
       summary: Correct a fish observation
       operationId: updateFishObservation
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -1195,6 +1223,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/OperatorId'
         - $ref: '#/components/parameters/DeviceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
         - name: reason
           in: query
           required: true
@@ -1247,7 +1276,7 @@ paths:
         Running numbers are allocated inside the same transaction so two people
         promoting at once cannot collide (BR-14).
       operationId: createPromotions
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -1281,7 +1310,7 @@ paths:
                 properties:
                   items:
                     type: array
-                    items: { $ref: '#/components/schemas/CloneFish' }
+                    items: { $ref: '#/components/schemas/PromotionResult' }
         '409': { $ref: '#/components/responses/Conflict' }
         '422': { $ref: '#/components/responses/UnprocessableEntity' }
 
@@ -1320,7 +1349,7 @@ paths:
       summary: Register a fish by hand
       description: For fish that did not come through the normal promotion path (FR-509).
       operationId: createFish
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -1352,7 +1381,7 @@ paths:
       summary: Update a fish
       description: Sex is usually only determinable weeks in (FR-609), so it can be set at any time.
       operationId: updateFish
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -1395,7 +1424,7 @@ paths:
       tags: [Fish]
       summary: Record a DNA specimen
       operationId: createSpecimen
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -1560,9 +1589,20 @@ paths:
                       required: [ageDays, atRisk, alive, surv]
                       properties:
                         group: { type: [string, 'null'] }
+                        condition: { type: [string, 'null'] }
+                        strain: { type: [string, 'null'] }
+                        treatmentGroup: { type: [string, 'null'] }
                         ageDays: { type: integer }
                         atRisk: { type: integer }
                         alive: { type: integer }
+                        nAlive: { type: integer }
+                        nDead: { type: integer }
+                        nFrozen: { type: integer }
+                        nDiscarded: { type: integer }
+                        nMale: { type: integer }
+                        nFemale: { type: integer }
+                        nUnknownSex: { type: integer }
+                        nBoxes: { type: integer }
                         surv: { type: number }
 
   /analytics/observation-gaps:
@@ -1637,7 +1677,7 @@ paths:
         CON-05), which is also what lets the backend run on a filesystem-less
         platform.
       operationId: exportExcel
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId' ]
+      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
       requestBody:
         required: true
         content:
@@ -1734,6 +1774,12 @@ components:
       required: true
       description: Stable per-device identifier generated on first use and kept in local storage.
       schema: { type: string, maxLength: 64 }
+    IdempotencyKey:
+      name: X-Idempotency-Key
+      in: header
+      required: true
+      description: Stable key for one logical mutation. Replays return the original result.
+      schema: { type: string, format: uuid }
     IncludeInactive:
       name: includeInactive
       in: query
@@ -2071,11 +2117,11 @@ components:
           type: array
           items:
             type: object
-            required: [stageOrder, stageCode, stageLabel, expectedHpa]
+            required: [stageCode, expectedHpa]
             properties:
-              stageOrder: { type: integer }
+              stageOrder: { type: integer, description: Derived from stageCode when omitted. }
               stageCode: { type: string }
-              stageLabel: { type: string }
+              stageLabel: { type: string, description: Derived from the canonical stage when omitted. }
               expectedHpa: { type: number, examples: [2.5] }
 
     # ---- experiments --------------------------------------------------------
@@ -2134,7 +2180,7 @@ components:
 
     InjectionLot:
       type: object
-      required: [id, batchId, lotNo, donorCellLineId, activatedAt, nActivated]
+      required: [id, batchId, lotNo, donorCellLineId, nActivated]
       properties:
         id: { type: string, format: uuid }
         batchId: { type: string, format: uuid }
@@ -2149,9 +2195,9 @@ components:
         enuStartAt: { type: [string, 'null'], format: date-time }
         enuFinishAt: { type: [string, 'null'], format: date-time }
         activatedAt:
-          type: string
+          type: [string, 'null']
           format: date-time
-          description: T0 for everything downstream (BR-01).
+          description: T0 for everything downstream (BR-01); null only for a copied draft template.
         nEggs: { type: [integer, 'null'] }
         nActivated: { type: integer }
         notes: { type: [string, 'null'] }
@@ -2178,6 +2224,23 @@ components:
           description: Optional, in sequence order; entry i is the well of embryo i+1.
           items: { type: string, pattern: '^[A-H](1[0-2]|[1-9])$' }
         notes: { type: [string, 'null'] }
+    InjectionLotActivationInput:
+      type: object
+      required: [activatedAt, nActivated]
+      properties:
+        donorCellLineId: { type: string, format: uuid }
+        enuPowerPct: { type: [integer, 'null'], minimum: 0, maximum: 100 }
+        enuPulseUs: { type: [integer, 'null'], minimum: 0 }
+        enuLed: { type: [integer, 'null'], minimum: 0 }
+        enuStartAt: { type: [string, 'null'], format: date-time }
+        enuFinishAt: { type: [string, 'null'], format: date-time }
+        activatedAt: { type: string, format: date-time }
+        nEggs: { type: [integer, 'null'], minimum: 0 }
+        nActivated: { type: integer, minimum: 0, maximum: 96 }
+        wellPositions:
+          type: [array, 'null']
+          items: { type: string, pattern: '^[A-H](1[0-2]|[1-9])$' }
+        notes: { type: [string, 'null'] }
     InjectionLotDetail:
       allOf:
         - $ref: '#/components/schemas/InjectionLot'
@@ -2186,6 +2249,10 @@ components:
             embryos:
               type: array
               items: { $ref: '#/components/schemas/Embryo' }
+            warnings:
+              type: array
+              description: Non-blocking business-rule warnings raised while creating or activating the lot (AC-307).
+              items: { type: string }
 
     Embryo:
       type: object
@@ -2402,6 +2469,16 @@ components:
         suggestedFishCode: { type: string, examples: ['No.47_Clone1-AB cell-24'] }
         suggestedRunningNo: { type: integer, examples: [47] }
 
+    PromotionResult:
+      type: object
+      required: [clientUuid, status]
+      properties:
+        clientUuid: { type: string, format: uuid }
+        id: { type: [string, 'null'], format: uuid }
+        status: { $ref: '#/components/schemas/WriteStatus' }
+        fish: { $ref: '#/components/schemas/CloneFish' }
+        error: { type: [object, 'null'], additionalProperties: true }
+
     CloneFish:
       type: object
       required: [id, fishCode, runningNo, dob, donorCellLineId, status, condition, sex, finClipped]
@@ -2528,8 +2605,8 @@ components:
             nReachedShield: { type: integer }
             nReachedDay1: { type: integer }
             nPromoted: { type: integer }
-            pctNormal: { type: number }
-            pctAbnormal: { type: number }
+            pctNormal: { type: number, minimum: 0, maximum: 1, description: Fraction of filtered embryos/fish marked NORMAL. }
+            pctAbnormal: { type: number, minimum: 0, maximum: 1, description: Fraction of filtered embryos/fish marked ABNORMAL. }
         stage2:
           type: object
           required: [nFish, nAlive, nDead, nFrozen, nDiscarded]
@@ -2539,6 +2616,9 @@ components:
             nDead: { type: integer }
             nFrozen: { type: integer }
             nDiscarded: { type: integer }
+            nNormal: { type: integer }
+            nAbnormal: { type: integer }
+            nUndetermined: { type: integer }
             meanAgeDaysAlive: { type: [number, 'null'] }
 
     FunnelStep:

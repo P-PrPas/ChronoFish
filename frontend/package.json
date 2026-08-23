@@ -7,7 +7,8 @@
     "dev": "vite",
     "generate:api": "openapi-typescript ../api/openapi.yaml -o src/api/schema.d.ts",
     "build": "tsc --noEmit && vite build",
-    "check": "npm run build"
+    "check": "npm run build",
+    "test": "vitest run"
   },
   "dependencies": {
     "react": "^19.1.1",
@@ -17,8 +18,11 @@
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.2",
+    "fake-indexeddb": "^6.2.5",
+    "happy-dom": "^20.11.6",
     "openapi-typescript": "^7.13.0",
     "typescript": "^5.9.2",
-    "vite": "^7.1.3"
+    "vite": "^7.1.3",
+    "vitest": "^4.1.11"
   }
 }

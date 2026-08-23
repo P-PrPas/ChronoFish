@@ -166,7 +166,7 @@ graph LR
 | ขนาดหน้าจอ | 375 px (มือถือ) ถึง 2560 px (จอเดสก์ท็อป) |
 | สภาพการใช้งาน | ข้างกล้องจุลทรรศน์ · ผู้ใช้สวมถุงมือ · มืออาจเปียก · แสงในห้องอาจหรี่ |
 | เครือข่าย | Wi-Fi ในแลป — มีการหลุดเป็นครั้งคราวแต่ไม่บ่อย |
-| ฝั่งเซิร์ฟเวอร์ | Go binary + PostgreSQL 16 · ยังไม่ทราบผู้ให้บริการ (ดู 9.2) |
+| ฝั่งเซิร์ฟเวอร์ | Python ASGI application + PostgreSQL 16 · deploy ด้วย container หรือ virtual environment · ยังไม่ทราบผู้ให้บริการ (ดู 9.2) |
 
 ## 2.5 ข้อจำกัด
 
@@ -174,7 +174,7 @@ graph LR
 |---|---|---|
 | CON-01 | ไม่มีระบบ login / บัญชีผู้ใช้ ใน v1 | ลูกค้ากำหนด |
 | CON-02 | Frontend ต้อง build เป็นไฟล์ static เท่านั้น (ห้าม SSR / server-side rendering) | ยังไม่ทราบ hosting — ดู 9.2 |
-| CON-03 | Backend ต้องเป็น executable เดียวที่ไม่ต้องการ runtime ติดตั้งเพิ่ม | เหตุผลเดียวกับ CON-02 |
+| CON-03 | Backend ต้องส่งมอบเป็น Docker image ที่ version-pin แล้ว และต้องรันแบบ native ด้วย Python virtual environment ได้ | รองรับทั้ง container hosting และเครื่องที่ทีมดูแลเอง |
 | CON-04 | ห้ามใช้ฟีเจอร์เฉพาะของฐานข้อมูลใดฐานข้อมูลหนึ่ง (materialized view, stored procedure, Postgres-only operators) | ต้องย้ายไป MySQL ได้ |
 | CON-05 | Backend ต้อง stateless — ห้ามเก็บ state ถาวรบน local filesystem | รองรับ serverless และการย้ายเครื่อง |
 | CON-06 | ไม่นำเข้าข้อมูลเดิมจาก Excel | ลูกค้ากำหนด |
@@ -264,7 +264,7 @@ graph LR
 |---|---|
 | SI-01 | Frontend สื่อสารกับ Backend ผ่าน **HTTP/JSON เท่านั้น** ตามสัญญาที่ระบุใน OpenAPI 3.1 |
 | SI-02 | ไม่มีการเรียกฟังก์ชันข้ามฝั่ง ไม่มี RPC เฉพาะภาษา ไม่มี server component |
-| SI-03 | Backend ต่อฐานข้อมูลผ่าน `database/sql` โดยระบุ driver ผ่าน environment variable |
+| SI-03 | Backend ต่อฐานข้อมูลผ่าน SQLAlchemy โดยระบุ driver และ connection URL ผ่าน environment variable |
 | SI-04 | ไม่มี integration กับระบบภายนอกใด ๆ ใน v1 |
 | SI-05 | ไฟล์ Excel ที่ส่งออกต้องเปิดได้ด้วย Microsoft Excel 2016+, LibreOffice Calc 7+, `pandas.read_excel`, และ `readxl::read_excel` ของ R |
 
@@ -358,14 +358,14 @@ graph LR
 | FR-302 | ระบบต้อง**เสนอ** `batch_code` อัตโนมัติในรูปแบบ `{day_no}_{operator}_{treatment_group}` และให้ผู้ใช้แก้ไขได้ | MUST |
 | FR-303 | ระบบต้องผูก Timing Profile เวอร์ชันปัจจุบันเข้ากับรอบทดลองโดยอัตโนมัติ ณ ขณะสร้าง | MUST |
 | FR-304 | ระบบต้องให้ผู้ใช้บันทึก `incubation_temp_c` ได้ (ไม่บังคับ) โดยยังไม่นำไปใช้คำนวณใน v1 | MUST |
-| FR-305 | ระบบต้องให้ผู้ใช้สร้างรอบทดลองใหม่โดย**คัดลอกค่าจากรอบก่อนหน้า** (ยกเว้นวันที่และเวลา) | SHOULD |
+| FR-305 | ระบบต้องให้ผู้ใช้สร้างรอบทดลองใหม่โดย**คัดลอกค่าจากรอบก่อนหน้า** (ยกเว้นวันที่และเวลา) และเลือกคัดลอกค่าตั้งต้นของ Injection Lot เป็น draft ที่ยังไม่มีตัวอ่อนและ T0 ได้ | SHOULD |
 
 ### 4.3.2 ล็อตการฉีดและตัวอ่อน
 
 | ID | ข้อกำหนด | ระดับ |
 |---|---|---|
 | FR-306 | ระบบต้องให้ผู้ใช้เพิ่มล็อตการฉีดในรอบทดลอง โดยระบุ `lot_no`, Donor Cell Line, `enu_power_pct`, `enu_pulse_us`, `enu_led`, `enu_start_at`, `enu_finish_at`, **`activated_at`**, `n_eggs`, `n_activated` | MUST |
-| FR-307 | `activated_at` เป็นฟิลด์บังคับ และต้องรับค่าผ่านตัวเลือกวันที่-เวลา ห้ามรับเป็นข้อความอิสระ | MUST |
+| FR-307 | `activated_at` เป็นฟิลด์บังคับก่อนเริ่มติดตามล็อต และต้องรับค่าผ่านตัวเลือกวันที่-เวลา ห้ามรับเป็นข้อความอิสระ; ยกเว้นเฉพาะ draft ที่ระบบสร้างจาก FR-305 ซึ่งต้องยังสร้างตัวอ่อนหรือบันทึกผลไม่ได้จนกว่าจะ activate | MUST |
 | FR-308 | เมื่อผู้ใช้ระบุ `n_activated = N` ระบบต้องสร้างระเบียนตัวอ่อน **N ระเบียนทันที** พร้อม `embryo_code` = `{batch_code}_{lot_no}_{seq}` โดย `seq` เริ่มที่ 1 | MUST |
 | FR-309 | ระบบต้องให้ผู้ใช้ระบุ `well_position` ของตัวอ่อนแต่ละตัว โดยเลือกจากผัง 96-well หรือพิมพ์รหัส (`A1` ถึง `H12`) | SHOULD |
 | FR-310 | ระบบต้องให้ผู้ใช้เพิ่มหรือลบตัวอ่อนในล็อตได้ภายหลัง หากจำนวนจริงไม่ตรงกับที่ระบุไว้ตอนแรก | MUST |
@@ -766,7 +766,7 @@ erDiagram
 | `enu_led` | INT | ได้ | เช่น 80, 85, 90 |
 | `enu_start_at` | DATETIME | ได้ | UTC |
 | `enu_finish_at` | DATETIME | ได้ | UTC |
-| **`activated_at`** | DATETIME | **ไม่** | UTC · **T0 ของทั้งระบบ (BR-01)** |
+| **`activated_at`** | DATETIME | ได้แบบมีเงื่อนไข | UTC · **T0 ของทั้งระบบ (BR-01)** · เป็น `NULL` ได้เฉพาะ draft จาก FR-305 และต้องกำหนดก่อนสร้างตัวอ่อน/บันทึกผล |
 | `n_eggs` | INT | ได้ | จำนวนไข่ที่ใช้ |
 | `n_activated` | INT | ไม่ | จำนวนที่ activate สำเร็จ = จำนวนตัวอ่อนที่สร้าง |
 | `notes` | TEXT | ได้ | |
@@ -1244,12 +1244,12 @@ stateDiagram-v2
 | ID | ข้อกำหนด |
 |---|---|
 | NFR-501 | Frontend ต้อง build ออกมาเป็นไฟล์ static ที่เปิดใช้งานได้ด้วยเว็บเซิร์ฟเวอร์ธรรมดาที่เสิร์ฟไฟล์ได้อย่างเดียว |
-| NFR-502 | Backend ต้อง build เป็น executable เดียวที่ไม่ต้องติดตั้ง runtime หรือ interpreter บนเครื่องปลายทาง |
+| NFR-502 | Backend ต้องส่งมอบ Docker image ที่มี Python runtime/dependencies ครบ และต้องมีวิธีติดตั้งแบบ native จาก dependency lock/constraints ที่ทำซ้ำได้ |
 | NFR-503 | การตั้งค่าทั้งหมดต้องอ่านจาก environment variable — ห้ามมีค่าที่ต้องแก้ในโค้ดแล้ว build ใหม่ |
 | NFR-504 | ไฟล์ migration ต้องเป็น `.sql` ธรรมดาที่อ่านและรันด้วยมือได้ |
 | NFR-505 | ชุดทดสอบอัตโนมัติต้องรันผ่านทั้งบน **PostgreSQL และ MySQL 8** ใน CI ทุกครั้งที่ push |
 | NFR-506 | Business logic ต้องอยู่ใน service layer ที่แยกจาก HTTP handler และชั้นเข้าถึงข้อมูล |
-| NFR-507 | ต้องส่งมอบทั้ง Dockerfile และชุดไฟล์ binary + static สำหรับสภาพแวดล้อมที่รัน container ไม่ได้ |
+| NFR-507 | ต้องส่งมอบ Dockerfile, Python application/dependency manifest และ frontend static files สำหรับสภาพแวดล้อมที่รัน container ไม่ได้ |
 | NFR-508 | ความครอบคลุมของ unit test สำหรับ business rule ในหัวข้อ 6 ต้องไม่น้อยกว่า **90%** |
 
 > **NFR-505 คือข้อที่สำคัญที่สุดในหมวดนี้** — ความสามารถในการย้ายฐานข้อมูลที่ไม่ได้ทดสอบทุกวัน จะพังเงียบ ๆ และรู้ตัวตอนที่สายเกินแก้
@@ -1317,6 +1317,7 @@ stateDiagram-v2
 | GET/PATCH | `/batches/{id}` | | FR-301 |
 | POST | `/batches/{id}/duplicate` | คัดลอกเป็นรอบใหม่ | FR-305 |
 | POST | `/batches/{id}/injection-lots` | เพิ่มล็อต + สร้างตัวอ่อนอัตโนมัติ | FR-306, FR-308 |
+| PATCH | `/injection-lots/{id}` | activate draft lot และสร้างตัวอ่อน โดยห้ามเปลี่ยน T0 หลัง activate | FR-305, FR-307, FR-308 |
 | GET | `/injection-lots/{id}/embryos` | รายการตัวอ่อนในล็อต | FR-308 |
 | PATCH | `/embryos/{id}` | แก้ไข well position ฯลฯ | FR-309 |
 | POST/DELETE | `/injection-lots/{id}/embryos` | เพิ่ม/ลบตัวอ่อนภายหลัง | FR-310 |
@@ -1447,13 +1448,13 @@ stateDiagram-v2
 | ส่วน | เทคโนโลยี | เหตุผล |
 |---|---|---|
 | Frontend | Vite + React + TypeScript build เป็น static | CON-02 — วางบน hosting แบบใดก็ได้ |
-| Backend | Go — executable เดียว ฟังที่ `$PORT` | CON-03 — ไม่ต้องติดตั้ง runtime |
+| Backend | Python 3.13+ + FastAPI/Uvicorn ฟังที่ `$PORT` | ดูแลง่ายสำหรับทีมปัจจุบันและ deploy ได้ทั้ง container/native |
 | ฐานข้อมูล | PostgreSQL 16 (ค่าเริ่มต้น) เขียนแบบ ANSI | CON-04 — ย้ายไป MySQL 8 ได้ |
-| ชั้นเข้าถึงข้อมูล | `sqlc` — เขียน SQL เอง ได้โค้ด type-safe | คุม portability ได้ตรง |
-| Migration | `golang-migrate` ไฟล์ `.sql` | NFR-504 |
-| Excel | `excelize` | ไลบรารีฝั่ง Go |
+| ชั้นเข้าถึงข้อมูล | SQLAlchemy synchronous + SQL ที่ตรวจสอบได้ | transaction ชัดเจนและรองรับ PostgreSQL/MySQL |
+| Migration | Python migration runner + ไฟล์ `.sql` เดิม | NFR-504 และรักษา upgrade path |
+| Excel | สร้าง XLSX แบบ streaming ใน Python | ไม่เขียนไฟล์ถาวรและจำกัด memory |
 | PDF | print stylesheet ฝั่งเบราว์เซอร์ | FR-907 — ไม่พึ่ง headless browser |
-| สัญญา API | OpenAPI 3.1 + `oapi-codegen` + `openapi-typescript` | ทดแทนการแชร์ type ข้ามภาษา |
+| สัญญา API | OpenAPI 3.1 + FastAPI contract tests + `openapi-typescript` | รักษา contract กลางโดยไม่ผูกภาษา |
 
 ## 9.2 สภาพแวดล้อมการติดตั้งที่ยังไม่ทราบ
 

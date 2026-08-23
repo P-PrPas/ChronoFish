@@ -49,7 +49,7 @@
 
 | # | การเปลี่ยนแปลง | ผลกระทบ |
 |---|---|---|
-| 1 | **ล็อก tech stack: Static SPA + Go backend** (แทน Next.js fullstack) | เขียนหัวข้อ 11 ใหม่ทั้งหมด + เพิ่ม 11.5 "สัญญาความพกพา" และ 11.6 แผน demo |
+| 1 | **ล็อก tech stack: Static SPA + Python backend** (เปลี่ยนจาก Go ตามมติ 23 ส.ค. 2026) | คง HTTP/JSON, OpenAPI และ portability contract เดิม; เปลี่ยน runtime/deployment เป็น FastAPI container/native venv |
 | 2 | **ตัดระบบ tolerance / ไฟเขียว-เหลือง-แดง ออก** (Q-N5) | ลบ `tolerance_h` จาก schema · แสดงส่วนต่างเป็นตัวเลขตรง ๆ · ตัด FR-1.10 |
 | 3 | **ตัดการปรับตามอุณหภูมิออกจาก v1** (Q-N2) | FR-1.8 → v2 · คงคอลัมน์ `incubation_temp_c` ไว้เฉย ๆ เพื่อไม่ต้อง migrate ทีหลัง |
 | 4 | **Abnormal mark ครั้งเดียวจบ** (Q-N4) | FR-4.17 ง่ายลง — ไม่มี workflow ยืนยันซ้ำ |
@@ -463,7 +463,7 @@ erDiagram
         int enu_led "80/85/90"
         datetime_utc enu_start_at
         datetime_utc enu_finish_at
-        datetime_utc activated_at "T0 = DOB"
+        datetime_utc activated_at "T0 = DOB; null เฉพาะ copied draft"
         int n_eggs
         int n_activated
     }
@@ -750,7 +750,7 @@ hpa_expected(T) = hpa_reference / (0.055 × T − 0.57)      ใช้ได้�
 | FR-2.4 | เพิ่ม Injection Lot: `lot_no`, donor cell line, Power %, Pulse µs, LED, enucleation start/finish, **activated_at**, `N in lot` | M |
 | FR-2.5 | ระบุ **`n_activated` = N** (จำนวนที่ activate สำเร็จ ไม่ใช่ `n_eggs`) แล้วระบบ **generate embryo record N ตัวทันที** พร้อม `embryo_code` = `{batch_code}_{lot_no}_{seq}` · เพิ่ม/นำออกด้วย soft delete ภายหลังได้ถ้าจำนวนจริงไม่ตรง | M |
 | FR-2.6 | ระบุ well position ในถาด 96-well | S |
-| FR-2.7 | Clone batch ก่อนหน้าเป็น template (ค่า enucleation ซ้ำกันเกือบทุกครั้ง) | S |
+| FR-2.7 | Clone batch ก่อนหน้าเป็น template (ค่า enucleation ซ้ำกันเกือบทุกครั้ง); copied lot เป็น draft ที่ไม่มีเวลา/ตัวอ่อน และต้อง activate ก่อนใช้งาน | S |
 | FR-2.8 | บันทึกกลุ่ม Natural breeding / IVF แบบนับรวม Normal/Abnormal ที่ checkpoint `4-cell`, `Shield–75%epi`, `Day-1/2/3` | M |
 
 ### 6.3 Registration — Stage 2 (Clone Fish)
@@ -1030,7 +1030,7 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 | NFR-12 | Browser | Safari บน iPadOS (สำคัญสุด), Chrome, Edge — 2 เวอร์ชันล่าสุด |
 | NFR-13 | Accessibility | contrast ≥ 4.5:1, เป้าแตะ ≥ 44×44 pt, ไม่สื่อความหมายด้วยสีอย่างเดียว |
 | NFR-14 | Data retention | ไม่มีการลบถาวร — ตารางธุรกิจใช้ soft delete; `audit_log` เป็น append-only และห้ามลบผ่าน application |
-| NFR-15 | Portability | ต้องผ่าน "สัญญาความพกพา" 8 ข้อในหัวข้อ 11.5 — frontend เป็น static, backend เป็น binary เดียว, ไม่ใช้ฟีเจอร์เฉพาะ DB/แพลตฟอร์มใด |
+| NFR-15 | Portability | ต้องผ่าน "สัญญาความพกพา" 8 ข้อในหัวข้อ 11.5 — frontend เป็น static, backend ส่งมอบเป็น version-pinned container และรันจาก virtual environment ได้, ไม่ใช้ฟีเจอร์เฉพาะ DB/แพลตฟอร์มใด |
 | NFR-16 | Statelessness | backend ต้องไม่พึ่ง local filesystem สำหรับ state ถาวร (ไฟล์ export สร้างสด ๆ ต่อ request) — ทำให้รันได้ทั้งบน serverless และ VPS |
 
 ---
@@ -1041,11 +1041,11 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 
 เรายังไม่รู้ว่า hosting จริงจะเป็นอะไร (Q9/Q-N3 ยังไม่มีคำตอบและอาจรออีกนาน) แต่ต้องส่งตัวอย่างให้ลูกค้าดูก่อน คำถามคือ **"ทำยังไงให้เริ่มเขียนวันนี้ได้ โดยไม่ต้องรื้อถ้า hosting ออกมาแย่กว่าที่คิด"**
 
-คำตอบไม่ใช่การเลือกภาษาที่ "รันได้ทุกที่" — **ไม่มีภาษาแบบนั้น** ถ้า hosting เป็น shared cPanel ที่มีแต่ PHP ก็ไม่มีทั้ง Node และ Go รันได้ คำตอบคือ **แยกส่วนที่ต้องการ runtime ออกจากส่วนที่ไม่ต้องการ**
+คำตอบไม่ใช่การเลือกภาษาที่ "รันได้ทุกที่" — **ไม่มีภาษาแบบนั้น** ถ้า hosting เป็น shared cPanel ที่มีแต่ PHP ก็ไม่มี Python application server รันได้ คำตอบคือ **แยกส่วนที่ต้องการ runtime ออกจากส่วนที่ไม่ต้องการ**
 
 ```
 ┌──────────────────────────────┐        ┌──────────────────────────────┐
-│  FRONTEND — Static SPA       │        │  BACKEND — Go binary เดียว    │
+│  FRONTEND — Static SPA       │        │  BACKEND — Python ASGI API     │
 │  ไฟล์ HTML/JS/CSS ล้วน ๆ      │◀─JSON─▶│  ต้องมี runtime               │
 │                              │  API   │                              │
 │  ⇒ วางที่ไหนก็ได้:            │        │  ⇒ ต้องมีที่ที่รัน process ได้:│
@@ -1056,7 +1056,7 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 └──────────────────────────────┘        └──────────────────────────────┘
 ```
 
-**ทำไมนี่คือประกันที่ดีที่สุด:** ถ้าปรากฏว่า hosting ที่แลปยืมมาเป็น shared hosting ที่รันได้แค่ PHP — เราก็ยังเอา **frontend ไปวางบนโดเมนของเขาได้ตามที่เขาต้องการ** (มันคือไฟล์ static ธรรมดา) แล้วเอา Go API ไปไว้ VPS เดือนละไม่กี่ร้อยบาทแยกต่างหาก ลูกค้าได้เว็บบนโดเมนตัวเอง เราไม่ต้องรื้ออะไรเลย
+**ทำไมนี่คือประกันที่ดีที่สุด:** ถ้าปรากฏว่า hosting ที่แลปยืมมาเป็น shared hosting ที่รันได้แค่ PHP — เรายังเอา **frontend ไปวางบนโดเมนของเขาได้ตามที่เขาต้องการ** แล้ววาง Python API บน container host/VPS แยกต่างหากโดยไม่เปลี่ยน frontend หรือ OpenAPI
 
 การไม่ใช้ SSR ไม่ใช่การยอมเสีย — แอปนี้เป็นเครื่องมือภายในสำหรับ 5 คน ไม่มี SEO ไม่มีหน้าสาธารณะ **SSR ไม่ให้ประโยชน์อะไรเลย** และ SPA + service worker ยังเข้ากับ Tier-1 resilience (หัวข้อ 11.4) ได้ดีกว่าด้วย
 
@@ -1075,17 +1075,17 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 └────────────────────────┬───────────────────────────────┘
                          │ HTTPS · REST/JSON (สัญญาใน OpenAPI)
 ┌────────────────────────▼───────────────────────────────┐
-│  Go 1.2x — binary เดียว ไม่มี runtime dependency        │
-│  ├─ Router: net/http; เพิ่ม chi เมื่อ route จริงต้องใช้  │
-│  ├─ Query: sqlc (สร้าง type-safe code จาก SQL จริง)     │
-│  ├─ Migration: golang-migrate (ไฟล์ .sql ธรรมดา)        │
-│  ├─ Validation: Go code ตรง ๆ; library เมื่อ rule ซ้ำจริง│
+│  Python 3.13+ — FastAPI + Uvicorn                       │
+│  ├─ HTTP/validation: FastAPI + Pydantic                 │
+│  ├─ Query/transaction: SQLAlchemy synchronous           │
+│  ├─ Migration: Python runner + ไฟล์ .sql เดิม            │
+│  ├─ Validation: service/domain functions ที่ทดสอบตรงได้  │
 │  ├─ Timing engine: คำนวณ hpa / expected / deviation     │
-│  ├─ Excel: excelize                                    │
+│  ├─ Excel: streaming XLSX response                     │
 │  └─ Ingest: idempotent upsert ด้วย client_uuid          │
 │  ฟังที่ $PORT · config ผ่าน env ทั้งหมด · stateless      │
 └────────────────────────┬───────────────────────────────┘
-                         │ database/sql (dialect-agnostic)
+                         │ SQLAlchemy/DBAPI
 ┌────────────────────────▼───────────────────────────────┐
 │  PostgreSQL 16 (ค่าเริ่มต้น)                            │
 │  รองรับ MySQL 8 ผ่าน driver + SQL implementation/migration│
@@ -1093,24 +1093,11 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 └────────────────────────────────────────────────────────┘
 ```
 
-### 11.3 ทำไม Go เหมาะกับ *เคสนี้* เป็นพิเศษ
+### 11.3 ทำไมเลือก Python สำหรับระยะปัจจุบัน
 
-ไม่ใช่เพราะ Go "ดีกว่า" แต่เพราะจุดแข็งของ Go ตรงกับความเสี่ยงอันดับ 1 ของโปรเจกต์นี้พอดี
+ทีมผู้พัฒนาและผู้ดูแลปัจจุบันทำงานด้วย Python ได้เร็วกว่า จึงเลือก FastAPI เพื่อให้ business rules, validation และ integration tests อ่านและแก้ไขได้โดยไม่ต้องรักษา Go-specific infrastructure เดิม การแลกเปลี่ยนคือ deployment ไม่ใช่ standalone binary อีกต่อไป จึงใช้ version-pinned Docker image เป็น artifact หลักและมี native virtual-environment workflow เป็นทางสำรอง
 
-| ประเด็น | Go | Node/TS |
-|---|---|---|
-| **สิ่งที่ต้อง deploy** | **ไฟล์เดียว ~15 MB** — `scp` ขึ้นไปแล้วรันได้เลย | โฟลเดอร์ + `node_modules` + ต้องมี Node เวอร์ชันถูกต้องบนเครื่อง |
-| **ถ้า hosting เป็นกล่องเล็ก ๆ** | RAM ~25 MB | ~150 MB+ |
-| **ถ้าไม่มีใครแตะโค้ด 3 ปีแล้วต้องแก้** | Go 1.x compatibility promise — build ผ่านแน่ | `npm install` มีโอกาสพังจาก dependency drift |
-| **cross-compile จากเครื่อง dev** | `GOOS=linux go build` จบ | ต้องระวัง native module |
-| **สลับ PostgreSQL ↔ MySQL 8** | เปลี่ยน driver/DSN + เลือก sqlc store และ migration ของ engine นั้น | รองรับและทดสอบใน CI; MariaDB/SQLite ต้องประเมินแยกก่อนรับรอง |
-| **แชร์ type กับ frontend** | ❌ ต้องผ่าน OpenAPI + codegen | ✅ แชร์ตรง ๆ |
-| **สร้าง PDF ฝั่ง server** | ❌ อ่อน (ไม่มีตัวเทียบ Playwright ที่เบา) | ✅ Playwright |
-
-**ข้อเสีย 2 ข้อของ Go และวิธีจัดการ:**
-
-1. **PDF export** — ย้ายไปทำฝั่ง browser แทน ใช้ **print stylesheet + `window.print()`** เพราะ dashboard ก็ render อยู่แล้วในเบราว์เซอร์ ผลลัพธ์คมกว่า (vector ไม่ใช่ raster) ไม่ต้องลง headless Chrome บน server และ **ยังทำงานได้ไม่ว่า backend จะเป็นภาษาอะไร** — กลายเป็นข้อดีด้าน portability ไปด้วย
-2. **ไม่มี shared type** — แก้ด้วยการเขียน **OpenAPI spec เป็นสัญญากลาง** แล้ว generate TypeScript client ด้วย `openapi-typescript` (ฝั่ง FE) และ generate server interface ด้วย `oapi-codegen` (ฝั่ง Go) ได้ type safety ทั้งสองฝั่งจากแหล่งเดียว — และได้เอกสาร API ฟรี ซึ่งจำเป็นอยู่แล้วเพราะสองฝั่งแยก deploy กัน
+การเลือกนี้ไม่เปลี่ยน domain, OpenAPI หรือ schema: frontend ยังคุยผ่าน HTTP/JSON, PostgreSQL/MySQL ยังผ่าน test suite เดียวกัน, PDF ยังสร้างผ่าน browser print stylesheet และ backend ยังต้อง stateless
 
 ### 11.4 ความทนต่อเครือข่าย (Tier 1) — ยืนยันตาม Q-N1
 
@@ -1152,9 +1139,9 @@ PDF ประกอบด้วย: หน้าปก (ช่วงข้อม
 
 ### 11.6 แผน Deploy ตัวอย่างให้ลูกค้าดู
 
-P วางแผนใช้ Vercel/Render เพื่อเปิดบน iPad ให้ลูกค้าดู — ทำได้ แต่ต้องแยกคำว่า “รับ source ของ Go server ได้” ออกจาก “เป็น process แบบ always-on”
+การเปิด demo บน iPad ทำได้โดย deploy static frontend แยกจาก Python API และฐานข้อมูล ต้องเลือกบริการที่รัน container หรือ ASGI process ได้และเข้าใจ cold-start/process-lifetime ของบริการนั้น
 
-**✅ ข่าวดี:** ตั้งแต่เมษายน 2026 Vercel รองรับ Go server มาตรฐาน (`net/http`, `chi`, `gin`) ที่ฟัง `$PORT` และรองรับ container image บน Fluid Compute ด้วย ([ประกาศ Go backend](https://vercel.com/changelog/zero-configuration-go-backend-support), [Dockerfile support](https://vercel.com/changelog/bring-your-dockerfile-to-vercel-functions)) สำหรับ monorepo นี้ต้องตั้ง project/service root เป็น `backend/` หรือกำหนด service routing ให้ชัด ไม่ใช่สมมติว่า root repository มี `go.mod`
+สำหรับ backend ให้ใช้ Dockerfile เดียวกับที่ CI ทดสอบบน Fly.io, Render แบบ paid instance, VPS หรือ container platform ที่ลูกค้ารองรับ ห้ามสมมติว่า static hosting จะรัน Python API ได้
 
 **ข้อจำกัดที่ต้องยึด:** Vercel แปลง backend ไปทำงานภายใต้ Vercel Function/Fluid Compute semantics — process อาจ scale ลงและไม่มี server ที่รับประกันว่าจะรัน background loop ค้างตลอดเวลา ([ข้อจำกัด backend](https://vercel.com/docs/frameworks/backend)) จึงเหมาะกับ stateless HTTP API ของเรา แต่ migration, scheduled refresh หรือ maintenance job ต้องรันเป็นคำสั่ง/งานแยกที่เรียกอย่างชัดเจน
 
@@ -1167,7 +1154,7 @@ P วางแผนใช้ Vercel/Render เพื่อเปิดบน iP
 | ส่วน | ที่วาง | เหตุผล |
 |---|---|---|
 | Frontend (static) | **Vercel** หรือ Cloudflare Pages | ฟรี · ไม่มี cold start · CDN · ได้ URL สวยแชร์ให้ลูกค้าเปิดบน iPad ได้เลย |
-| Go API | **Vercel Go/Container บน Fluid Compute** หรือ **Fly.io** | ใช้ได้เพราะ API เป็น stateless; ถ้าเลือก Render ให้ข้าม free tier ไปใช้ตัวเสียเงินขั้นต่ำเฉพาะช่วง demo เพื่อเลี่ยง spin-down |
+| Python API | **Fly.io**, VPS หรือ container host ที่ไม่ spin down ระหว่าง demo | ใช้ image เดียวกับ CI และคง API stateless; ถ้าเลือก Render ให้ใช้ paid instance ระหว่าง demo |
 | PostgreSQL | **Neon** หรือ **Supabase** free tier | ไม่หมดอายุใน 30 วันแบบ Render free · ปลุกจาก idle เร็ว |
 
 > **ทริกก่อนนัด demo:** ยิง request เข้าระบบสัก 2–3 ครั้งล่วงหน้า 5 นาทีเพื่อปลุกทุกอย่างให้อุ่น แล้วเปิดค้างไว้ · และเตรียมข้อมูลตัวอย่าง (batch ที่กรอกไปครึ่งทาง + ปลาที่ติดตามมาหลายสิบวัน) ไว้ก่อน เพราะ **ระบบไม่ได้ migrate ข้อมูลเก่า ถ้าเปิดมาว่างเปล่าลูกค้าจะนึกภาพไม่ออก**
@@ -1181,10 +1168,10 @@ P วางแผนใช้ Vercel/Render เพื่อเปิดบน iP
 | Sparse vs dense observation | เก็บทุก checkpoint × ทุก embryo (26 × N แถว) หรือเก็บเฉพาะที่สังเกตจริง/exit | **Sparse ตาม BR-08** — reconstruct ด้วย query ที่มี integration test เดียวกันบน PostgreSQL 16 และ MySQL 8; ไม่รับรอง engine อื่น |
 | เก็บ `deviation` หรือคำนวณสด | คำนวณสดจาก config ปัจจุบัน vs เก็บ snapshot | **เก็บ `hpa_expected_snapshot`** — ดูเหตุผลใน 5.3(ข) |
 | สรุปยอดสำหรับ dashboard | materialized view vs ตารางสรุป vs คำนวณสด | **คำนวณสด + index ให้ดี** — ที่ขนาด 5 ผู้ใช้/500k แถว เพียงพอ และไม่ผูกกับ Postgres (กฎข้อ 3) · ถ้าช้าจริงค่อยเพิ่มตารางสรุปที่ refresh ด้วย job |
-| ORM / query layer | GORM vs `sqlc` vs `database/sql` ดิบ | **`sqlc`** — เขียน SQL จริง ได้ Go struct ที่ type-safe อัตโนมัติ · SQL ที่เขียนเองทำให้คุม portability ได้ตรง ๆ ต่างจาก ORM ที่ซ่อน dialect ไว้ |
+| ORM / query layer | SQLAlchemy ORM vs SQLAlchemy Core/SQL ตรง | **SQLAlchemy synchronous + Core/text ตาม query** — transaction ชัด, อ่าน SQL ได้ และไม่เพิ่ม async complexity |
 | ID scheme | auto-increment vs UUID | **UUID v7 เก็บเป็น `CHAR(36)`** — client generate ได้ตอน queue · เรียงตามเวลาได้ · ข้ามฐานข้อมูลได้ |
 | Time storage | `TIMESTAMP` vs `DATETIME` vs `timestamptz` | ใช้ logical datetime แบบ UTC: PostgreSQL = **`TIMESTAMP WITHOUT TIME ZONE`**, MySQL = **`DATETIME`** · ห้ามใช้ `timestamptz`/MySQL `TIMESTAMP` · แปลงเป็น `Asia/Bangkok` ที่ชั้นแสดงผลเท่านั้น (NFR-11) |
-| แพ็กเกจตอนส่งมอบ | binary + static files vs Docker image | **ทั้งคู่** — Dockerfile สำหรับที่ที่รัน container ได้ · binary + โฟลเดอร์ static สำหรับที่ที่รันไม่ได้ |
+| แพ็กเกจตอนส่งมอบ | Python source/venv vs Docker image | **ทั้งคู่** — Docker image เป็นหลัก · dependency manifest + source + static files สำหรับ native deployment |
 
 ## 12. Initial Setup (แทนหัวข้อ Data Migration เดิม)
 
@@ -1245,12 +1232,12 @@ P วางแผนใช้ Vercel/Render เพื่อเปิดบน iP
 | Phase | ระยะเวลา | ส่งมอบ |
 |---|---|---|
 | **P0 — Discovery** | 2 วัน | สังเกตการณ์การทำงานจริงในแลป 1 รอบ · ยืนยัน ERD · ตั้ง repo + CI (รวม MySQL compat check) |
-| **P1 — Foundation** | 2 สัปดาห์ | Schema + `golang-migrate` + `sqlc` + OpenAPI idempotency contract สำหรับทุก write + backend Dockerfile + local Compose (PostgreSQL default/MySQL compatibility) + master data CRUD (Go API) + SPA shell + seed 36 stages + **หน้าตั้งค่าเวลามาตรฐาน (FR-1.7)** |
+| **P1 — Foundation** | 2 สัปดาห์ | Schema + Python SQL migration runner + SQLAlchemy + OpenAPI idempotency contract สำหรับทุก write + backend Dockerfile + local Compose (PostgreSQL default/MySQL compatibility) + master data CRUD (FastAPI) + SPA shell + seed 36 stages + **หน้าตั้งค่าเวลามาตรฐาน (FR-1.7)** |
 | **P2 — Data Entry (หัวใจ)** | 3 สัปดาห์ | Batch/embryo registration · หน้า Due Now · checkpoint entry + **แสดง deviation สด** · 96-well view · การเลื่อนขั้น Stage 1→2 · fish register · daily roll-call + backdating |
 | **P3 — Network resilience** | 3 วัน | Optimistic UI + local write queue + idempotency + สถานะ sync (Tier 1) |
 | **P4 — Dashboard** | 2 สัปดาห์ | ทั้ง 3 แท็บ + filter + **แผง timing deviation** + จุดเริ่มผิดปกติ + drill-down + print stylesheet สำหรับ PDF |
-| **P5 — Export** | 1 สัปดาห์ | Excel 14 sheets (`excelize`) + **PDF จากฝั่ง browser** + R-ready table |
-| **P6 — UAT & Hardening** | 1.5 สัปดาห์ | ทดลองใช้คู่ขนานกับ Excel 1 รอบทดลองเต็ม · harden/test container ที่ใช้มาตั้งแต่ P1 · ส่งมอบทั้ง Dockerfile/image instructions และ binary + static files · คู่มือ deploy/restore |
+| **P5 — Export** | 1 สัปดาห์ | Excel 14 sheets + **PDF จากฝั่ง browser** + R-ready table |
+| **P6 — UAT & Hardening** | 1.5 สัปดาห์ | ทดลองใช้คู่ขนานกับ Excel 1 รอบทดลองเต็ม · harden/test container ที่ใช้มาตั้งแต่ P1 · ส่งมอบ Dockerfile/image, Python dependency manifest และ static files · คู่มือ deploy/restore |
 | | **รวม ~10.5 สัปดาห์** *(งานหลัก 9.5 สัปดาห์ + P0 2 วัน + P3 3 วัน)* | *(v0.1 = 13 · v0.2 = 10)* |
 
 ### ข้อเสนอสำคัญ: Parallel Run
@@ -1417,15 +1404,15 @@ H_T = h / (0.055 × T − 0.57)
 |---|---|---|---|
 | Q-N1 | Wi-Fi ในแลปหลุดบ่อยไหม | **หลุดบ้าง แต่ไม่บ่อยมาก** | ยืนยัน **Tier 1** (~3 วัน) ไม่ต้องทำ Tier 2 · เพิ่ม PWA shell cache เป็นของแถม |
 | Q-N2 | ตู้ incubator กี่องศา | **ยังไม่ต้องกังวล** — ลูกค้าต้องการแค่กรอกข้อมูลได้ + แสดงผลได้ | FR-1.8 → v2 · คงคอลัมน์ `incubation_temp_c` ไว้ · R-03 ลดเป็น 🟢 |
-| Q-N3 | hosting เป็นแบบไหน | **ยังไม่มีคำตอบ อาจรออีกนาน แต่ต้อง implement เลย** | **เขียนหัวข้อ 11 ใหม่ทั้งหมด** — แยก static frontend ออกจาก Go backend · สัญญาความพกพา 8 ข้อ (11.5) · R-01 ลดจาก 🔴 เป็น 🟡 |
+| Q-N3 | hosting เป็นแบบไหน | **ยังไม่มีคำตอบ อาจรออีกนาน แต่ต้อง implement เลย** | แยก static frontend ออกจาก Python backend · สัญญาความพกพา 8 ข้อ (11.5) · R-01 ลดจาก 🔴 เป็น 🟡 |
 | Q-N4 | Abnormal ต้องยืนยันซ้ำไหม | **mark ครั้งเดียวจบ** | FR-4.17 ง่ายลง — ไม่มี workflow ยืนยัน · แก้ได้เฉพาะกรณีกรอกผิด |
 | Q-N5 | ค่า tolerance ควรเป็นเท่าไหร่ | **ไม่ต้องมี tolerance** — บอกส่วนต่างตรง ๆ เช่น "นานกว่าสากล 1 ชม." | ลบ `tolerance_h` จาก schema · ตัด FR-1.10 · ตัดแถบสีเขียว/เหลือง/แดง · ตัดคอลัมน์ tolerance ในภาคผนวก C |
 | Q-N6 | ต้องการ notification ไหม | **ยังไม่ต้องมี** | ตัดออกจาก v1 · เหลือแค่หน้า Due Now |
-| — | *(คำถามเพิ่ม)* ถ้า backend ใช้ Go จะเป็นอย่างไร | เลือก **Go** | วิเคราะห์ข้อดี-ข้อเสียใน 11.3 · แก้จุดอ่อน PDF ด้วยการ render ฝั่ง browser · แก้จุดอ่อน type sharing ด้วย OpenAPI codegen |
-| — | *(คำถามเพิ่ม)* จะ demo ยังไง | **Vercel / Render** เปิดบน iPad ให้ลูกค้าดู | เพิ่มหัวข้อ 11.6 — Vercel รับ standard Go server แต่ทำงานแบบ Function/Fluid Compute · เตือนกับดัก Render free tier (spin-down 15 นาที + DB หมดอายุ 30 วัน) · เพิ่ม R-10 |
+| — | *(Change request 23 ส.ค. 2026)* backend ใช้ภาษาใด | เปลี่ยนเป็น **Python** | ใช้ FastAPI + SQLAlchemy; คง OpenAPI/schema และใช้ Docker image เป็น artifact หลัก |
+| — | *(คำถามเพิ่ม)* จะ demo ยังไง | **Static host + container/VPS** เปิดบน iPad ให้ลูกค้าดู | แยก frontend และ API; เตือนกับดัก free-tier spin-down และฐานข้อมูลชั่วคราว |
 
-> **หมายเหตุการแก้ข้อมูล:** ปัจจุบัน Vercel รับ source/container ของ standard Go server ที่ฟัง `$PORT` ได้แล้ว แต่ runtime ยังเป็น Vercel Function/Fluid Compute ไม่ใช่ always-on VPS; แผน demo ใช้ได้เพราะ ChronoFish API เป็น stateless และไม่พึ่ง background process
+> **หมายเหตุการ deploy:** แผน demo ใช้ได้เพราะ ChronoFish API เป็น stateless และไม่พึ่ง background process แต่ migration/maintenance ต้องเป็นคำสั่งแยกที่รันอย่างชัดเจน
 
 ---
 
-*เอกสารนี้ v0.3.2 — Open Questions ปิดครบ ยกเว้น Q-N3 (hosting) ที่ยังรอแต่ไม่บล็อก · stack หลักล็อกแล้ว (Static SPA + Go + PostgreSQL/MySQL contract) ส่วน library ระดับ feature เลือกเมื่อเริ่ม slice จริง · **พร้อมเริ่ม implement ได้ทันที** โดยไม่ต้องรอคำตอบเรื่อง hosting*
+*เอกสารนี้ v0.4.0 — เปลี่ยน backend เป็น Python ตาม change request วันที่ 23 ส.ค. 2026 · Q-N3 (hosting) ยังรอแต่ไม่บล็อก · stack หลักคือ Static SPA + FastAPI + PostgreSQL/MySQL contract*

@@ -1,0 +1,9 @@
+{
+  "name": "ChronoFish",
+  "short_name": "ChronoFish",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f9fb",
+  "theme_color": "#11233b",
+  "icons": []
+}
