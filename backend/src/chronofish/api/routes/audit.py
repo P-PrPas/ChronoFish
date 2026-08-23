@@ -8,7 +8,8 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Request
 
-from ..core import APIError, MemoryStore
+from ...runtime.errors import APIError
+from ...store import Store
 
 BANGKOK = ZoneInfo("Asia/Bangkok")
 
@@ -39,7 +40,7 @@ def _encode(item: dict[str, Any]) -> str:
     return base64.urlsafe_b64encode(payload.encode()).decode().rstrip("=")
 
 
-def build_audit_router(store: MemoryStore) -> APIRouter:
+def build_audit_router(store: Store) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
 
     @router.get("/audit-log")

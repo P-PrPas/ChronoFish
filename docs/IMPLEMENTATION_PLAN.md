@@ -117,10 +117,12 @@ backend/
   src/chronofish/
     __main__.py                # composition root
     config.py                  # อ่าน/validate environment
-    api/                       # FastAPI routers/middleware/error mapping
-    domain/                    # business rules ที่ไม่ผูก HTTP/DB
-    services/                  # use cases และ transaction boundaries
-    store/                     # SQLAlchemy/DBAPI access สำหรับ PostgreSQL/MySQL
+    app.py                     # FastAPI composition และ middleware
+    api/routes/                # route modules แยกตาม domain capability
+    domain/                    # state model และ business rules ที่ไม่ผูก HTTP/DB
+    runtime/                   # error, request mutation และ value primitives ที่ใช้ข้าม route
+    reporting/                 # portable report encoders เช่น XLSX
+    store/                     # Store interface + memory/SQL adapters, engine และ migration runner
   db/migrations/               # มีอยู่แล้ว
   db/seeds/                    # มีอยู่แล้ว
   db/tests/                    # มีอยู่แล้ว

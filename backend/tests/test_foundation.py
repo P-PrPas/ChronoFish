@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from chronofish.core import uuid7
 from chronofish.domain.rules import deviation_label, promotion_eligible_at, stage_code, stage_number
+from chronofish.runtime.values import uuid7
 
 
 def test_health(client):

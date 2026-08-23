@@ -11,22 +11,23 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from . import __version__
-from .api.analytics import build_analytics_router
-from .api.audit import build_audit_router
-from .api.experiments import build_experiments_router
-from .api.exports import build_export_router
-from .api.fish import build_fish_router
-from .api.master import build_master_router
-from .api.observations import build_observations_router
-from .api.timing import build_timing_router
+from .api.routes.analytics import build_analytics_router
+from .api.routes.audit import build_audit_router
+from .api.routes.experiments import build_experiments_router
+from .api.routes.exports import build_export_router
+from .api.routes.fish import build_fish_router
+from .api.routes.master import build_master_router
+from .api.routes.observations import build_observations_router
+from .api.routes.timing import build_timing_router
 from .config import Config, load_config
-from .core import APIError, MemoryStore, error_response
+from .runtime.errors import APIError, error_response
+from .store import MemoryStore, Store
 
 LOGGER = logging.getLogger("chronofish.http")
 MAX_REQUEST_BYTES = 10 * 1024 * 1024
 
 
-def create_app(config: Config | None = None, store: MemoryStore | None = None) -> FastAPI:
+def create_app(config: Config | None = None, store: Store | None = None) -> FastAPI:
     config = config or load_config()
     if store is None:
         if config.db_driver != "memory":

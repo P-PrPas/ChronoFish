@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy import Engine, create_engine
 
-from .config import Config
+from ..config import Config
 
 
 def sqlalchemy_url(driver: str, value: str) -> str:

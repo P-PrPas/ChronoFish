@@ -9,7 +9,8 @@ from fastapi.testclient import TestClient
 
 from chronofish.app import create_app
 from chronofish.config import Config
-from chronofish.core import DEMO_OPERATOR_ID, PROTOCOL_ID, uuid7
+from chronofish.domain.state import DEMO_OPERATOR_ID, PROTOCOL_ID
+from chronofish.runtime.values import uuid7
 from chronofish.store.sql import SQLStore
 
 DRIVER = os.getenv("CHRONOFISH_TEST_DATABASE_DRIVER")

@@ -8,8 +8,7 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Query, Request
 
-from ..core import APIError, MemoryStore, State, audit, iso_now, mutate, normalize, parse_datetime, utc_now, uuid7
-from ..domain.rules import (
+from ...domain.rules import (
     age_days_on,
     condition_valid,
     fish_outcome_valid,
@@ -17,6 +16,11 @@ from ..domain.rules import (
     stage_label,
     stage_number,
 )
+from ...domain.state import State
+from ...runtime.errors import APIError
+from ...runtime.mutations import audit
+from ...runtime.values import iso_now, normalize, parse_datetime, utc_now, uuid7
+from ...store import Store
 
 BANGKOK = ZoneInfo("Asia/Bangkok")
 SEX_VALUES = {"UNKNOWN", "M", "F"}
@@ -128,7 +132,7 @@ def _recompute_fish(state: State, fish_id: str) -> None:
     fish["updatedAt"] = iso_now()
 
 
-def build_fish_router(store: MemoryStore) -> APIRouter:
+def build_fish_router(store: Store) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
 
     @router.get("/promotions/pending")
@@ -284,7 +288,7 @@ def build_fish_router(store: MemoryStore) -> APIRouter:
                 results.append({"clientUuid": client_id, "id": fish_id, "status": "created", "fish": fish})
             return 201, {"items": results}
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     @router.get("/fish")
     def list_fish(
@@ -376,7 +380,7 @@ def build_fish_router(store: MemoryStore) -> APIRouter:
             audit(state, request, "INSERT", "clone_fish", fish_id, None, fish)
             return 201, _enrich_fish(state, fish)
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     @router.get("/fish/{id}")
     def get_fish(id: str) -> dict[str, Any]:
@@ -430,7 +434,7 @@ def build_fish_router(store: MemoryStore) -> APIRouter:
             audit(state, request, "UPDATE", "clone_fish", fish_id, old, fish)
             return 200, _enrich_fish(state, fish)
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     @router.get("/fish/{id}/specimens")
     def specimens(id: str) -> dict[str, Any]:
@@ -475,7 +479,7 @@ def build_fish_router(store: MemoryStore) -> APIRouter:
                 audit(state, request, "UPDATE", "clone_fish", fish_id, old, fish)
             return 201, specimen
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     @router.get("/fish/roll-call")
     def roll_call(
@@ -627,7 +631,7 @@ def build_fish_router(store: MemoryStore) -> APIRouter:
                 )
             return 200, {"results": results}
 
-        return mutate(store, request, body, operation)
+        return store.execute_mutation(request, body, operation)
 
     def change_fish_observation(observation_id: str, request: Request, body: dict[str, Any] | None, reason: str = ""):
         payload = normalize(body or {})
@@ -673,7 +677,7 @@ def build_fish_router(store: MemoryStore) -> APIRouter:
                 audit(state, request, "UPDATE", "clone_fish", fish_id, old_fish, state.entities["fish"][fish_id])
             return status, result
 
-        return mutate(store, request, payload, operation)
+        return store.execute_mutation(request, payload, operation)
 
     @router.patch("/observations/fish/{id}")
     async def update_fish_observation(id: str, request: Request, body: dict[str, Any]):
