@@ -2,6 +2,7 @@
 
 > สถานะเอกสาร: แผนดำเนินงานสำหรับ SRS v1.0
 > วันที่จัดทำ: 20 สิงหาคม 2026
+> ตรวจสอบสถานะล่าสุด: 23 สิงหาคม 2026 (Phase 1 เทียบกับ implementation และ automated tests)
 > แหล่งความจริง: `SRS_Cloning_Tracking_System.md` → `api/openapi.yaml` → implementation
 > ฐานข้อมูลหลัก: PostgreSQL 16 และต้องผ่านชุดทดสอบเดียวกันบน MySQL 8
 
@@ -24,7 +25,7 @@
 
 ## 2. Baseline ปัจจุบัน
 
-Repository ปัจจุบันเป็น foundation ที่ดีสำหรับเริ่มงาน แต่ยังไม่ใช่ application ที่ใช้งานจริงได้ สถานะจริงมีดังนี้:
+Repository ปัจจุบันมี implementation ครอบคลุมหลาย phase แล้ว แต่ยังไม่ถือว่าพร้อมใช้งานจริงจนกว่าจะปิด automated checks และ acceptance ภายนอกของแต่ละ phase สถานะจริงมีดังนี้:
 
 | พื้นที่ | สถานะปัจจุบัน | งานที่ยังเหลือ |
 |---|---|---|
@@ -34,10 +35,10 @@ Repository ปัจจุบันเป็น foundation ที่ดีสำ
 | Database | `[x]` schema/migrations 8 versions, Python migration runner และ integration suite ผ่าน PostgreSQL/MySQL | ทำ backup/restore drill บน infrastructure เป้าหมาย |
 | Frontend | `[x]` หน้าหลัก, API client, generated types, offline queue, i18n บางส่วน และ tests มีแล้ว | ตรวจ requirement gaps, accessibility, iPad/Safari และ UAT หลัง backend migration |
 | CI | `[x]` เปลี่ยนเป็น Python lint/pytest/coverage, frontend, OpenAPI, Docker build และ DB integration gates แล้ว | ตรวจผล GitHub Actions หลัง push |
-| Container | `[x]` Python slim non-root Dockerfile และ Compose สำหรับ PostgreSQL/MySQL พร้อมแล้ว | รัน image build gate บนเครื่อง/CI ที่มี Docker daemon |
+| Container | `[x]` Python slim non-root Dockerfile, Compose สำหรับ PostgreSQL/MySQL และ CI image-build gate พร้อมแล้ว | ทดสอบ `docker compose up --build` จาก clean checkout และ environment เป้าหมาย |
 | Discovery | `[x]` domain, ERD และข้อกำหนดถูกวิเคราะห์ไว้ละเอียด | `[!]` สังเกต workflow จริงในแลปหนึ่งรอบ, ยืนยันตัวอย่าง export และสภาพแวดล้อม deploy |
 
-สรุป: การย้าย runtime จาก Go เป็น Python เสร็จแล้วและผ่าน contract/integration tests บน PostgreSQL/MySQL งานที่ยังไม่ปิดคือ acceptance ที่ต้องอาศัยผู้ใช้หรือ infrastructure จริง เช่น UAT, reference export, Docker image gate, backup/restore และ performance dataset 5 ปี
+สรุป: การย้าย runtime จาก Go เป็น Python เสร็จแล้วและผ่าน contract/integration tests บน PostgreSQL/MySQL งานที่ยังไม่ปิดคือ acceptance ที่ต้องอาศัยผู้ใช้หรือ infrastructure จริง เช่น UAT, reference export, Compose clean-checkout gate, backup/restore และ performance dataset 5 ปี
 
 ## 3. ขอบเขต Definition of Done ของระบบ v1
 
@@ -193,41 +194,41 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [x] ใช้ Python migration runner กับ SQL เดิมผ่านคำสั่ง `python -m chronofish migrate`; SQL ยังเปิดอ่านและรันด้วยมือได้
 - [x] ทำ repository queries และ integration test เดียวกันบน PostgreSQL/MySQL
 - [x] ทำ contract test เทียบ route/method กับ OpenAPI 3.1 ครบ 70 operations
-- [ ] เพิ่ม middleware: request logging ที่ไม่เก็บ PII, panic recovery, JSON content type, body-size limit, CORS, write headers และ rate limit
+- [x] เพิ่ม middleware: request logging ที่ไม่เก็บ PII, panic recovery, contract content type (JSON และ CSV import), body-size limit, CORS, write headers และ rate limit
 - [x] ทำ error mapper ให้ตอบ `ErrorResponse` และ HTTP 400/404/409/422/429/500 ตาม SRS
 - [x] สร้าง audit writer ที่ทำงานใน transaction เดียวกับ mutation
 - [x] implement list/create/update-or-deactivate สำหรับ Site, Operator, Donor Cell Line, Recipient Egg Lot, CSOF Lot, Treatment Group และ Fish Box
-- [ ] normalize `trim + lower` ก่อน uniqueness check พร้อมรับ DB unique violation เพื่อกัน race condition
-- [ ] ทุก list query ไม่คืน soft-deleted rows และเรียงผล deterministic
+- [x] normalize `trim` แล้วเทียบ uniqueness แบบ case-insensitive พร้อมรับ DB unique violation เพื่อกัน race condition
+- [x] ทุก master list query ไม่คืน soft-deleted rows และเรียงผล deterministic
 - [ ] รายการสำหรับ dropdown คืนเฉพาะ `active = true` แต่หน้ารายละเอียดเก่าต้อง resolve master ที่ inactive ได้ตาม FR-111
 
 #### Docker/Local Environment
 
 - [x] เพิ่ม `backend/Dockerfile` จาก Python slim image, ติดตั้งเฉพาะ runtime dependencies และรันแบบ non-root
 - [x] รัน process ด้วย non-root user, รับ `PORT`/database configuration จาก environment และไม่ bake secret ลง image
-- [ ] เพิ่ม `.dockerignore` เพื่อไม่ส่ง `.git`, frontend dependencies, build output, local env และไฟล์ชั่วคราวเข้า build context
+- [x] เพิ่ม `.dockerignore` เพื่อไม่ส่ง `.git`, frontend dependencies, build output, local env และไฟล์ชั่วคราวเข้า build context
 - [x] เพิ่ม root `compose.yaml`: API + PostgreSQL 16 เป็น local default และ MySQL 8 เป็น compatibility profile
 - [x] ใช้ named volumeเฉพาะข้อมูลฐานข้อมูล; API/frontend ไม่มี persistent application state บน local filesystem
 - [x] ให้ migration command ใช้ได้เหมือนกันทั้ง native และ container
 - [x] ระบุคำสั่งเริ่ม/หยุดและวิธีสลับ driver ใน README โดยไม่ commit credentials จริง
-- [ ] ไม่เพิ่ม Kubernetes, Helm, container registry workflow หรือ cloud-specific config จนกว่าจะทราบ production hosting
+- [x] ไม่เพิ่ม Kubernetes, Helm, container registry workflow หรือ cloud-specific config จนกว่าจะทราบ production hosting
 
 #### Frontend
 
-- [ ] สร้าง typed fetch client จาก generated OpenAPI types; แปลง API error เป็นข้อความที่บอกปัญหาและทางแก้
-- [ ] สร้าง persistent `device_id` แบบ UUID v7 ครั้งแรก และแนบ `X-Device-Id` ทุก write
-- [ ] เพิ่ม operator selector ที่แสดงคงที่และเปลี่ยนได้ในหนึ่งแตะ; แนบ `X-Operator-Id` ทุก write
-- [ ] วาง app shell/navigation สำหรับหน้าจอจริง โดยไม่สร้าง placeholder ครบทุกหน้า
-- [ ] เพิ่มกลไกข้อความไทย/อังกฤษแบบ object ธรรมดาก่อน; เพิ่ม library เมื่อ plural/date complexity พิสูจน์ว่าจำเป็น
-- [ ] ทำ SCR-16 สำหรับ master data ทั้งเจ็ดประเภท โดย reuse form/table pattern ที่เกิดขึ้นจริง
+- [x] สร้าง typed fetch client จาก generated OpenAPI types; แปลง API error เป็นข้อความที่บอกปัญหาและทางแก้
+- [x] สร้าง persistent `device_id` แบบ UUID v7 ครั้งแรก และแนบ `X-Device-Id` ทุก write
+- [x] เพิ่ม operator selector ที่แสดงคงที่และเปลี่ยนได้ในหนึ่งแตะ; แนบ `X-Operator-Id` ทุก write
+- [x] วาง app shell/navigation สำหรับหน้าจอจริง โดยไม่สร้าง placeholder ครบทุกหน้า
+- [x] เพิ่มกลไกข้อความไทย/อังกฤษแบบ object ธรรมดาก่อน; เพิ่ม library เมื่อ plural/date complexity พิสูจน์ว่าจำเป็น
+- [x] ทำ SCR-16 สำหรับ master data ทั้งเจ็ดประเภท โดย reuse form/table pattern ที่เกิดขึ้นจริง
 - [ ] รองรับ loading, empty, field error, conflict, retry และ deactivate confirmation/undo ตาม UI-08
 
 #### Tests และ Exit criteria
 
-- [ ] unit test config, normalization และ validation
-- [ ] handler tests ตรวจ header บังคับ, error envelope และ status code
+- [x] unit test config, normalization และ validation
+- [x] handler tests ตรวจ header บังคับ, error envelope และ status code
 - [x] repository integration tests ของ workflow/idempotency/restart/audit บน PostgreSQL และ MySQL
-- [ ] frontend tests ของ operator/device persistence และ master form validation
+- [x] frontend tests ของ operator/device persistence และ master form validation
 - [ ] keyboard/touch targets ≥ 44×44, contrast ≥ 4.5:1 และไม่ใช้สีอย่างเดียว
 - [ ] Python API start ได้กับ DB ทั้งสองชนิด และ master data CRUD ผ่าน UI จริง
 - [ ] `docker compose up --build` เปิด API + PostgreSQL แล้ว health check ผ่านจาก clean checkout

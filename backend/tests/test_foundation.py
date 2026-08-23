@@ -9,6 +9,7 @@ from chronofish.domain.rules import deviation_label, promotion_eligible_at, stag
 def test_health(client):
     response = client.get("/api/v1/health")
     assert response.status_code == 200
+    assert response.headers["Content-Type"] == "application/json; charset=utf-8"
     assert response.json()["status"] == "ok"
 
 
@@ -47,6 +48,47 @@ def test_idempotency_key_rejects_different_payload(client, write_headers):
     response = client.post("/api/v1/sites", headers=write_headers, json={"code": "B", "name": "B"})
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "idempotency_conflict"
+
+
+def test_writes_require_json_and_use_the_common_error_envelope(client, write_headers):
+    response = client.post(
+        "/api/v1/sites",
+        headers={**write_headers, "Content-Type": "text/plain"},
+        content='{"code":"A","name":"A"}',
+    )
+    assert response.status_code == 400
+    assert response.headers["Content-Type"] == "application/json; charset=utf-8"
+    assert response.json() == {
+        "error": {
+            "code": "invalid_request",
+            "message": "Content-Type must be application/json",
+        }
+    }
+
+
+def test_timing_csv_upload_accepts_its_contract_content_type(client, write_headers):
+    response = client.post(
+        "/api/v1/timing-profiles/csv?protocolId=01900000-0000-7000-8000-000000000001",
+        headers={**write_headers, "Content-Type": "text/csv"},
+        content="stage_order,stage_code,label,expected_hpa\n1,stage_01_1C,1-cell,2.0\n",
+    )
+    assert response.status_code == 201
+
+
+def test_malformed_json_uses_the_common_error_envelope(client, write_headers):
+    response = client.post(
+        "/api/v1/sites",
+        headers={**write_headers, "Content-Type": "application/json"},
+        content="{",
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_request"
+
+
+def test_write_context_headers_are_required(client):
+    response = client.post("/api/v1/sites", json={"code": "A", "name": "A"})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_context"
 
 
 def test_timing_profile_partial_override_keeps_36_stages(client, write_headers):
