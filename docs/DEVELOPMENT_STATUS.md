@@ -1,7 +1,7 @@
 # ChronoFish Development Status
 
 > อัปเดตล่าสุด: 23 สิงหาคม 2026  
-> Branch: `refactor/backend-structure-phase-1`
+> Branch: `feat/phase-1-ui-hardening`
 > Go baseline ก่อนย้ายภาษา: `6adc25e`
 
 ## สรุปสถานะ
@@ -21,6 +21,8 @@ Frontend ยังคงเป็น Vite + React + TypeScript แบบ static 
 - middleware สำหรับ CORS, IP allowlist, rate limit, body-size limit, generic error redaction, security headers และ metadata-only request logging
 - บังคับ content type ตาม OpenAPI (JSON และ CSV import) และแปลง FastAPI request-validation failure เป็น `ErrorResponse`/HTTP 400 ตาม SRS
 - native required-field validation สำหรับ master-data forms พร้อม tests ของ operator/device persistence
+- Master Data UI มี loading/empty/error/retry states, แสดง queued-write conflict เป็น alert และ reload server state หลัง create/update/deactivate ถูก reject
+- keyboard focus ครอบคลุม controls, touch target ขั้นต่ำ 44×44 px และสีข้อความผ่าน contrast baseline 4.5:1 โดยสถานะสำคัญมีข้อความกำกับ
 - historical batch detail resolve Site, Operator, Treatment Group และ Donor Cell Line ที่ inactive ได้ โดย dropdown สร้างรายการใหม่ยังคืนเฉพาะ active ตาม FR-111
 - backend package แยกเป็น `api/routes`, `domain`, `runtime`, `store` และ `reporting`; ลบ `core.py` และโครงสร้าง Go ว่างออกจาก working tree
 - Dockerfile แบบ non-root, Compose สำหรับ PostgreSQL/MySQL, native virtual-environment workflow และ Python CI
@@ -35,7 +37,7 @@ Frontend ยังคงเป็น Vite + React + TypeScript แบบ static 
 - MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL
 - OpenAPI validation: 51 paths / 70 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
-- frontend: build ผ่าน และ 22 tests ผ่าน
+- frontend: build ผ่าน และ 23 tests ผ่าน
 - Compose configuration ทั้งสองไฟล์: ผ่าน
 - Docker image build: ผ่าน CI ของ PR #1; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
 
