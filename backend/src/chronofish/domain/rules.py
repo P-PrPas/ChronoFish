@@ -98,7 +98,40 @@ def stage_code(order: int) -> str:
 
 
 def stage_label(order: int) -> str:
-    return f"Stage {order}" if order <= 26 else f"Day {order - 21}"
+    if order == 1:
+        return "Activated (1-cell)"
+    if 2 <= order <= 10:
+        return f"{STAGE_SUFFIXES[order - 1][:-1]}-cell"
+    if order == 11:
+        return "1k-cell"
+    if 12 <= order <= 21:
+        return (
+            "High",
+            "Oblong",
+            "Sphere",
+            "Dome",
+            "30% epiboly",
+            "50% epiboly",
+            "Germ ring",
+            "Shield",
+            "75% epiboly",
+            "90% epiboly",
+        )[order - 12]
+    return f"Day {order - 21}"
+
+
+def stage_short_label(order: int) -> str:
+    return STAGE_SUFFIXES[order - 1] if 1 <= order <= len(STAGE_SUFFIXES) else ""
+
+
+def stage_phase(order: int) -> str:
+    if order <= 10:
+        return "CLEAVAGE"
+    if order <= 15:
+        return "BLASTULA"
+    if order <= 21:
+        return "GASTRULA"
+    return "LARVAL"
 
 
 def default_expected_hpa(code: str) -> float:

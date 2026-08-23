@@ -88,6 +88,22 @@ def test_timing_csv_upload_accepts_its_contract_content_type(client, write_heade
     assert response.status_code == 201
 
 
+def test_timing_csv_export_can_be_imported_without_changing_entries(client, write_headers):
+    path = "/api/v1/timing-profiles/csv?protocolId=01900000-0000-7000-8000-000000000001"
+    exported = client.get(path)
+
+    assert exported.status_code == 200
+    imported = client.post(
+        path,
+        headers={**write_headers, "Content-Type": "text/csv"},
+        content=exported.content,
+    )
+
+    assert imported.status_code == 201, imported.text
+    assert len(imported.json()["entries"]) == 36
+    assert client.get(path).content == exported.content
+
+
 def test_malformed_json_uses_the_common_error_envelope(client, write_headers):
     response = client.post(
         "/api/v1/sites",
@@ -117,3 +133,76 @@ def test_timing_profile_partial_override_keeps_36_stages(client, write_headers):
     assert response.status_code == 201, response.text
     assert len(response.json()["entries"]) == 36
     assert response.json()["entries"][1]["expectedHpa"] == 0.8
+
+
+def test_protocol_stages_are_canonical_definitions_in_order(client):
+    response = client.get("/api/v1/protocols/01900000-0000-7000-8000-000000000001/stages")
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 36
+    assert items[0] == {
+        "id": "01900001-0000-7000-8000-000000000001",
+        "stageOrder": 1,
+        "code": "stage_01_1C",
+        "label": "Activated (1-cell)",
+        "shortLabel": "1C",
+        "phase": "CLEAVAGE",
+        "stageScope": "STAGE_1",
+    }
+    assert [(items[index]["label"], items[index]["shortLabel"], items[index]["phase"]) for index in (10, 15, 21)] == [
+        ("1k-cell", "1K", "BLASTULA"),
+        ("30% epiboly", "30EPI", "GASTRULA"),
+        ("Day 1", "1D", "LARVAL"),
+    ]
+    assert (items[26]["label"], items[26]["stageScope"]) == ("Day 6", "STAGE_2")
+
+
+def test_timing_profile_rejects_duplicate_stage_overrides_without_changing_current(client, write_headers):
+    response = client.post(
+        "/api/v1/timing-profiles",
+        headers=write_headers,
+        json={
+            "protocolId": "01900000-0000-7000-8000-000000000001",
+            "name": "Duplicate override",
+            "entries": [
+                {"stageCode": "stage_02_2C", "expectedHpa": 0.8},
+                {"stageCode": "stage_02_2C", "expectedHpa": 0.9},
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+    current = client.get("/api/v1/timing-profiles/current?protocolId=01900000-0000-7000-8000-000000000001").json()
+    assert current["version"] == 1
+    assert current["entries"][1]["expectedHpa"] == 0.75
+
+
+def test_timing_csv_reports_every_invalid_row_before_writing(client, write_headers):
+    response = client.post(
+        "/api/v1/timing-profiles/csv?protocolId=01900000-0000-7000-8000-000000000001",
+        headers={**write_headers, "Content-Type": "text/csv"},
+        content=(
+            "stage_order,stage_code,label,expected_hpa\n"
+            "2,stage_02_2C,2-cell,0.8\n"
+            "2,stage_02_2C,2-cell,0.9\n"
+            "4,stage_03_4C,4-cell,1.0\n"
+            "5,stage_05_16C,16-cell,-1\n"
+        ),
+    )
+
+    assert response.status_code == 422
+    assert [error["row"] for error in response.json()["error"]["details"]["rows"]] == [3, 4, 5]
+    current = client.get("/api/v1/timing-profiles/current?protocolId=01900000-0000-7000-8000-000000000001").json()
+    assert current["version"] == 1
+
+
+def test_timing_csv_reports_a_malformed_quoted_header(client, write_headers):
+    response = client.post(
+        "/api/v1/timing-profiles/csv?protocolId=01900000-0000-7000-8000-000000000001",
+        headers={**write_headers, "Content-Type": "text/csv"},
+        content='"stage_order,stage_code,label,expected_hpa\n',
+    )
+
+    assert response.status_code == 422
+    assert response.json()["error"]["details"]["rows"][0]["row"] == 1

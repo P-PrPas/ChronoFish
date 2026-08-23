@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .rules import default_expected_hpa, stage_code, stage_label
+from .rules import default_expected_hpa, stage_code, stage_label, stage_phase, stage_short_label
 
 JSON = dict[str, Any]
 DEMO_OPERATOR_ID = "00000000-0000-7000-8000-000000000001"
@@ -68,8 +68,8 @@ class State:
                     "label": label,
                     "stageCode": code,
                     "stageLabel": label,
-                    "shortLabel": label,
-                    "phase": "LARVAL",
+                    "shortLabel": stage_short_label(order),
+                    "phase": stage_phase(order),
                     "stageScope": "STAGE_1" if order <= 26 else "STAGE_2",
                     "expectedHpa": default_expected_hpa(code),
                 }

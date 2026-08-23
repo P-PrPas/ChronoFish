@@ -1,7 +1,7 @@
 # ChronoFish Development Status
 
 > อัปเดตล่าสุด: 23 สิงหาคม 2026  
-> Branch: `feat/phase-1-ui-hardening`
+> Branch: `feat/phase-2-timing-profiles`
 > Go baseline ก่อนย้ายภาษา: `6adc25e`
 
 ## สรุปสถานะ
@@ -9,6 +9,8 @@
 การย้าย backend จาก Go เป็น Python เสร็จแล้วใน source tree ปัจจุบัน โดยมี OpenAPI 3.1 จำนวน 70 operations ระบบใช้ Python 3.13+, FastAPI, SQLAlchemy synchronous, Uvicorn, PostgreSQL 16 เป็นฐานหลัก และ MySQL 8 เป็น compatibility target ส่วน Go runtime, Go tests และ Go CI ถูกถอดออกหลัง Python ผ่าน behavior, contract และ database integration gates
 
 Frontend ยังคงเป็น Vite + React + TypeScript แบบ static SPA และใช้ generated types จาก `api/openapi.yaml` ซึ่งเป็น HTTP contract แหล่งเดียวของระบบ
+
+Phase 2 — Protocol และ Timing Profile implement ครบตาม checklist แล้ว ทั้ง canonical 36 stages, version history, atomic current profile, snapshot protection, CSV round-trip/row errors และหน้า SCR-15; เหลือการยืนยัน integration jobs บน PostgreSQL/MySQL ผ่าน CI ของ PR นี้และ UAT กับผู้ใช้จริง
 
 ## สิ่งที่ implement แล้ว
 
@@ -27,17 +29,20 @@ Frontend ยังคงเป็น Vite + React + TypeScript แบบ static 
 - backend package แยกเป็น `api/routes`, `domain`, `runtime`, `store` และ `reporting`; ลบ `core.py` และโครงสร้าง Go ว่างออกจาก working tree
 - Dockerfile แบบ non-root, Compose สำหรับ PostgreSQL/MySQL, native virtual-environment workflow และ Python CI
 - route-contract test เทียบ OpenAPI ทั้ง 70 operations และ pytest behavior/integration suite
+- Timing Profile API คืน canonical Stage Definition ครบ 36 รายการ, รองรับ partial override โดยสร้าง version เต็มชุดใหม่, ป้องกัน duplicate/ค่าติดลบ/NaN และ validate CSV ทั้งไฟล์ก่อนเขียนพร้อม row-level errors
+- SCR-15 แสดง current/old HPA, version/ผู้แก้/เวลา/ค่าที่เปลี่ยน, ยืนยันก่อนสร้าง version และ preview CSV พร้อมปิดการ import เมื่อพบข้อผิดพลาดต่อแถว
+- acceptance test ของ AC-204/T-08 ยืนยันว่า observation และ batch เก่ายังคง profile snapshot เดิม ขณะที่ batch ใหม่ผูกกับ current profile ใหม่
 
 ## ผลตรวจล่าสุด
 
 - `ruff format --check` และ `ruff check`: ผ่าน
-- pytest memory suite: 29 passed, 1 database-only test skipped
-- domain coverage: 94.67% (เกณฑ์ 90%)
+- pytest memory suite: 35 passed, 2 database-only tests skipped
+- domain coverage: 95.70% (เกณฑ์ 90%)
 - PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–8 และ workflow write/replay/duplicate-draft/restart/activate/audit
 - MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL
 - OpenAPI validation: 51 paths / 70 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
-- frontend: build ผ่าน และ 23 tests ผ่าน
+- frontend: build ผ่าน และ 25 tests ผ่าน
 - Compose configuration ทั้งสองไฟล์: ผ่าน
 - Docker image build: ผ่าน CI ของ PR #1; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
 
