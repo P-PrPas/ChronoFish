@@ -100,9 +100,10 @@ export async function request(path: string, init: RequestInit = {}): Promise<Res
   }
   const response = await fetch(`${apiBase}${path}`, { ...init, headers })
   if (!response.ok) {
-    const body = await response.json().catch(() => ({})) as { error?: { message?: string } }
-    const error = new Error(body?.error?.message ?? `HTTP ${response.status}`) as Error & { status?: number }
+    const body = await response.json().catch(() => ({})) as { error?: { message?: string; details?: unknown } }
+    const error = new Error(body?.error?.message ?? `HTTP ${response.status}`) as Error & { status?: number; details?: unknown }
     error.status = response.status
+    error.details = body.error?.details
     throw error
   }
   return response

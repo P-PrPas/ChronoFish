@@ -92,3 +92,65 @@ def test_abnormal_observation_updates_embryo_projection(client, write_headers):
     assert response.json()["results"][0]["status"] == "created"
     projected = client.get(f"/api/v1/injection-lots/{lot['id']}/embryos").json()["items"][0]
     assert projected["firstAbnormalStageCode"] == "stage_03_4C"
+
+
+def test_new_timing_version_only_applies_to_new_batches(client, write_headers):
+    batch, _lot, embryo, activated = setup_embryo(client, write_headers)
+    observed_at = (datetime.fromisoformat(activated.replace("Z", "+00:00")) + timedelta(hours=3)).isoformat()
+    observation_body = {
+        "observations": [
+            {
+                "clientUuid": "01900000-0000-7000-8000-000000000310",
+                "embryoId": embryo["id"],
+                "stageCode": "stage_09_256C",
+                "observedAt": observed_at,
+                "outcome": "ALIVE",
+                "condition": "NORMAL",
+            }
+        ]
+    }
+    created = client.post(
+        "/api/v1/observations/embryo",
+        headers=headers(write_headers, 310),
+        json=observation_body,
+    ).json()["results"][0]
+    old_profile_id = batch["timingProfileId"]
+
+    profile_response = client.post(
+        "/api/v1/timing-profiles",
+        headers=headers(write_headers, 311),
+        json={
+            "protocolId": batch["protocolId"],
+            "name": "Later 256-cell stage",
+            "entries": [{"stageCode": "stage_09_256C", "expectedHpa": 2.7}],
+        },
+    )
+    assert profile_response.status_code == 201, profile_response.text
+    new_profile_id = profile_response.json()["id"]
+
+    replayed = client.post(
+        "/api/v1/observations/embryo",
+        headers=headers(write_headers, 312),
+        json=observation_body,
+    ).json()["results"][0]
+    old_batch = client.get(f"/api/v1/batches/{batch['id']}").json()
+    new_batch_response = client.post(
+        "/api/v1/batches",
+        headers=headers(write_headers, 313),
+        json={
+            "experimentDate": "2026-08-21",
+            "siteId": batch["siteId"],
+            "operatorId": batch["operatorId"],
+            "protocolId": batch["protocolId"],
+            "treatmentGroupId": batch["treatmentGroupId"],
+        },
+    )
+
+    assert created["hpaExpected"] == 2.5
+    assert created["deviationH"] == 0.5
+    assert replayed["status"] == "duplicate"
+    assert replayed["hpaExpected"] == created["hpaExpected"]
+    assert replayed["deviationH"] == created["deviationH"]
+    assert old_batch["timingProfileId"] == old_profile_id
+    assert new_batch_response.status_code == 201, new_batch_response.text
+    assert new_batch_response.json()["timingProfileId"] == new_profile_id

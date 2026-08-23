@@ -244,27 +244,27 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 #### Backend/Database
 
-- [ ] implement list protocols และ stages ตามลำดับ `stage_no`
-- [ ] implement current/history timing profile พร้อม timings ครบ 36 stages
-- [ ] สร้าง timing profile version ใหม่แบบ transaction เดียว; ห้ามแก้แถว profile เดิม
-- [ ] validate stage ครบ/ไม่ซ้ำ, `expected_hpa >= 0` และค่าที่เกี่ยวข้องตาม SRS
-- [ ] เปลี่ยน current profile อย่าง atomic และป้องกัน current ซ้ำภายใต้ concurrent requests
-- [ ] implement CSV import/export โดย validate ทั้งไฟล์ก่อนเขียน และคืน row-level error ที่แก้ไขได้
-- [ ] ยืนยัน query ว่า observation เก่าใช้ snapshot เดิมเสมอ แม้ current profile เปลี่ยน
+- [x] implement list protocols และ stages ตามลำดับ `stage_no`
+- [x] implement current/history timing profile พร้อม timings ครบ 36 stages
+- [x] สร้าง timing profile version ใหม่แบบ transaction เดียว; ห้ามแก้แถว profile เดิม
+- [x] validate stage ครบ/ไม่ซ้ำ, `expected_hpa >= 0` และค่าที่เกี่ยวข้องตาม SRS
+- [x] เปลี่ยน current profile อย่าง atomic และป้องกัน current ซ้ำภายใต้ concurrent requests
+- [x] implement CSV import/export โดย validate ทั้งไฟล์ก่อนเขียน และคืน row-level error ที่แก้ไขได้
+- [x] ยืนยัน query ว่า observation เก่าใช้ snapshot เดิมเสมอ แม้ current profile เปลี่ยน
 
 #### Frontend
 
-- [ ] ทำ SCR-15 เป็นตาราง 36 stages พร้อมค่าเดิม/ค่าใหม่, validation และ confirmation ก่อนสร้าง version
-- [ ] แสดงผู้แก้, เวลา, version และประวัติ โดยไม่เปิดให้แก้ version เก่า
-- [ ] เพิ่ม CSV download/upload พร้อม preview และ error ต่อแถว
-- [ ] preview deviation ใน UI ได้ แต่ label/ค่าหลัง save ต้องใช้ค่าที่ backend คืน
+- [x] ทำ SCR-15 เป็นตาราง 36 stages พร้อมค่าเดิม/ค่าใหม่, validation และ confirmation ก่อนสร้าง version
+- [x] แสดงผู้แก้, เวลา, version และประวัติ โดยไม่เปิดให้แก้ version เก่า
+- [x] เพิ่ม CSV download/upload พร้อม preview และ error ต่อแถว
+- [x] preview deviation ใน UI ได้ แต่ label/ค่าหลัง save ต้องใช้ค่าที่ backend คืน
 
 #### Tests และ Exit criteria
 
-- [ ] service tests ครอบคลุม BR-03, BR-04, BR-21 และ formatting BR-23
-- [ ] concurrency test current profile uniqueness บน DB สองชนิด
-- [ ] CSV round-trip และ malformed file tests
-- [ ] UAT T-08 ผ่าน: observation เก่าไม่เปลี่ยนและ batch ใหม่ใช้ profile ใหม่
+- [x] service tests ครอบคลุม BR-03, BR-04, BR-21 และ formatting BR-23
+- [x] concurrency test current profile uniqueness บน DB สองชนิด
+- [x] CSV round-trip และ malformed file tests
+- [x] UAT T-08 ผ่าน: observation เก่าไม่เปลี่ยนและ batch ใหม่ใช้ profile ใหม่
 
 ### Phase 3 — Batch, Injection Lot, Embryo และ Control Registration
 

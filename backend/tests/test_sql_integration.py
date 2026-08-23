@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -125,3 +126,30 @@ def test_sql_store_persists_workflow_idempotency_and_audit_across_instances():
     audits = second.get(f"/api/v1/audit-log?recordId={site['id']}").json()["items"]
     assert audits and audits[0]["action"] == "INSERT"
     second_store.close()
+
+
+def test_concurrent_timing_versions_are_serialized_with_one_current_profile():
+    store = SQLStore(_config())
+    client = TestClient(create_app(_config(), store))
+
+    def create_profile(expected_hpa: float):
+        return client.post(
+            "/api/v1/timing-profiles",
+            headers=_headers(),
+            json={
+                "protocolId": PROTOCOL_ID,
+                "name": f"Concurrent {expected_hpa}",
+                "entries": [{"stageCode": "stage_02_2C", "expectedHpa": expected_hpa}],
+            },
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        responses = list(executor.map(create_profile, (0.81, 0.82)))
+
+    assert [response.status_code for response in responses] == [201, 201]
+    versions = sorted(response.json()["version"] for response in responses)
+    assert versions[1] == versions[0] + 1
+    profiles = client.get(f"/api/v1/timing-profiles?protocolId={PROTOCOL_ID}").json()["items"]
+    assert sum(profile["isCurrent"] for profile in profiles) == 1
+    assert profiles[0]["version"] == versions[1]
+    store.close()

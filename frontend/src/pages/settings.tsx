@@ -13,27 +13,157 @@ import { type AppText, text } from "../types";
 
 const seedProtocolId = "01900000-0000-7000-8000-000000000001";
 
+type CsvRow = {
+  row: number;
+  stageCode: string;
+  label: string;
+  expectedHpa: string;
+  errors: string[];
+};
+
+type CsvPreview = {
+  fileName: string;
+  text: string;
+  rows: CsvRow[];
+  errors: string[];
+};
+
+const csvHeader = "stage_order,stage_code,label,expected_hpa";
+
+function csvCells(line: string): string[] {
+  const cells: string[] = [];
+  let cell = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    if (character === '"') {
+      if (quoted && line[index + 1] === '"') {
+        cell += '"';
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (character === "," && !quoted) {
+      cells.push(cell);
+      cell = "";
+    } else {
+      cell += character;
+    }
+  }
+  if (quoted) throw new Error("unclosed quoted value");
+  cells.push(cell);
+  return cells;
+}
+
+function previewCsv(fileName: string, textValue: string, stages: ApiItem[]): CsvPreview {
+  // ponytail: canonical exports never contain multiline labels; the backend csv parser remains authoritative.
+  const lines = textValue.replace(/^\uFEFF/, "").split(/\r?\n/);
+  if ((lines[0] ?? "").trim() !== csvHeader) {
+    return { fileName, text: textValue, rows: [], errors: [`Row 1: expected header ${csvHeader}`] };
+  }
+  const knownStages = new Map(
+    stages.map((stage) => [String(stage.stageCode ?? stage.code), Number(stage.stageOrder)]),
+  );
+  const seen = new Set<string>();
+  const rows = lines.slice(1).flatMap((line, index) => {
+    if (!line.trim()) return [];
+    const rowNumber = index + 2;
+    let cells: string[];
+    try {
+      cells = csvCells(line);
+    } catch (error) {
+      return [{ row: rowNumber, stageCode: "", label: "", expectedHpa: "", errors: [(error as Error).message] }];
+    }
+    const [orderText = "", stageCode = "", label = "", expectedHpa = ""] = cells;
+    const errors: string[] = [];
+    const order = Number(orderText);
+    if (cells.length !== 4) errors.push("must contain exactly 4 columns");
+    if (!Number.isInteger(order)) errors.push("stage_order must be an integer");
+    if (!knownStages.has(stageCode) || knownStages.get(stageCode) !== order)
+      errors.push("stage_code does not match stage_order");
+    if (seen.has(stageCode)) errors.push("duplicate stage");
+    else seen.add(stageCode);
+    const expected = Number(expectedHpa);
+    if (!expectedHpa.trim() || !Number.isFinite(expected) || expected < 0)
+      errors.push("expected_hpa must be a number greater than or equal to 0");
+    return [{ row: rowNumber, stageCode, label, expectedHpa, errors }];
+  });
+  const errors = rows.length === 0 ? ["Row 2: CSV must contain at least one data row"] : [];
+  return { fileName, text: textValue, rows, errors };
+}
+
+function apiError(error: unknown): string {
+  const failure = error as Error & { details?: { rows?: { row?: number; message?: string }[] } };
+  const rows = failure.details?.rows;
+  return rows?.length
+    ? rows.map((row) => `Row ${row.row ?? "?"}: ${row.message ?? failure.message}`).join(" · ")
+    : failure.message;
+}
+
+function createdAt(profile: ApiItem): string {
+  const value = String(profile.createdAt ?? "");
+  const date = new Date(value);
+  return value && !Number.isNaN(date.valueOf()) ? date.toLocaleString() : "Unknown time";
+}
+
+function changedStages(profile: ApiItem, previous?: ApiItem): string {
+  const current = (profile.entries as ApiItem[] | undefined) ?? [];
+  if (!previous) return `Initial profile · ${current.length} stages`;
+  const oldValues = new Map(
+    ((previous.entries as ApiItem[] | undefined) ?? []).map((entry) => [
+      String(entry.stageCode ?? entry.code),
+      Number(entry.expectedHpa),
+    ]),
+  );
+  const changes = current.filter(
+    (entry) => oldValues.get(String(entry.stageCode ?? entry.code)) !== Number(entry.expectedHpa),
+  );
+  if (changes.length === 0) return "No timing values changed";
+  return changes
+    .slice(0, 3)
+    .map((entry) => {
+      const code = String(entry.stageCode ?? entry.code);
+      return `${code}: ${oldValues.get(code) ?? "—"} → ${Number(entry.expectedHpa)}`;
+    })
+    .join(" · ") + (changes.length > 3 ? ` · +${changes.length - 3} more` : "");
+}
+
 export function Timing({ t = text.en }: { t?: AppText } = {}) {
   const [profile, setProfile] = useState<ApiItem | null>(null);
   const [entries, setEntries] = useState<ApiItem[]>([]);
+  const [history, setHistory] = useState<ApiItem[]>([]);
   const [protocols, setProtocols] = useState<ApiItem[]>([]);
+  const [operatorNames, setOperatorNames] = useState<Record<string, string>>({});
   const [protocolId, setProtocolId] = useState("");
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [csvPreview, setCsvPreview] = useState<CsvPreview | null>(null);
   const [name, setName] = useState("Lab timing update");
   const [saving, setSaving] = useState(false);
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
     if (!protocolId) {
       setProfile(null);
       setEntries([]);
+      setHistory([]);
       return;
     }
-    void get(`/timing-profiles/current?protocolId=${protocolId}`)
-      .then((value) => {
-        setProfile(value);
-        setEntries((value.entries as ApiItem[] | undefined) ?? []);
-      })
-      .catch((e: Error) => setError(e.message));
+    setLoading(true);
+    setError("");
+    try {
+      const [current, versions] = await Promise.all([
+        get(`/timing-profiles/current?protocolId=${protocolId}`),
+        get(`/timing-profiles?protocolId=${protocolId}`),
+      ]);
+      setProfile(current);
+      setEntries((current.entries as ApiItem[] | undefined) ?? []);
+      setHistory(versions.items ?? []);
+    } catch (loadError) {
+      setError(apiError(loadError));
+    } finally {
+      setLoading(false);
+    }
   }, [protocolId]);
   useEffect(() => {
     void get("/protocols")
@@ -47,12 +177,37 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
         if (!protocolId) setProtocolId(seedProtocolId);
       });
   }, []);
-  useEffect(load, [load]);
   useEffect(() => {
-    const refresh = () => load();
+    void get("/operators?includeInactive=true")
+      .then((data) =>
+        setOperatorNames(
+          Object.fromEntries((data.items ?? []).map((item) => [String(item.id), String(item.name ?? item.id)])),
+        ),
+      )
+      .catch(() => setOperatorNames({}));
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  useEffect(() => {
+    const refresh = (event: Event) => {
+      const detail = (event as CustomEvent<QueuedWrite>).detail;
+      if (detail?.path.startsWith("/timing-profiles")) {
+        setCsvPreview(null);
+        setMessage("");
+        void load();
+      }
+    };
+    const reject = (event: Event) => {
+      const detail = (event as CustomEvent<QueuedWrite>).detail;
+      if (detail?.path.startsWith("/timing-profiles")) setError(detail.lastError ?? "Timing update rejected");
+    };
     window.addEventListener("chronofish:queue-drained", refresh);
-    return () =>
+    window.addEventListener("chronofish:queue-rejected", reject);
+    return () => {
       window.removeEventListener("chronofish:queue-drained", refresh);
+      window.removeEventListener("chronofish:queue-rejected", reject);
+    };
   }, [load]);
   const download = async () => {
     if (!protocolId) return;
@@ -71,49 +226,78 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
       setError((e as Error).message);
     }
   };
-  const upload = async (event: ChangeEvent<HTMLInputElement>) => {
+  const selectCsv = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file || !protocolId) return;
-    setImporting(true);
     setError("");
     try {
       const body = await file.text();
+      setCsvPreview(previewCsv(file.name, body, entries));
+    } catch (readError) {
+      setError(apiError(readError));
+    } finally {
+      event.target.value = "";
+    }
+  };
+  const importCsv = async () => {
+    if (!csvPreview || csvPreview.errors.length || csvPreview.rows.some((row) => row.errors.length)) return;
+    if (!window.confirm(`Import ${csvPreview.rows.length} timing rows as a new version?`)) return;
+    setImporting(true);
+    setError("");
+    setMessage("");
+    try {
       const result = await putQueue(
         `/timing-profiles/csv?protocolId=${protocolId}`,
-        body,
+        csvPreview.text,
         "text/csv",
       );
-      if (!result.queued) await load();
-    } catch (e) {
-      setError((e as Error).message);
+      if (result.queued) setMessage("CSV import queued; the new version will appear after sync");
+      else {
+        setCsvPreview(null);
+        await load();
+      }
+    } catch (importError) {
+      setError(apiError(importError));
     } finally {
       setImporting(false);
-      event.target.value = "";
     }
   };
   const save = async (event: FormEvent) => {
     event.preventDefault();
+    const oldEntries = new Map(
+      (((profile?.entries as ApiItem[] | undefined) ?? []).map((entry) => [
+        String(entry.stageCode ?? entry.code),
+        Number(entry.expectedHpa),
+      ])),
+    );
+    const changed = entries.filter(
+      (entry) => oldEntries.get(String(entry.stageCode ?? entry.code)) !== Number(entry.expectedHpa),
+    );
+    if (changed.length === 0) {
+      setError("Change at least one expected HPA value before saving");
+      return;
+    }
+    if (!window.confirm(`Create a new timing profile version with ${changed.length} changed stage(s)?`)) return;
     setSaving(true);
     setError("");
+    setMessage("");
     try {
       const payload = {
         protocolId,
         name,
-        entries: entries.map((entry, index) => ({
-          stageOrder: Number(entry.stageOrder ?? index + 1),
+        entries: changed.map((entry) => ({
           stageCode: String(entry.stageCode ?? entry.code),
-          stageLabel: String(entry.stageLabel ?? entry.label),
           expectedHpa: Number(entry.expectedHpa),
         })),
       };
       const result = await putQueue("/timing-profiles", payload);
       if (result.queued)
-        setError(
-          "Timing profile saved offline; it will create a new version when online",
+        setMessage(
+          "Timing profile queued; it will create a new version when online",
         );
       else await load();
-    } catch (e) {
-      setError((e as Error).message);
+    } catch (saveError) {
+      setError(apiError(saveError));
     } finally {
       setSaving(false);
     }
@@ -138,6 +322,8 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
                 setProtocolId(event.target.value);
                 setProfile(null);
                 setEntries([]);
+                setHistory([]);
+                setCsvPreview(null);
               }}
             >
               <option value="">Select protocol</option>
@@ -168,58 +354,120 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
               type="file"
               accept=".csv,text/csv"
               disabled={importing}
-              onChange={upload}
+              onChange={selectCsv}
             />
           </label>
         </div>
       </div>
       {error && <ErrorMessage message={error} />}
+      {message && <p className="notice">{message}</p>}
+      {loading && <p className="muted">Loading timing profile…</p>}
       {profile && (
-        <form className="form-card" onSubmit={save}>
-          <label>
-            New version name
-            <input
-              required
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
+        <>
+          <div className="list-row">
+            <span>
+              <strong>Current version {String(profile.version)}</strong>
+              <small>{String(profile.name)} · {createdAt(profile)} · by {operatorNames[String(profile.createdByOperatorId)] ?? String(profile.createdByOperatorId ?? "Unknown operator")}</small>
+            </span>
+            <span className="pill">Current</span>
+          </div>
+          <form className="form-card" onSubmit={save}>
+            <label>
+              New version name
+              <input
+                required
+                maxLength={200}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </label>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Stage</th>
+                    <th>Label</th>
+                    <th>Current HPA</th>
+                    <th>New HPA</th>
+                    <th>Change</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((entry, index) => {
+                    const original = Number((profile.entries as ApiItem[])[index]?.expectedHpa);
+                    const updated = Number(entry.expectedHpa);
+                    return (
+                      <tr key={String(entry.id ?? entry.stageCode)}>
+                        <td>{String(entry.stageCode ?? entry.code)}</td>
+                        <td>{String(entry.stageLabel ?? entry.label)}</td>
+                        <td>{original}</td>
+                        <td>
+                          <input
+                            aria-label={`Expected HPA ${String(entry.stageCode ?? index + 1)}`}
+                            type="number"
+                            required
+                            min="0"
+                            step="0.0001"
+                            value={updated}
+                            onChange={(event) => updateEntry(index, event.target.value)}
+                          />
+                        </td>
+                        <td>{updated === original ? "—" : `${updated - original > 0 ? "+" : ""}${(updated - original).toFixed(4)}`}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <button className="button button--primary" disabled={saving}>
+              {saving ? t.saving : t.saveTimingVersion}
+            </button>
+          </form>
+        </>
+      )}
+      {csvPreview && (
+        <section className="form-card" aria-label="CSV preview">
+          <div>
+            <h2>CSV preview</h2>
+            <p className="muted">{csvPreview.fileName} · {csvPreview.rows.length} rows ready</p>
+          </div>
+          {csvPreview.errors.map((previewError) => <ErrorMessage key={previewError} message={previewError} />)}
           <div className="table-wrap">
             <table>
-              <thead>
-                <tr>
-                  <th>Stage</th>
-                  <th>Label</th>
-                  <th>Expected HPA</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Row</th><th>Stage</th><th>Label</th><th>Expected HPA</th><th>Status</th></tr></thead>
               <tbody>
-                {entries.map((entry, index) => (
-                  <tr key={String(entry.id ?? entry.stageCode)}>
-                    <td>{String(entry.stageCode ?? entry.code)}</td>
-                    <td>{String(entry.stageLabel ?? entry.label)}</td>
-                    <td>
-                      <input
-                        aria-label={`Expected HPA ${String(entry.stageCode ?? index + 1)}`}
-                        type="number"
-                        min="0"
-                        step="0.0001"
-                        value={Number(entry.expectedHpa)}
-                        onChange={(event) =>
-                          updateEntry(index, event.target.value)
-                        }
-                      />
-                    </td>
+                {csvPreview.rows.map((row) => (
+                  <tr key={row.row}>
+                    <td>{row.row}</td><td>{row.stageCode}</td><td>{row.label}</td><td>{row.expectedHpa}</td>
+                    <td>{row.errors.length ? row.errors.join(" · ") : "Ready"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <button className="button button--primary" disabled={saving}>
-            {saving ? t.saving : t.saveTimingVersion}
-          </button>
-        </form>
+          <div className="button-row">
+            <button className="button button--primary" disabled={importing || csvPreview.errors.length > 0 || csvPreview.rows.some((row) => row.errors.length > 0)} onClick={() => void importCsv()}>
+              {importing ? t.importing : "Import preview"}
+            </button>
+            <button className="button button--secondary" onClick={() => setCsvPreview(null)}>Cancel</button>
+          </div>
+        </section>
       )}
+      <section>
+        <h2>Version history</h2>
+        <div className="list">
+          {history.map((version, index) => (
+            <div className="list-row" key={String(version.id)}>
+              <span>
+                <strong>Version {String(version.version)} · {String(version.name)}</strong>
+                <small>{createdAt(version)} · by {operatorNames[String(version.createdByOperatorId)] ?? String(version.createdByOperatorId ?? "Unknown operator")} · {changedStages(version, history[index + 1])}</small>
+              </span>
+              {Boolean(version.isCurrent) && <span className="pill">Current</span>}
+            </div>
+          ))}
+          {!loading && history.length === 0 && <Empty message="No timing versions" />}
+        </div>
+      </section>
     </section>
   );
 }

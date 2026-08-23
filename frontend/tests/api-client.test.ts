@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
-import { afterEach, describe, expect, it } from 'vitest'
-import { deviceId, mutationHeaders, operatorId } from '../src/api/client'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { deviceId, mutationHeaders, operatorId, request } from '../src/api/client'
 
 describe('API write context', () => {
   afterEach(() => { localStorage.clear(); sessionStorage.clear() })
@@ -21,6 +21,18 @@ describe('API write context', () => {
       'X-Operator-Id': 'operator-a',
       'X-Device-Id': 'device-a',
       'X-Idempotency-Key': 'request-a',
+    })
+  })
+
+  it('preserves structured API error details for row-level feedback', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      error: { message: 'CSV needs changes', details: { rows: [{ row: 3, message: 'duplicate stage' }] } },
+    }), { status: 422, headers: { 'Content-Type': 'application/json' } })))
+
+    await expect(request('/timing-profiles/csv')).rejects.toMatchObject({
+      message: 'CSV needs changes',
+      status: 422,
+      details: { rows: [{ row: 3, message: 'duplicate stage' }] },
     })
   })
 })
