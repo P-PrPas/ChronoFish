@@ -10,7 +10,7 @@
 
 Frontend ยังคงเป็น Vite + React + TypeScript แบบ static SPA และใช้ generated types จาก `api/openapi.yaml` ซึ่งเป็น HTTP contract แหล่งเดียวของระบบ
 
-Phase 2 — Protocol และ Timing Profile implement ครบตาม checklist แล้ว ทั้ง canonical 36 stages, version history, atomic current profile, snapshot protection, CSV round-trip/row errors และหน้า SCR-15; เหลือการยืนยัน integration jobs บน PostgreSQL/MySQL ผ่าน CI ของ PR นี้และ UAT กับผู้ใช้จริง
+Phase 2 — Protocol และ Timing Profile implement ครบตาม checklist แล้ว ทั้ง canonical 36 stages, version history, atomic current profile, snapshot protection, CSV round-trip/row errors และหน้า SCR-15 โดย PostgreSQL/MySQL integration jobs ของ PR #5 ผ่านแล้ว; เหลือ UAT กับผู้ใช้จริง
 
 ## สิ่งที่ implement แล้ว
 
@@ -38,8 +38,8 @@ Phase 2 — Protocol และ Timing Profile implement ครบตาม check
 - `ruff format --check` และ `ruff check`: ผ่าน
 - pytest memory suite: 35 passed, 2 database-only tests skipped
 - domain coverage: 95.70% (เกณฑ์ 90%)
-- PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–8 และ workflow write/replay/duplicate-draft/restart/activate/audit
-- MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL
+- PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–8, workflow write/replay/duplicate-draft/restart/activate/audit และ concurrent Timing Profile versioning
+- MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL รวม concurrent Timing Profile versioning
 - OpenAPI validation: 51 paths / 70 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
 - frontend: build ผ่าน และ 25 tests ผ่าน
