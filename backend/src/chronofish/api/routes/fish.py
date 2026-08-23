@@ -24,6 +24,10 @@ from ...store import Store
 
 BANGKOK = ZoneInfo("Asia/Bangkok")
 SEX_VALUES = {"UNKNOWN", "M", "F"}
+FISH_UPDATE_FIELDS = {"fishCode", "fishBoxId", "sex", "remarks"}
+SPECIMEN_KINDS = {"CL", "RT", "DC"}
+SPECIMEN_TYPES = {"WHOLE_EMBRYO", "CAUDAL_FIN_CLIP"}
+SPECIMEN_STORAGES = {"-20", "-80"}
 
 
 def _fish_for_embryo(state: State, embryo_id: str) -> dict[str, Any] | None:
@@ -130,6 +134,15 @@ def _recompute_fish(state: State, fish_id: str) -> None:
         ):
             fish.pop(field, None)
     fish["updatedAt"] = iso_now()
+
+
+def _specimen_date(value: Any, field: str) -> date | None:
+    if value in (None, ""):
+        return None
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError as error:
+        raise APIError(422, "validation_error", f"{field} ต้องเป็น YYYY-MM-DD") from error
 
 
 def build_fish_router(store: Store) -> APIRouter:
@@ -364,8 +377,14 @@ def build_fish_router(store: Store) -> APIRouter:
                 raise APIError(422, "validation_error", "sex ไม่ถูกต้อง")
             fish_id, now = uuid7(), iso_now()
             fish = {
-                **body,
                 "id": fish_id,
+                "embryoId": None,
+                "fishCode": str(body["fishCode"]),
+                "dob": dob.isoformat(),
+                "donorCellLineId": body["donorCellLineId"],
+                "siteId": body.get("siteId"),
+                "fishBoxId": body.get("fishBoxId"),
+                "remarks": body.get("remarks"),
                 "runningNo": state.next_fish_no,
                 "status": "ALIVE",
                 "condition": body.get("condition") or "NORMAL",
@@ -401,7 +420,7 @@ def build_fish_router(store: Store) -> APIRouter:
         result["specimens"] = [
             copy.deepcopy(item)
             for item in state.entities["specimens"].values()
-            if item.get("cloneFishId") == fish_id and item.get("deletedAt") is None
+            if item.get("cloneFishId") == fish_id and item.get("active") is not False and item.get("deletedAt") is None
         ]
         result["embryoTimeline"] = sorted(
             (
@@ -422,15 +441,30 @@ def build_fish_router(store: Store) -> APIRouter:
             fish = state.entities["fish"].get(fish_id)
             if not fish:
                 raise APIError(404, "not_found", "ไม่พบปลา")
-            if body.get("sex") and body["sex"] not in SEX_VALUES:
+            unknown = set(body) - FISH_UPDATE_FIELDS
+            if unknown:
+                raise APIError(422, "validation_error", f"แก้ไข field นี้ไม่ได้: {sorted(unknown)[0]}")
+            if not body:
+                raise APIError(422, "validation_error", "ต้องระบุข้อมูลที่ต้องการแก้ไข")
+            if "fishCode" in body and not str(body["fishCode"]).strip():
+                raise APIError(422, "validation_error", "fishCode ห้ามว่าง")
+            if "sex" in body and body["sex"] not in SEX_VALUES:
                 raise APIError(422, "validation_error", "sex ไม่ถูกต้อง")
+            if "fishBoxId" in body and body["fishBoxId"]:
+                box = state.entities["fish-boxes"].get(str(body["fishBoxId"]))
+                if not box or box.get("active") is False:
+                    raise APIError(422, "validation_error", "ไม่พบ fishBoxId ที่ active")
             if body.get("fishCode") and any(
                 item["id"] != fish_id and str(item.get("fishCode", "")).casefold() == str(body["fishCode"]).casefold()
                 for item in state.entities["fish"].values()
             ):
                 raise APIError(409, "conflict", "fishCode ซ้ำ")
             old = copy.deepcopy(fish)
-            fish.update({**body, "updatedAt": iso_now()})
+            updates = {key: value for key, value in body.items() if key in FISH_UPDATE_FIELDS}
+            if updates.get("fishBoxId") in (None, ""):
+                updates["fishBoxId"] = None
+            fish.update(updates)
+            fish["updatedAt"] = iso_now()
             audit(state, request, "UPDATE", "clone_fish", fish_id, old, fish)
             return 200, _enrich_fish(state, fish)
 
@@ -462,15 +496,39 @@ def build_fish_router(store: Store) -> APIRouter:
             for field in ("specimenCode", "specimenKind", "specimenType"):
                 if not body.get(field):
                     raise APIError(422, "validation_error", f"ต้องระบุ {field}")
-            if body["specimenKind"] not in {"CL", "RT", "DC"} or body["specimenType"] not in {
-                "WHOLE_EMBRYO",
-                "CAUDAL_FIN_CLIP",
-            }:
+            if body["specimenKind"] not in SPECIMEN_KINDS or body["specimenType"] not in SPECIMEN_TYPES:
                 raise APIError(422, "validation_error", "specimenKind หรือ specimenType ไม่ถูกต้อง")
-            if any(item.get("specimenCode") == body["specimenCode"] for item in state.entities["specimens"].values()):
+            collected_on = _specimen_date(body.get("collectedOn"), "collectedOn")
+            frozen_on = _specimen_date(body.get("frozenOn"), "frozenOn")
+            if collected_on and collected_on > datetime.now(BANGKOK).date():
+                raise APIError(422, "validation_error", "collectedOn ห้ามอยู่ในอนาคต")
+            if frozen_on and frozen_on > datetime.now(BANGKOK).date():
+                raise APIError(422, "validation_error", "frozenOn ห้ามอยู่ในอนาคต")
+            if frozen_on and collected_on and frozen_on < collected_on:
+                raise APIError(422, "validation_error", "frozenOn ต้องไม่ก่อน collectedOn")
+            if body.get("storage") not in (None, "") and not frozen_on:
+                raise APIError(422, "validation_error", "ต้องระบุ frozenOn เมื่อระบุ storage")
+            if body.get("storage") not in (None, "") and body["storage"] not in SPECIMEN_STORAGES:
+                raise APIError(422, "validation_error", "storage ต้องเป็น -20 หรือ -80")
+            code = str(body["specimenCode"]).casefold()
+            if any(
+                str(item.get("specimenCode", "")).casefold() == code for item in state.entities["specimens"].values()
+            ):
                 raise APIError(409, "conflict", "specimenCode ซ้ำ")
             item_id = uuid7()
-            specimen = {**body, "id": item_id, "cloneFishId": fish_id, "active": True, "createdAt": iso_now()}
+            specimen = {
+                "id": item_id,
+                "cloneFishId": fish_id,
+                "specimenCode": str(body["specimenCode"]),
+                "specimenKind": body["specimenKind"],
+                "specimenType": body["specimenType"],
+                "collectedOn": collected_on.isoformat() if collected_on else None,
+                "frozenOn": frozen_on.isoformat() if frozen_on else None,
+                "storage": body.get("storage") or None,
+                "notes": body.get("notes"),
+                "active": True,
+                "createdAt": iso_now(),
+            }
             state.entities["specimens"][item_id] = specimen
             audit(state, request, "INSERT", "specimen", item_id, None, specimen)
             if body.get("markFinClipped"):
@@ -493,9 +551,12 @@ def build_fish_router(store: Store) -> APIRouter:
             raise APIError(422, "validation_error", "invalid Bangkok date") from error
         items = []
         for fish in state.entities["fish"].values():
-            if fish.get("active") is False or fish.get("deletedAt") is not None:
+            if fish.get("active") is False or fish.get("deletedAt") is not None or fish.get("status") != "ALIVE":
                 continue
             if siteId and fish.get("siteId") != siteId or boxId and fish.get("fishBoxId") != boxId:
+                continue
+            dob = date.fromisoformat(fish["dob"])
+            if observed_date < dob:
                 continue
             embryo = state.entities["embryos"].get(str(fish.get("embryoId")), {})
             lot = state.entities["injection-lots"].get(str(embryo.get("injectionLotId")), {})

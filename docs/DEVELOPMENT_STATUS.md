@@ -1,7 +1,7 @@
 # ChronoFish Development Status
 
-> อัปเดตล่าสุด: 23 สิงหาคม 2026  
-> Branch: `feat/phase-5-network-resilience`
+> อัปเดตล่าสุด: 24 สิงหาคม 2026
+> Branch: `feat/phase-6-promotion-fish`
 > Go baseline ก่อนย้ายภาษา: `6adc25e`
 
 ## สรุปสถานะ
@@ -17,6 +17,8 @@ Phase 3 — Batch, Injection Lot, Embryo และ Control Registration implemen
 Phase 4 — Due Now และ Embryo Checkpoint Entry implement ครบตาม automated checklist แล้ว ครอบคลุม BR-07/08/19/22/23, bulk idempotency, checkpoint read model, exit/correction/soft-delete audit, SCR-01/SCR-02, ผัง 96-well responsive, official timing response และ automated UAT T-02/T-03/T-04/T-05/T-15/T-16; เหลือการรับรองด้านอุปกรณ์ เครือข่าย และผู้ใช้จริงใน Phase 9
 
 Phase 5 — Network Resilience implement ครบตาม automated checklist แล้ว: ทุก mutation มี idempotency contract และ transaction-safe replay ที่คืน status/body เดิม (observation UUID ซ้ำคืน HTTP 200 ตาม AC-1003), frontend มี durable IndexedDB queue, logical-write dedupe, optimistic status, exponential backoff/jitter, durable rejection review, beforeunload guard และ app-shell Service Worker; เหลือการทดสอบ UAT T-06/T-07 และ AC-1002/AC-1003 บน Safari iPad จริง
+
+Phase 6 — Promotion, Fish Registry, Daily Roll-call และ Specimen implement ครบตาม automated checklist แล้ว: pending/bulk promotion แบบ transaction เดียว, DOB/running number/ABNORMAL inheritance, fish registry/detail, alive-only roll-call, bulk observations/backdate/state transition, correction/audit และ specimen validation; เหลือ UAT T-09 ถึง T-14 บนอุปกรณ์จริง
 
 ## สิ่งที่ implement แล้ว
 
@@ -50,17 +52,20 @@ Phase 5 — Network Resilience implement ครบตาม automated checklist 
 - monotonic survival, implied checkpoints, exit projection, correction และ soft delete ผ่าน audit/recalculation โดย snapshot เวลาอ้างอิงเดิมไม่เปลี่ยน
 - Phase 5 queue เก็บ payload/context/idempotency key แบบ durable ใน IndexedDB, dedupe logical write ที่ยังค้าง, drain แบบ single-flight, แยก 429/5xx/network retry ออกจาก 4xx rejection และให้ตรวจเหตุผล/เปิดหน้าที่เกี่ยวข้อง/ลบทิ้งได้หลัง reload
 - Phase 5 UI แสดง `บันทึกแล้ว` / `กำลังส่ง…` / `ค้าง N รายการ`, เตือนก่อนปิดแท็บ และ sync/reconcile จาก queue events
+- Phase 6 promotion API ตรวจ BR-09/BR-10/BR-12/BR-13/BR-14, สืบทอด abnormality และป้องกัน running number ซ้ำภายใต้ concurrent writes
+- Phase 6 fish API แยก alive-only roll-call, คำนวณ age สดตาม Bangkok date, รองรับ filters/pagination, state transition, correction/soft-delete audit และ specimen date/storage validation
+- SCR-07/SCR-08/SCR-09/SCR-10 รองรับ bulk promotion, fish registry/detail, one-request all-alive, per-fish outcome actions, backdate และ responsive 375 px layout
 
 ## ผลตรวจล่าสุด
 
 - `ruff format --check` และ `ruff check`: ผ่าน
-- pytest memory suite: 57 passed, 4 database-only tests skipped
+- pytest memory suite: 60 passed, 5 database-only tests skipped
 - domain coverage: 96.91% (เกณฑ์ 90%)
 - PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–9, workflow เดิม, concurrent batch-code/live-well uniqueness และ concurrent observation/correction/soft-delete ใน PR #7
 - MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL รวม migration 9 และ Phase 4 concurrency/audit flow ใน PR #7
 - OpenAPI validation: 51 paths / 70 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
-- frontend: generated API/build ผ่าน และ 42 tests ผ่าน
+- frontend: generated API/build ผ่าน และ 44 tests ผ่าน
 - Compose configuration ทั้งสองไฟล์: ผ่าน
 - Docker image build: ผ่าน CI ของ PR #7; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
 
