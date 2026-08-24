@@ -86,6 +86,7 @@ def test_dashboard_bundle_uses_one_consistent_snapshot(client, store, monkeypatc
     response = client.get("/api/v1/analytics/dashboard")
     assert response.status_code == 200, response.text
     assert set(response.json()) == {
+        "reportMeta",
         "kpi",
         "funnel",
         "survival",
@@ -95,6 +96,8 @@ def test_dashboard_bundle_uses_one_consistent_snapshot(client, store, monkeypatc
         "observationGaps",
         "pipeline",
     }
+    assert response.json()["reportMeta"]["generatedAt"].endswith("Z")
+    assert response.json()["reportMeta"]["timingProfileVersions"] == [1]
     assert calls == 1
 
 

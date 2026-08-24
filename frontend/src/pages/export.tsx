@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { type ApiItem, get, request } from "../api/client";
 import {
   type DashboardFilters,
+  analyticsFilters,
   parseFilters,
   updateFilterURL,
   withFilters,
@@ -13,9 +14,12 @@ import {
   FilterBar,
   FunnelChart,
   SurvivalChart,
+  percent,
 } from "./dashboard";
 
 type PrintableReport = {
+  generatedAt: string;
+  timingProfileVersions: number[];
   kpi: ApiItem | null;
   funnel: ApiItem[];
   survival: ApiItem[];
@@ -37,12 +41,13 @@ function filterSummary(filters: DashboardFilters): string {
 
 export function Export({ t = text.en }: { t?: AppText } = {}) {
   const [filters, setFilters] = useState<DashboardFilters>(() =>
-    parseFilters(),
+    analyticsFilters(parseFilters()),
   );
   const [message, setMessage] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [reportReady, setReportReady] = useState(false);
   useEffect(() => {
-    const onPop = () => setFilters(parseFilters());
+    const onPop = () => setFilters(analyticsFilters(parseFilters()));
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
@@ -105,24 +110,39 @@ export function Export({ t = text.en }: { t?: AppText } = {}) {
             <strong>Download R CSV</strong>
             <span>UTF-8, deterministic 30-column analysis table.</span>
           </button>
-          <button className="action-card" onClick={() => window.print()} type="button">
+          <button
+            className="action-card"
+            onClick={() => window.print()}
+            type="button"
+            disabled={!reportReady}
+          >
             <span className="action-icon">▣</span>
             <strong>{t.printPDF}</strong>
             <span>
-              Print all analytical panels, not only the export controls.
+              {reportReady
+                ? "Print all analytical panels."
+                : "Preparing analytical panels…"}
             </span>
           </button>
         </div>
         {downloading && <p className="table-note" role="status">Preparing export…</p>}
         {message && <ErrorMessage message={message} />}
       </section>
-      <PrintableDashboard filters={filters} />
+      <PrintableDashboard filters={filters} onReadyChange={setReportReady} />
     </>
   );
 }
 
-export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
+export function PrintableDashboard({
+  filters,
+  onReadyChange,
+}: {
+  filters: DashboardFilters;
+  onReadyChange?: (ready: boolean) => void;
+}) {
   const [report, setReport] = useState<PrintableReport>({
+    generatedAt: "",
+    timingProfileVersions: [],
     kpi: null,
     funnel: [],
     survival: [],
@@ -136,12 +156,17 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
   });
   useEffect(() => {
     let cancelled = false;
+    onReadyChange?.(false);
     setReport((current) => ({ ...current, loading: true, error: "" }));
     void get(withFilters("/analytics/dashboard", filters))
       .then((bundle) => {
         const items = (value: unknown) => (value as ApiItem | undefined)?.items ?? [];
         if (!cancelled)
           setReport({
+            generatedAt: String((bundle.reportMeta as ApiItem | undefined)?.generatedAt ?? ""),
+            timingProfileVersions:
+              ((bundle.reportMeta as ApiItem | undefined)
+                ?.timingProfileVersions as number[] | undefined) ?? [],
             kpi: (bundle.kpi as ApiItem | null) ?? null,
             funnel: items(bundle.funnel),
             survival: items(bundle.survival),
@@ -153,6 +178,7 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
             loading: false,
             error: "",
           });
+        if (!cancelled) onReadyChange?.(true);
       })
       .catch((error: Error) => {
         if (!cancelled)
@@ -165,7 +191,7 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
     return () => {
       cancelled = true;
     };
-  }, [filters]);
+  }, [filters, onReadyChange]);
   const stage1 = report.kpi?.stage1 as ApiItem | undefined;
   const stage2 = report.kpi?.stage2 as ApiItem | undefined;
   const comparison = (stage1?.controlComparison as ApiItem[] | undefined) ?? [];
@@ -179,6 +205,10 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
           and workbook.
         </p>
         <p className="muted print-report__filters">Filters: {filterSummary(filters)}</p>
+        <p className="muted">
+          Timing profile versions:{" "}
+          {report.timingProfileVersions.join(", ") || "none"}
+        </p>
       </div>
       {report.loading && <p className="notice">Loading dashboard panels...</p>}
       {report.error && <ErrorMessage message={report.error} />}
@@ -203,7 +233,7 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
             />
             <Metric
               label="Normal %"
-              value={`${(Number(stage1?.pctNormal ?? 0) * 100).toFixed(2)}%`}
+              value={percent(stage1?.pctNormal)}
             />
             <Metric label="Alive fish" value={Number(stage2?.nAlive ?? 0)} />
             <Metric label="Batches" value={Number(stage1?.nBatches ?? 0)} />
@@ -225,8 +255,8 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
               rows={report.pipeline.map((point) => [
                 String(point.step ?? "—"),
                 Number(point.count ?? 0),
-                `${(Number(point.pctOfPrevious ?? 0) * 100).toFixed(2)}%`,
-                `${(Number(point.pctOfStart ?? 0) * 100).toFixed(2)}%`,
+                percent(point.pctOfPrevious),
+                percent(point.pctOfStart),
               ])}
             />
           </ReportPanel>
@@ -318,7 +348,7 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
                 Number(point.n ?? 0),
                 Number(point.nNormal ?? 0),
                 Number(point.nAbnormal ?? 0),
-                `${(Number(point.pctNormal ?? 0) * 100).toFixed(2)}%`,
+                percent(point.pctNormal),
               ])}
             />
           </ReportPanel>
@@ -332,6 +362,7 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
               ])}
             />
           </ReportPanel>
+          <footer className="muted">Generated: {report.generatedAt}</footer>
         </>
       )}
     </section>

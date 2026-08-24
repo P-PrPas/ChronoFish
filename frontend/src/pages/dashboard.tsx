@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { type ApiItem, get } from "../api/client";
 import {
   type DashboardFilters,
+  analyticsFilters,
   parseFilters,
   updateFilterURL,
   withFilters,
@@ -39,7 +40,7 @@ function responseMeta(response: ApiItem): AnalyticsMeta {
   return (response.meta as AnalyticsMeta | undefined) ?? {};
 }
 
-function percent(value: unknown): string {
+export function percent(value: unknown): string {
   return value == null ? "Unknown" : `${(Number(value) * 100).toFixed(2)}%`;
 }
 
@@ -339,7 +340,7 @@ export function Dashboard({
   t: AppText;
 }) {
   const [filters, setFilters] = useState<DashboardFilters>(() =>
-    parseFilters(),
+    analyticsFilters(parseFilters()),
   );
   const [tab, setTab] = useState<DashboardTab>("stage1");
   const [error, setError] = useState("");

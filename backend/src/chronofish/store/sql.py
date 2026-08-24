@@ -168,8 +168,9 @@ class SQLStore:
         self.engine.dispose()
 
     def snapshot(self) -> State:
-        with self.engine.connect() as connection:
-            return self._load_state(connection)
+        with self.engine.connect().execution_options(isolation_level="REPEATABLE READ") as connection:
+            with connection.begin():
+                return self._load_state(connection)
 
     def _rows(self, connection: Connection, table: str) -> list[dict[str, Any]]:
         return [dict(row) for row in connection.execute(text(f"SELECT * FROM {table}")).mappings()]

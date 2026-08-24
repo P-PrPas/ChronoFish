@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import re
 from io import BytesIO
 from numbers import Number
 from xml.sax.saxutils import escape, quoteattr
 from zipfile import ZIP_DEFLATED, ZipFile
 
 Sheet = tuple[str, list[str], list[list[object]]]
+INVALID_XML_CHARACTERS = re.compile(r"[^\x09\x0a\x0d\x20-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")
 
 
 def _column(number: int) -> str:
@@ -21,7 +23,7 @@ def _cell_xml(reference: str, raw: object) -> str:
         return f'<c r="{reference}" t="b"><v>{int(raw)}</v></c>'
     if isinstance(raw, Number):
         return f'<c r="{reference}"><v>{raw}</v></c>'
-    value = "" if raw is None else str(raw)
+    value = "" if raw is None else INVALID_XML_CHARACTERS.sub("", str(raw))
     return f'<c r="{reference}" t="inlineStr"><is><t xml:space="preserve">{escape(value)}</t></is></c>'
 
 

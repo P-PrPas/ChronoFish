@@ -15,6 +15,11 @@ export type DashboardFilters = {
 }
 
 const filterKeys = ['batchId', 'siteId', 'operatorId', 'treatmentGroupId', 'strain', 'dateFrom', 'dateTo', 'status', 'boxId', 'condition', 'dobFrom', 'dobTo', 'donorCellLineId'] as const
+const analyticsFilterKeys = ['batchId', 'siteId', 'operatorId', 'treatmentGroupId', 'strain', 'dateFrom', 'dateTo', 'donorCellLineId'] as const
+
+export function analyticsFilters(filters: DashboardFilters): DashboardFilters {
+  return Object.fromEntries(analyticsFilterKeys.flatMap((key) => filters[key] ? [[key, filters[key]]] : []))
+}
 
 export function parseFilters(search = window.location.search): DashboardFilters {
   const params = new URLSearchParams(search)

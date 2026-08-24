@@ -80,6 +80,9 @@ def _export_filters(value: Any) -> dict[str, str]:
         return {}
     if not isinstance(value, dict):
         raise APIError(422, "validation_error", "filters ต้องเป็น object")
+    unknown = set(value) - set(ANALYTICS_FILTER_KEYS)
+    if unknown:
+        raise APIError(422, "validation_error", f"unsupported filter: {sorted(unknown)[0]}")
     invalid = next(
         (key for key in ANALYTICS_FILTER_KEYS if value.get(key) is not None and not isinstance(value[key], str)),
         None,
@@ -413,7 +416,7 @@ def _summary_rows(state: State, query: dict[str, str]) -> list[list[object]]:
         ]
         normal = sum(item.get("condition") == "NORMAL" for item in latest)
         abnormal = sum(item.get("condition") == "ABNORMAL" for item in latest)
-        promoted = sum(item.get("strain") == strain for item in fish.values())
+        promoted = sum(bool(item.get("embryoId")) and item.get("strain") == strain for item in fish.values())
         rows.append(
             [
                 strain,
@@ -458,7 +461,6 @@ def _timing_rows(state: State, profile_ids: set[str]) -> list[list[object]]:
                     entry.get("expectedHpa"),
                     entry.get("phase"),
                     entry.get("stageScope"),
-                    profile.get("id"),
                     profile.get("version"),
                     profile.get("referenceTempC"),
                     profile.get("sourceNote"),
@@ -468,9 +470,16 @@ def _timing_rows(state: State, profile_ids: set[str]) -> list[list[object]]:
 
 
 def _sheets(state: State, query: dict[str, str], selected_names: set[str] | None = None) -> list[Sheet]:
-    fish_register, fish_observations, specimens = _fish_rows(state, query)
-    fish_columns, fish_matrix = _fish_matrix(state, query)
-    r_rows = _r_rows(state, query)
+    def selected(name: str) -> bool:
+        return selected_names is None or name in selected_names
+
+    fish_register, fish_observations, specimens = (
+        _fish_rows(state, query)
+        if any(selected(name) for name in ("06_Fish_Register", "07_Fish_Observations", "10_Specimens"))
+        else ([], [], [])
+    )
+    fish_columns, fish_matrix = _fish_matrix(state, query) if selected("08_Fish_Matrix") else ([], [])
+    r_rows = _r_rows(state, query) if selected("12_R_Analysis_Table") else []
     sheets: list[Sheet] = [
         ("00_Metadata", ["key", "value"], []),
         (
@@ -500,7 +509,7 @@ def _sheets(state: State, query: dict[str, str], selected_names: set[str] | None
                 "n_activated",
                 "notes",
             ],
-            _batch_rows(state, query),
+            _batch_rows(state, query) if selected("01_Batches") else [],
         ),
         (
             "02_Embryo_Observations",
@@ -523,7 +532,7 @@ def _sheets(state: State, query: dict[str, str], selected_names: set[str] | None
                 "is_backdated",
                 "notes",
             ],
-            _embryo_observation_rows(state, query),
+            _embryo_observation_rows(state, query) if selected("02_Embryo_Observations") else [],
         ),
         (
             "03_Embryo_Matrix",
@@ -535,7 +544,7 @@ def _sheets(state: State, query: dict[str, str], selected_names: set[str] | None
                 "treatment_group",
                 *(stage_code(order) for order in range(1, 27)),
             ],
-            _embryo_matrix_rows(state, query),
+            _embryo_matrix_rows(state, query) if selected("03_Embryo_Matrix") else [],
         ),
         (
             "04_Stage_Counts",
@@ -553,7 +562,7 @@ def _sheets(state: State, query: dict[str, str], selected_names: set[str] | None
                 "surv",
                 "pct_of_development",
             ],
-            _stage_count_rows(state, query),
+            _stage_count_rows(state, query) if selected("04_Stage_Counts") else [],
         ),
         (
             "05_Timing_Deviation",
@@ -570,7 +579,7 @@ def _sheets(state: State, query: dict[str, str], selected_names: set[str] | None
                 "min_deviation_h",
                 "max_deviation_h",
             ],
-            _timing_deviation_rows(state, query),
+            _timing_deviation_rows(state, query) if selected("05_Timing_Deviation") else [],
         ),
         (
             "06_Fish_Register",
@@ -605,7 +614,7 @@ def _sheets(state: State, query: dict[str, str], selected_names: set[str] | None
         (
             "09_Control_Arms",
             ["batch_code", "experiment_date", "site", "arm_type", "stage_label", "n_normal", "n_abnormal"],
-            _control_rows(state, query),
+            _control_rows(state, query) if selected("09_Control_Arms") else [],
         ),
         (
             "10_Specimens",
@@ -636,7 +645,7 @@ def _sheets(state: State, query: dict[str, str], selected_names: set[str] | None
                 "pct_normal",
                 "pct_abnormal",
             ],
-            _summary_rows(state, query),
+            _summary_rows(state, query) if selected("11_Summary") else [],
         ),
         ("12_R_Analysis_Table", R_HEADERS, r_rows),
         (
@@ -648,12 +657,11 @@ def _sheets(state: State, query: dict[str, str], selected_names: set[str] | None
                 "expected_hpa",
                 "phase",
                 "stage_scope",
-                "profile_id",
                 "profile_version",
                 "reference_temp_c",
                 "source_note",
             ],
-            _timing_rows(state, _profile_ids(state, query)),
+            _timing_rows(state, _profile_ids(state, query)) if selected("13_Stage_Timing_Reference") else [],
         ),
     ]
     selected = [sheet for sheet in sheets if selected_names is None or sheet[0] in selected_names]
@@ -723,16 +731,13 @@ def build_export_router(store: Store) -> APIRouter:
         ):
             raise APIError(422, "validation_error", "sheets ต้องเป็นชื่อ sheet ที่รองรับอย่างน้อยหนึ่งรายการ")
         selected_names = set(requested_sheets) if requested_sheets is not None else None
+        filters = _export_filters(body.get("filters"))
 
-        def operation(state: State):
-            return (
-                200,
-                build_xlsx(_sheets(state, _export_filters(body.get("filters")), selected_names)),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-
-        response = store.execute_mutation(request, body, operation)
-        response.headers["Content-Disposition"] = 'attachment; filename="chronofish-export.xlsx"'
-        return response
+        content = build_xlsx(_sheets(store.snapshot(), filters, selected_names))
+        return Response(
+            content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": 'attachment; filename="chronofish-export.xlsx"'},
+        )
 
     return router

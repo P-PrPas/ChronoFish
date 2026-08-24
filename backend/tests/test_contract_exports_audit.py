@@ -2,12 +2,33 @@ from __future__ import annotations
 
 import csv
 import re
+from datetime import date
 from io import BytesIO, StringIO
 from pathlib import Path
+from xml.etree import ElementTree
 from zipfile import ZipFile
 
 import yaml
+from test_experiments import headers
 from test_observations import setup_embryo
+
+from chronofish.reporting.xlsx import build_xlsx
+
+
+def worksheet_rows(xml: bytes) -> list[list[str]]:
+    root = ElementTree.fromstring(xml)
+    namespace = {"x": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    return [
+        [
+            (
+                cell.findtext(".//x:t", default="", namespaces=namespace)
+                if cell.get("t") == "inlineStr"
+                else cell.findtext("x:v", default="", namespaces=namespace)
+            )
+            for cell in row.findall("x:c", namespace)
+        ]
+        for row in root.findall(".//x:row", namespace)
+    ]
 
 
 def test_fastapi_registers_every_openapi_operation(client):
@@ -36,20 +57,29 @@ def test_r_export_has_stable_30_column_shape(client):
     assert len(header) == 30
 
 
-def test_excel_export_is_idempotent_valid_14_sheet_xlsx(client, write_headers):
-    setup_embryo(client, write_headers)
-    first = client.post("/api/v1/exports/excel", headers=write_headers, json={"filters": {}})
-    second = client.post("/api/v1/exports/excel", headers=write_headers, json={"filters": {}})
-    assert first.status_code == 200
-    assert second.content == first.content
-    with ZipFile(BytesIO(first.content)) as archive:
+def test_excel_export_is_read_only_valid_14_sheet_xlsx(client, store, write_headers):
+    _batch, lot, _embryo, _activated = setup_embryo(client, write_headers)
+    manual = client.post(
+        "/api/v1/fish",
+        headers=headers(write_headers, 450),
+        json={"fishCode": "manual-export", "dob": date.today().isoformat(), "donorCellLineId": lot["donorCellLineId"]},
+    )
+    assert manual.status_code == 201, manual.text
+    idempotency_before_export = set(store.idempotency)
+
+    response = client.post("/api/v1/exports/excel", json={"filters": {}})
+    assert response.status_code == 200
+    assert set(store.idempotency) == idempotency_before_export
+    with ZipFile(BytesIO(response.content)) as archive:
         worksheet_names = [name for name in archive.namelist() if name.startswith("xl/worksheets/sheet")]
         workbook = archive.read("xl/workbook.xml").decode()
         metadata = archive.read("xl/worksheets/sheet1.xml").decode()
         batch_sheet = archive.read("xl/worksheets/sheet2.xml").decode()
         embryo_matrix = archive.read("xl/worksheets/sheet4.xml").decode()
         stage_counts = archive.read("xl/worksheets/sheet5.xml").decode()
+        summary = worksheet_rows(archive.read("xl/worksheets/sheet12.xml"))
         r_table = archive.read("xl/worksheets/sheet13.xml").decode()
+        timing = worksheet_rows(archive.read("xl/worksheets/sheet14.xml"))
     assert len(worksheet_names) == 14
     assert re.findall(r'<sheet name="([^"]+)"', workbook) == [
         "00_Metadata",
@@ -79,9 +109,25 @@ def test_excel_export_is_idempotent_valid_14_sheet_xlsx(client, write_headers):
     assert '<row r="2">' in r_table
     assert re.search(r'<c r="E2"><v>\d+</v></c>', stage_counts)
     assert re.search(r'<c r="E2"><v>\d+</v></c>', r_table)
+    assert summary[1][6] == "0"
+    assert timing[0] == [
+        "stage_order",
+        "stage_code",
+        "stage_label",
+        "expected_hpa",
+        "phase",
+        "stage_scope",
+        "profile_version",
+        "reference_temp_c",
+        "source_note",
+    ]
 
 
-def test_excel_export_can_select_flat_sheets(client, write_headers):
+def test_excel_export_can_select_flat_sheets(client, write_headers, monkeypatch):
+    def fail_if_called(*_args):
+        raise AssertionError("unselected fish sheets were built")
+
+    monkeypatch.setattr("chronofish.api.routes.exports._fish_rows", fail_if_called)
     headers = {**write_headers, "X-Idempotency-Key": "01900000-0000-7000-8000-000000000299"}
     response = client.post(
         "/api/v1/exports/excel",
@@ -94,6 +140,18 @@ def test_excel_export_can_select_flat_sheets(client, write_headers):
         metadata = archive.read("xl/worksheets/sheet1.xml").decode()
     assert re.findall(r'<sheet name="([^"]+)"', workbook) == ["00_Metadata", "12_R_Analysis_Table"]
     assert "row_count.12_R_Analysis_Table" in metadata
+
+
+def test_excel_export_rejects_unknown_analytics_filters(client):
+    response = client.post("/api/v1/exports/excel", json={"filters": {"status": "DEAD"}})
+    assert response.status_code == 422
+
+
+def test_xlsx_removes_invalid_xml_characters():
+    workbook = build_xlsx([("Safe", ["notes"], [["copied\x0btext"]])])
+    with ZipFile(BytesIO(workbook)) as archive:
+        rows = worksheet_rows(archive.read("xl/worksheets/sheet1.xml"))
+    assert rows == [["notes"], ["copiedtext"]]
 
 
 def test_audit_filters_and_uses_opaque_cursor(client, write_headers):

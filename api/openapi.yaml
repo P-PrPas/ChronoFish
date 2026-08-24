@@ -1709,11 +1709,11 @@ paths:
         and readxl can read it directly — which is precisely what the current
         spreadsheets cannot do.
 
-        Generated per request and streamed; nothing is written to disk (FR-909,
+        Generated and returned directly per request; nothing is written to disk (FR-909,
         CON-05), which is also what lets the backend run on a filesystem-less
         platform.
       operationId: exportExcel
-      parameters: [ $ref: '#/components/parameters/OperatorId', $ref: '#/components/parameters/DeviceId', $ref: '#/components/parameters/IdempotencyKey' ]
+      x-read-only: true
       requestBody:
         required: true
         content:
@@ -2641,6 +2641,7 @@ components:
     # ---- analytics ----------------------------------------------------------
     AnalyticsFilter:
       type: object
+      additionalProperties: false
       properties:
         dateFrom: { type: string, format: date }
         dateTo: { type: string, format: date }
@@ -2687,8 +2688,16 @@ components:
 
     DashboardAnalyticsResponse:
       type: object
-      required: [kpi, funnel, survival, timingDeviation, abnormalityOnset, fishSurvival, observationGaps, pipeline]
+      required: [reportMeta, kpi, funnel, survival, timingDeviation, abnormalityOnset, fishSurvival, observationGaps, pipeline]
       properties:
+        reportMeta:
+          type: object
+          required: [generatedAt, timingProfileVersions]
+          properties:
+            generatedAt: { type: string, format: date-time }
+            timingProfileVersions:
+              type: array
+              items: { type: integer, minimum: 1 }
         kpi: { $ref: '#/components/schemas/KpiResponse' }
         funnel: { $ref: '#/paths/~1analytics~1funnel/get/responses/200/content/application~1json/schema' }
         survival: { $ref: '#/paths/~1analytics~1survival/get/responses/200/content/application~1json/schema' }
