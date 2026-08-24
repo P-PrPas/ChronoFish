@@ -483,7 +483,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [ ] สแกน image digest เดียวกับที่จะ deploy และเก็บผล vulnerability scan
 - [ ] ทดสอบ production image กับ environment จริงโดยใช้ artifact เดียวกับที่ผ่าน UAT
 - [x] ส่งมอบ Dockerfile/image instructions ควบคู่กับ Python dependency manifest + `frontend/dist/`; ห้ามบังคับให้ปลายทางต้องใช้ container
-- [x] กำหนด static-hosting path พร้อม SPA fallback โดยไม่เพิ่ม Node runtime ฝั่ง production; frontend container ยังไม่จำเป็น
+- [x] กำหนด static-hosting path พร้อม SPA fallback โดยไม่เพิ่ม Node runtime ฝั่ง production และเพิ่ม optional nginx frontend image ใน Compose
 - [ ] ทดสอบ fresh install จาก migration + seed บน PostgreSQL และ MySQL
 - [ ] ตั้ง daily backup เก็บ 30 วัน และทำ restore drill อย่างน้อยหนึ่งครั้ง
 - [x] บันทึก environment variables, migration, rollback, backup/restore และ upgrade procedure ในคู่มือส่งมอบ
