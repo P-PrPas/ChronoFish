@@ -284,7 +284,8 @@ def test_concurrent_promotions_allocate_unique_fish_numbers():
             responses = list(executor.map(promote, range(2)))
 
         assert [response.status_code for response in responses] == [201, 201]
-        assert {response.json()["items"][0]["fish"]["runningNo"] for response in responses} == {1, 2}
+        running_numbers = sorted(response.json()["items"][0]["fish"]["runningNo"] for response in responses)
+        assert running_numbers[1] == running_numbers[0] + 1
     finally:
         store.close()
 

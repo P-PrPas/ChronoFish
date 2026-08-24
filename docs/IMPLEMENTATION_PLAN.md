@@ -379,7 +379,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [x] อนุญาต promotion ของ ABNORMAL และเก็บ first abnormality onset ตาม BR-12
 - [x] implement fish list/get/create-manually/update พร้อม pagination/filter และ age ที่คำนวณสด
 - [x] implement roll-call read model ตาม date/box และไม่รวม fish ที่ออกจาก risk set แล้ว
-- [x] implement bulk fish observations แบบ idempotent, backdating, status transition และ treatment fields
+- [x] implement bulk fish observations แบบ idempotent, backdating, status transition, condition และ notes ตาม OpenAPI
 - [x] implement fish observation correction/soft-delete พร้อม reason/audit
 - [x] implement specimen list/create และ validations ของ specimen type/storage/date
 
@@ -390,8 +390,8 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [x] ทำ SCR-09 fish detail timeline, current state, age, first abnormality และ specimens
 - [x] ทำ SCR-10 roll-call แบบ “ยังอยู่ทั้งหมด” แล้วแก้ exception; รองรับมือถือ 375 px
 - [x] ปุ่ม `ยังอยู่` / `ตาย` / `แช่แข็ง` / `คัดออก` ต้องเปลี่ยนปลาแต่ละตัวได้ในหนึ่งแตะ
-- [x] ทำ backdate mode ที่แสดงวันเป้าหมายชัดเจนตลอด flow
-- [x] แสดง treatment/specimen forms เฉพาะเมื่อเกี่ยวข้องกับสถานะนั้น
+- [x] ทำ backdate mode แบบช่วงวัน พร้อมแสดงวันเป้าหมายและบังคับ audit reason ตลอด flow
+- [x] แสดง specimen form พร้อมตัวเลือก mark fin-clipped ในหน้ารายละเอียดปลา
 
 #### Tests และ Exit criteria
 

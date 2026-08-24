@@ -24,7 +24,7 @@ jobs:
         run: |
           python -m ruff format --check src tests
           python -m ruff check src tests
-          python -m pytest --cov=chronofish.domain --cov-report=term-missing --cov-fail-under=90
+          python -m pytest --cov=chronofish.domain --cov=chronofish.services --cov-report=term-missing --cov-fail-under=90
       - name: Check source encoding
         run: python scripts/check_source_encoding.py
       - uses: actions/setup-node@v4

@@ -72,9 +72,9 @@ CALL expect_failure('alive fish cannot have an exit',
 CALL expect_failure('status and exit reason must agree',
     'INSERT INTO clone_fish (id, fish_code, running_no, dob, donor_cell_line_id, status, biological_condition, sex, exit_date, exit_reason, created_at, updated_at) VALUES (''bbbbbbbb-0000-7000-8000-000000000004'', ''No.4_Clone4-AB cell-24'', 4, ''2026-04-24'', ''55555555-0000-7000-8000-000000000001'', ''DEAD'', ''NORMAL'', ''UNKNOWN'', ''2026-05-01'', ''FROZEN'', NOW(), NOW())');
 INSERT INTO clone_fish (id, fish_code, running_no, dob, donor_cell_line_id, status, biological_condition, sex, exit_date, exit_reason, created_at, updated_at) VALUES
-    ('bbbbbbbb-0000-7000-8000-000000000002', 'No.1_Clone1-AB cell-24', 1, '2026-04-24', '55555555-0000-7000-8000-000000000001', 'FROZEN', 'ABNORMAL', 'UNKNOWN', '2026-05-01', 'FROZEN', NOW(), NOW());
+    ('bbbbbbbb-0000-7000-8000-000000000002', 'No.2147483646_Clone1-AB cell-24', 2147483646, '2026-04-24', '55555555-0000-7000-8000-000000000001', 'FROZEN', 'ABNORMAL', 'UNKNOWN', '2026-05-01', 'FROZEN', NOW(), NOW());
 CALL expect_failure('running number must be unique',
-    'INSERT INTO clone_fish (id, fish_code, running_no, dob, donor_cell_line_id, status, biological_condition, sex, created_at, updated_at) VALUES (''bbbbbbbb-0000-7000-8000-000000000003'', ''No.2_Clone2-AB cell-24'', 1, ''2026-04-24'', ''55555555-0000-7000-8000-000000000001'', ''ALIVE'', ''NORMAL'', ''UNKNOWN'', NOW(), NOW())');
+    'INSERT INTO clone_fish (id, fish_code, running_no, dob, donor_cell_line_id, status, biological_condition, sex, created_at, updated_at) VALUES (''bbbbbbbb-0000-7000-8000-000000000003'', ''No.2147483645_Clone2-AB cell-24'', 2147483646, ''2026-04-24'', ''55555555-0000-7000-8000-000000000001'', ''ALIVE'', ''NORMAL'', ''UNKNOWN'', NOW(), NOW())');
 CALL expect_failure('expected HPA cannot be negative',
     'INSERT INTO stage_timing (id, protocol_id, profile_id, stage_definition_id, expected_hpa, created_at, updated_at) VALUES (''cccccccc-0000-7000-8000-000000000001'', ''01900000-0000-7000-8000-000000000001'', ''01900000-0000-7000-8000-000000000002'', ''01900001-0000-7000-8000-000000000001'', -1, NOW(), NOW())');
 
