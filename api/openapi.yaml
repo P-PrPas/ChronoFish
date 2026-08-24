@@ -640,9 +640,12 @@ paths:
       parameters:
         - { name: dateFrom, in: query, schema: { type: string, format: date } }
         - { name: dateTo, in: query, schema: { type: string, format: date } }
+        - { name: batchId, in: query, schema: { type: string, format: uuid } }
         - { name: siteId, in: query, schema: { type: string, format: uuid } }
         - { name: operatorId, in: query, schema: { type: string, format: uuid } }
         - { name: treatmentGroupId, in: query, schema: { type: string, format: uuid } }
+        - { name: donorCellLineId, in: query, schema: { type: string, format: uuid } }
+        - { name: strain, in: query, schema: { type: string } }
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
       responses:
@@ -1326,6 +1329,11 @@ paths:
         - { name: siteId, in: query, schema: { type: string, format: uuid } }
         - { name: boxId, in: query, schema: { type: string, format: uuid } }
         - { name: treatmentGroupId, in: query, schema: { type: string, format: uuid } }
+        - { name: batchId, in: query, schema: { type: string, format: uuid } }
+        - { name: operatorId, in: query, schema: { type: string, format: uuid } }
+        - { name: dateFrom, in: query, schema: { type: string, format: date } }
+        - { name: dateTo, in: query, schema: { type: string, format: date } }
+        - { name: donorCellLineId, in: query, schema: { type: string, format: uuid } }
         - { name: strain, in: query, schema: { type: string } }
         - { name: condition, in: query, schema: { $ref: '#/components/schemas/Condition' } }
         - { name: dobFrom, in: query, schema: { type: string, format: date } }
@@ -1467,11 +1475,12 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, meta]
                 properties:
                   items:
                     type: array
                     items: { $ref: '#/components/schemas/FunnelStep' }
+                  meta: { $ref: '#/components/schemas/AnalyticsMeta' }
 
   /analytics/survival:
     get:
@@ -1493,7 +1502,7 @@ paths:
           in: query
           schema:
             type: array
-            items: { type: string, enum: [site, strain, treatmentGroup] }
+            items: { type: string, enum: [site, strain, treatmentGroup, operator] }
           examples: { default: { value: [site, strain] } }
       responses:
         '200':
@@ -1502,11 +1511,12 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, meta]
                 properties:
                   items:
                     type: array
                     items: { $ref: '#/components/schemas/SurvivalPoint' }
+                  meta: { $ref: '#/components/schemas/AnalyticsMeta' }
 
   /analytics/timing-deviation:
     get:
@@ -1532,11 +1542,12 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, meta]
                 properties:
                   items:
                     type: array
                     items: { $ref: '#/components/schemas/DeviationSummary' }
+                  meta: { $ref: '#/components/schemas/AnalyticsMeta' }
 
   /analytics/abnormality-onset:
     get:
@@ -1551,7 +1562,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, meta]
                 properties:
                   items:
                     type: array
@@ -1562,6 +1573,7 @@ paths:
                         stageOrder: { type: integer }
                         stageLabel: { type: string }
                         count: { type: integer }
+                  meta: { $ref: '#/components/schemas/AnalyticsMeta' }
 
   /analytics/fish-survival:
     get:
@@ -1581,7 +1593,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, meta]
                 properties:
                   items:
                     type: array
@@ -1605,6 +1617,7 @@ paths:
                         nUnknownSex: { type: integer }
                         nBoxes: { type: integer }
                         surv: { type: number }
+                  meta: { $ref: '#/components/schemas/AnalyticsMeta' }
 
   /analytics/observation-gaps:
     get:
@@ -1620,7 +1633,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, meta]
                 properties:
                   items:
                     type: array
@@ -1632,6 +1645,7 @@ paths:
                         fishCode: { type: string }
                         lastObservedOn: { type: [string, 'null'], format: date }
                         missedDays: { type: integer }
+                  meta: { $ref: '#/components/schemas/AnalyticsMeta' }
 
   /analytics/pipeline:
     get:
@@ -1650,7 +1664,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items]
+                required: [items, meta]
                 properties:
                   items:
                     type: array
@@ -1660,8 +1674,9 @@ paths:
                       properties:
                         step: { type: string, examples: ['Reached Shield'] }
                         count: { type: integer }
-                        pctOfStart: { type: number }
+                        pctOfStart: { type: [number, 'null'] }
                         pctOfPrevious: { type: [number, 'null'] }
+                  meta: { $ref: '#/components/schemas/AnalyticsMeta' }
 
   # -------------------------------------------------------------------- export
   /exports/excel:
@@ -2618,7 +2633,7 @@ components:
 
     KpiResponse:
       type: object
-      required: [stage1, stage2]
+      required: [stage1, stage2, meta]
       properties:
         stage1:
           type: object
@@ -2630,8 +2645,8 @@ components:
             nReachedShield: { type: integer }
             nReachedDay1: { type: integer }
             nPromoted: { type: integer }
-            pctNormal: { type: number, minimum: 0, maximum: 1, description: Fraction of filtered embryos/fish marked NORMAL. }
-            pctAbnormal: { type: number, minimum: 0, maximum: 1, description: Fraction of filtered embryos/fish marked ABNORMAL. }
+            pctNormal: { type: [number, 'null'], minimum: 0, maximum: 1, description: Fraction of filtered embryos/fish marked NORMAL; null when the denominator is zero. }
+            pctAbnormal: { type: [number, 'null'], minimum: 0, maximum: 1, description: Fraction of filtered embryos/fish marked ABNORMAL; null when the denominator is zero. }
         stage2:
           type: object
           required: [nFish, nAlive, nDead, nFrozen, nDiscarded]
@@ -2645,6 +2660,25 @@ components:
             nAbnormal: { type: integer }
             nUndetermined: { type: integer }
             meanAgeDaysAlive: { type: [number, 'null'] }
+        meta: { $ref: '#/components/schemas/AnalyticsMeta' }
+
+    AnalyticsMeta:
+      type: object
+      required: [filters, sampleSize, denominators, unknown, missing]
+      properties:
+        filters:
+          type: object
+          additionalProperties: { type: string }
+        sampleSize: { type: integer, minimum: 0 }
+        denominators:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        unknown:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        missing:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
 
     FunnelStep:
       type: object
@@ -2655,15 +2689,17 @@ components:
         stageLabel: { type: string }
         riskSet: { type: integer }
         alive: { type: integer }
-        pctOfActivated: { type: number }
+        pctOfActivated: { type: [number, 'null'] }
 
     SurvivalPoint:
       type: object
       required: [stageOrder, stageLabel, riskSet, alive, nPrev, nDead, surv]
       properties:
-        site: { type: [string, 'null'] }
+        siteId: { type: [string, 'null'] }
         strain: { type: [string, 'null'] }
+        treatmentGroupId: { type: [string, 'null'] }
         treatmentGroup: { type: [string, 'null'] }
+        operatorId: { type: [string, 'null'] }
         stageOrder: { type: integer }
         stageLabel: { type: string }
         riskSet:
@@ -2673,15 +2709,17 @@ components:
         nPrev: { type: integer }
         nDead: { type: integer }
         surv: { type: number, examples: [0.4711] }
+        pctOfDevelopment: { type: [number, 'null'] }
 
     DeviationSummary:
       type: object
       required: [stageOrder, stageLabel, n, meanDeviationH, medianDeviationH]
       properties:
-        site: { type: [string, 'null'] }
+        siteId: { type: [string, 'null'] }
         strain: { type: [string, 'null'] }
+        treatmentGroupId: { type: [string, 'null'] }
         treatmentGroup: { type: [string, 'null'] }
-        operator: { type: [string, 'null'] }
+        operatorId: { type: [string, 'null'] }
         stageOrder: { type: integer }
         stageLabel: { type: string }
         expectedHpa: { type: number }

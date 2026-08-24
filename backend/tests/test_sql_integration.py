@@ -101,6 +101,14 @@ def test_sql_store_persists_workflow_idempotency_and_audit_across_instances():
         },
     )
     assert observation.status_code == 200, observation.text
+    kpi = first.get("/api/v1/analytics/kpi").json()
+    assert kpi["stage1"]["nActivated"] == 1
+    assert kpi["meta"]["denominators"]["activated"] == 1
+    survival = first.get("/api/v1/analytics/survival").json()
+    stage_05 = next(item for item in survival["items"] if item["stageOrder"] == 5)
+    assert (stage_05["riskSet"], stage_05["alive"], stage_05["nPrev"], stage_05["nDead"]) == (1, 1, 1, 0)
+    assert stage_05["surv"] == 1
+    assert first.get("/api/v1/analytics/funnel").json()["items"][4]["pctOfActivated"] == 100
     duplicated = first.post(
         f"/api/v1/batches/{batch_response.json()['id']}/duplicate",
         headers=_headers(),

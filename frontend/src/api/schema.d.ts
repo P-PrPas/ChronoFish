@@ -1875,10 +1875,10 @@ export interface components {
                 nReachedShield: number;
                 nReachedDay1: number;
                 nPromoted: number;
-                /** @description Fraction of filtered embryos/fish marked NORMAL. */
-                pctNormal: number;
-                /** @description Fraction of filtered embryos/fish marked ABNORMAL. */
-                pctAbnormal?: number;
+                /** @description Fraction of filtered embryos/fish marked NORMAL; null when the denominator is zero. */
+                pctNormal: number | null;
+                /** @description Fraction of filtered embryos/fish marked ABNORMAL; null when the denominator is zero. */
+                pctAbnormal?: number | null;
             };
             stage2: {
                 nFish: number;
@@ -1891,6 +1891,22 @@ export interface components {
                 nUndetermined?: number;
                 meanAgeDaysAlive?: number | null;
             };
+            meta: components["schemas"]["AnalyticsMeta"];
+        };
+        AnalyticsMeta: {
+            filters: {
+                [key: string]: string;
+            };
+            sampleSize: number;
+            denominators: {
+                [key: string]: number;
+            };
+            unknown: {
+                [key: string]: number;
+            };
+            missing: {
+                [key: string]: number;
+            };
         };
         FunnelStep: {
             stageOrder: number;
@@ -1898,12 +1914,14 @@ export interface components {
             stageLabel: string;
             riskSet?: number;
             alive: number;
-            pctOfActivated: number;
+            pctOfActivated: number | null;
         };
         SurvivalPoint: {
-            site?: string | null;
+            siteId?: string | null;
             strain?: string | null;
+            treatmentGroupId?: string | null;
             treatmentGroup?: string | null;
+            operatorId?: string | null;
             stageOrder: number;
             stageLabel: string;
             /** @description Embryos that have actually reached this checkpoint's due time (BR-16). */
@@ -1913,12 +1931,14 @@ export interface components {
             nDead: number;
             /** @example 0.4711 */
             surv: number;
+            pctOfDevelopment?: number | null;
         };
         DeviationSummary: {
-            site?: string | null;
+            siteId?: string | null;
             strain?: string | null;
+            treatmentGroupId?: string | null;
             treatmentGroup?: string | null;
-            operator?: string | null;
+            operatorId?: string | null;
             stageOrder: number;
             stageLabel: string;
             expectedHpa?: number;
@@ -2865,9 +2885,12 @@ export interface operations {
             query?: {
                 dateFrom?: string;
                 dateTo?: string;
+                batchId?: string;
                 siteId?: string;
                 operatorId?: string;
                 treatmentGroupId?: string;
+                donorCellLineId?: string;
+                strain?: string;
                 limit?: components["parameters"]["Limit"];
                 cursor?: components["parameters"]["Cursor"];
             };
@@ -3653,6 +3676,11 @@ export interface operations {
                 siteId?: string;
                 boxId?: string;
                 treatmentGroupId?: string;
+                batchId?: string;
+                operatorId?: string;
+                dateFrom?: string;
+                dateTo?: string;
+                donorCellLineId?: string;
                 strain?: string;
                 condition?: components["schemas"]["Condition"];
                 dobFrom?: string;
@@ -3887,6 +3915,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["FunnelStep"][];
+                        meta: components["schemas"]["AnalyticsMeta"];
                     };
                 };
             };
@@ -3902,7 +3931,7 @@ export interface operations {
                  *     `donorCellLineId`, `strain`, `batchId`.
                  */
                 filters?: components["parameters"]["AnalyticsFilters"];
-                groupBy?: ("site" | "strain" | "treatmentGroup")[];
+                groupBy?: ("site" | "strain" | "treatmentGroup" | "operator")[];
             };
             header?: never;
             path?: never;
@@ -3918,6 +3947,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["SurvivalPoint"][];
+                        meta: components["schemas"]["AnalyticsMeta"];
                     };
                 };
             };
@@ -3949,6 +3979,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         items: components["schemas"]["DeviationSummary"][];
+                        meta: components["schemas"]["AnalyticsMeta"];
                     };
                 };
             };
@@ -3983,6 +4014,7 @@ export interface operations {
                             stageLabel: string;
                             count: number;
                         }[];
+                        meta: components["schemas"]["AnalyticsMeta"];
                     };
                 };
             };
@@ -4032,6 +4064,7 @@ export interface operations {
                             nBoxes?: number;
                             surv: number;
                         }[];
+                        meta: components["schemas"]["AnalyticsMeta"];
                     };
                 };
             };
@@ -4069,6 +4102,7 @@ export interface operations {
                             lastObservedOn: string | null;
                             missedDays: number;
                         }[];
+                        meta: components["schemas"]["AnalyticsMeta"];
                     };
                 };
             };
@@ -4102,9 +4136,10 @@ export interface operations {
                             /** @example Reached Shield */
                             step: string;
                             count: number;
-                            pctOfStart: number;
+                            pctOfStart: number | null;
                             pctOfPrevious?: number | null;
                         }[];
+                        meta: components["schemas"]["AnalyticsMeta"];
                     };
                 };
             };

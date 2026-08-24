@@ -40,13 +40,13 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 .chart { width: 100%; min-height: 10rem; margin: .25rem 0 1rem; color: #1769aa; }
 .chart text { fill: #58718d; font-size: 11px; }
 @media print {
-  .export-controls { display: none !important; }
+  .export-controls, .filter-bar, .tabs, .action-grid, .dashboard-status { display: none !important; }
   .print-report { display: block; color: #132238; }
   .print-report .metric-grid { grid-template-columns: repeat(4, 1fr); }
   .print-report .table-wrap { overflow: visible; border: 0; }
   .print-report table { font-size: 9pt; }
   .print-report th, .print-report td { padding: .35rem .45rem; }
-  .report-panel { border-color: #c5d0da; }
+  .report-panel { border-color: #c5d0da; break-inside: avoid; page-break-inside: avoid; }
   @page { size: A4; margin: 12mm; }
 }
 .filter-bar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)) auto; gap: .75rem; align-items: end; margin: 0 0 1.5rem; padding: 1rem; border: 1px solid #cddbe6; border-left: 4px solid #1c8191; border-radius: .7rem; background: #edf6f5; }

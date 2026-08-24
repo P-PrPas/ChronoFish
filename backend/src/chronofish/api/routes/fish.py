@@ -235,6 +235,11 @@ def build_fish_router(store: Store) -> APIRouter:
         siteId: str | None = None,
         boxId: str | None = None,
         treatmentGroupId: str | None = None,
+        batchId: str | None = None,
+        operatorId: str | None = None,
+        dateFrom: str | None = None,
+        dateTo: str | None = None,
+        donorCellLineId: str | None = None,
         strain: str | None = None,
         condition: str | None = None,
         dobFrom: str | None = None,
@@ -248,11 +253,27 @@ def build_fish_router(store: Store) -> APIRouter:
             if fish.get("active") is False or fish.get("deletedAt") is not None:
                 continue
             item = enrich_fish(state, fish)
+            embryo = state.entities["embryos"].get(str(fish.get("embryoId")))
+            lot = state.entities["injection-lots"].get(str((embryo or {}).get("injectionLotId")))
+            batch = state.entities["batches"].get(str((lot or {}).get("batchId")))
+            if batchId or operatorId or dateFrom or dateTo:
+                if (
+                    not batch
+                    or batch.get("active") is False
+                    or batch.get("deletedAt") is not None
+                    or (batchId and batch.get("id") != batchId)
+                    or (operatorId and batch.get("operatorId") != operatorId)
+                    or (dateFrom and str(batch.get("experimentDate", "")) < dateFrom)
+                    or (dateTo and str(batch.get("experimentDate", "")) > dateTo)
+                ):
+                    continue
             if status and item.get("status") != status or siteId and item.get("siteId") != siteId:
                 continue
             if boxId and item.get("fishBoxId") != boxId or condition and item.get("condition") != condition:
                 continue
             if treatmentGroupId and item.get("treatmentGroupId") != treatmentGroupId:
+                continue
+            if donorCellLineId and item.get("donorCellLineId") != donorCellLineId:
                 continue
             if strain and strain.casefold() not in str(item.get("strain", "")).casefold():
                 continue

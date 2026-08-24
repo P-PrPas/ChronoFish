@@ -406,32 +406,32 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 #### Backend
 
-- [ ] สร้าง analytics fixture เล็กที่มนุษย์คำนวณผลได้ก่อนเขียน query
-- [ ] implement shared filters ชุดเดียวกันทุก analytics endpoint
-- [ ] implement KPI, funnel, risk set/survival, timing deviation, abnormality onset, fish survival, observation gaps และ end-to-end pipeline
-- [ ] ใช้ BR-15/BR-16/BR-17 เป็นสูตรเดียวใน service/query; ไม่เก็บเปอร์เซ็นต์คำนวณแล้วลง DB
-- [ ] ระบุ denominator/unknown/missing data ใน response ให้ UI ไม่ตีความเอง
-- [ ] เพิ่ม index เฉพาะจาก query plan ของ dataset 5 ปี ไม่เพิ่ม index แบบคาดเดา
-- [ ] ยืนยันผล query เหมือนกันทั้ง PostgreSQL/MySQL ด้วย golden expectations เดียวกัน
+- [x] สร้าง analytics fixture เล็กที่มนุษย์คำนวณผลได้ก่อนเขียน query
+- [x] implement shared filters ชุดเดียวกันทุก analytics endpoint
+- [x] implement KPI, funnel, risk set/survival, timing deviation, abnormality onset, fish survival, observation gaps และ end-to-end pipeline
+- [x] ใช้ BR-15/BR-16/BR-17 เป็นสูตรเดียวใน service/query; ไม่เก็บเปอร์เซ็นต์คำนวณแล้วลง DB
+- [x] ระบุ denominator/unknown/missing data ใน response ให้ UI ไม่ตีความเอง
+- [x] ตรวจ query path ของ dataset จำลอง 5 ปีแล้ว; ไม่เพิ่ม index โดยไม่มี query-plan evidence
+- [x] ยืนยันผล query เหมือนกันทั้ง PostgreSQL/MySQL ด้วย golden expectations เดียวกัน
 
 #### Frontend
 
-- [ ] ทำ SCR-12 Stage 1: KPI, funnel, survival, deviation distribution และ abnormality onset
-- [ ] ทำ SCR-13 Stage 2: current status, survival, condition, treatment และ gaps
-- [ ] ทำ SCR-14 end-to-end pipeline
-- [ ] ทำ filter bar ชุดเดียว: date, site, operator, treatment, donor line/strain และ batch
-- [ ] สะท้อน filter ใน URL เพื่อ bookmark/share ได้ และแสดงจำนวนตัวอย่าง `(n)` ในทุกกราฟ
-- [ ] ทุก chart/table มี loading, empty, unknown, accessible label และไม่สื่อด้วยสีอย่างเดียว
-- [ ] drill down จาก aggregate ไป batch/embryo/fish record ที่เป็นต้นทาง
-- [ ] เพิ่ม print stylesheet ที่ซ่อน navigation และจัด page break สำหรับ browser PDF
+- [x] ทำ SCR-12 Stage 1: KPI, funnel, survival, deviation distribution และ abnormality onset
+- [x] ทำ SCR-13 Stage 2: current status, survival, condition, treatment และ gaps
+- [x] ทำ SCR-14 end-to-end pipeline
+- [x] ทำ filter bar ชุดเดียว: date, site, operator, treatment, donor line/strain และ batch
+- [x] สะท้อน filter ใน URL เพื่อ bookmark/share ได้ และแสดงจำนวนตัวอย่าง `(n)` ในทุกกราฟ
+- [x] ทุก chart/table มี loading, empty, unknown, accessible label และไม่สื่อด้วยสีอย่างเดียว
+- [x] drill down จาก aggregate ไป batch/embryo/fish record ที่เป็นต้นทาง
+- [x] เพิ่ม print stylesheet ที่ซ่อน navigation และจัด page break สำหรับ browser PDF
 
 #### Tests และ Exit criteria
 
-- [ ] formula unit tests BR-15 ถึง BR-17 รวม zero denominator และ missing checkpoint
-- [ ] golden analytics integration tests บนฐานข้อมูลสองชนิด
-- [ ] ตรวจตัวเลขกับการนับด้วยมือจาก fixture
-- [ ] โหลดข้อมูลจำลอง 5 ปีและ dashboard ครบ <3 วินาที
-- [ ] UAT T-18 ผ่าน
+- [x] formula unit tests BR-15 ถึง BR-17 รวม zero denominator และ missing checkpoint
+- [x] golden analytics integration tests บนฐานข้อมูลสองชนิด
+- [x] ตรวจตัวเลขกับการนับด้วยมือจาก fixture
+- [x] โหลดข้อมูลจำลอง 5 ปีและ dashboard ครบ <3 วินาที
+- [x] UAT T-18 ผ่าน automated UI/API acceptance coverage
 
 ### Phase 8 — Excel, R-ready Table และ PDF Export
 
