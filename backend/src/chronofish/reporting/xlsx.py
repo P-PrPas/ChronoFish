@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from numbers import Number
 from xml.sax.saxutils import escape, quoteattr
 from zipfile import ZIP_DEFLATED, ZipFile
 
@@ -15,12 +16,17 @@ def _column(number: int) -> str:
     return result
 
 
+def _cell_xml(reference: str, raw: object) -> str:
+    if isinstance(raw, bool):
+        return f'<c r="{reference}" t="b"><v>{int(raw)}</v></c>'
+    if isinstance(raw, Number):
+        return f'<c r="{reference}"><v>{raw}</v></c>'
+    value = "" if raw is None else str(raw)
+    return f'<c r="{reference}" t="inlineStr"><is><t xml:space="preserve">{escape(value)}</t></is></c>'
+
+
 def _row_xml(number: int, values: list[object]) -> str:
-    cells = []
-    for index, raw in enumerate(values, 1):
-        value = "" if raw is None else str(raw)
-        reference = f"{_column(index)}{number}"
-        cells.append(f'<c r="{reference}" t="inlineStr"><is><t xml:space="preserve">{escape(value)}</t></is></c>')
+    cells = [_cell_xml(f"{_column(index)}{number}", raw) for index, raw in enumerate(values, 1)]
     return f'<row r="{number}">{"".join(cells)}</row>'
 
 

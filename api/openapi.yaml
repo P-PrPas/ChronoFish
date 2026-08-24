@@ -2790,6 +2790,8 @@ components:
         sheets:
           type: [array, 'null']
           description: Omit for all 14 sheets. Sheet names are listed in SRS appendix B.
+          minItems: 1
+          uniqueItems: true
           items: { type: string }
         locale:
           type: string

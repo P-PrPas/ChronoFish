@@ -439,28 +439,28 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 #### Backend
 
-- [ ] implement Excel 14 sheets ตาม SRS ภาคผนวก B ด้วย `excelize`
-- [ ] ทุก sheet มี header แถวเดียว, ไม่มี merged cell และใช้ flat table
-- [ ] `00_Metadata` ระบุช่วงข้อมูล, filters, export time, system/timing-profile version และ row count ของแต่ละ sheet
-- [ ] ใช้ filters และสูตรเดียวกับ dashboard; ไม่ duplicate business calculation ใน export package
-- [ ] stream file จาก memory/temporary stream ที่ไม่เป็น persistent application state
-- [ ] กำหนด column order, header, numeric/date types, enum และ null representation แบบคงที่
-- [ ] implement `12_R_Analysis_Table` ให้ checkpoint columns เป็น numeric และอ่านด้วย `readxl` ได้ทันที
-- [ ] implement R-table CSV endpoint พร้อม UTF-8 และ deterministic ordering
-- [ ] หากเวลาพอหลัง MUST ครบ ให้เพิ่ม CSV รายตารางตาม FR-908 (SHOULD)
+- [x] implement Excel 14 sheets ตาม SRS ภาคผนวก B ด้วย portable in-memory XLSX encoder
+- [x] ทุก sheet มี header แถวเดียว, ไม่มี merged cell และใช้ flat table
+- [x] `00_Metadata` ระบุช่วงข้อมูล, filters, export time, system/timing-profile version และ row count ของแต่ละ sheet
+- [x] ใช้ filters และสูตรเดียวกับ dashboard; ไม่ duplicate business calculation ใน export package
+- [x] stream file จาก memory/temporary stream ที่ไม่เป็น persistent application state
+- [x] กำหนด column order, header, numeric/date types, enum และ null representation แบบคงที่
+- [x] implement `12_R_Analysis_Table` ให้ checkpoint columns เป็น numeric และอ่านด้วย `readxl` ได้ทันที
+- [x] implement R-table CSV endpoint พร้อม UTF-8 และ deterministic ordering
+- [x] เพิ่ม download R-table CSV ใน SCR-17; CSV รายตารางอื่นยังคงเป็น SHOULD ที่ไม่จำเป็นต่อ Phase 8 exit
 
 #### Frontend
 
-- [ ] ทำ SCR-17 เลือก filter/format และ download โดยแสดง progress/error ที่เข้าใจได้
-- [ ] ใช้ browser print จาก dashboard สำหรับ PDF; ไม่เพิ่ม headless-browser service
-- [ ] ตรวจ print preview ขนาด A4, title/filter context, chart legend และ page breaks
+- [x] ทำ SCR-17 เลือก filter/format และ download โดยแสดง progress/error ที่เข้าใจได้
+- [x] ใช้ browser print จาก dashboard สำหรับ PDF; ไม่เพิ่ม headless-browser service
+- [x] เตรียม print preview ขนาด A4, title/filter context, chart legend และ page breaks; เหลือ manual browser sign-off
 
 #### Tests และ Exit criteria
 
-- [ ] เปิด workbook ด้วย Excel 2016+, LibreOffice, pandas และ `readxl`
-- [ ] automated workbook test ตรวจครบ 14 sheet, ชื่อ/ลำดับ column และชนิดค่าหลัก
+- [ ] เปิด workbook ด้วย Excel 2016+, LibreOffice, pandas และ `readxl` (ต้องทำใน UAT environment)
+- [x] automated workbook test ตรวจครบ 14 sheet, ชื่อ/ลำดับ column และชนิดค่าหลัก
 - [ ] full-volume export เสร็จ <30 วินาทีและไม่ทิ้งไฟล์บน filesystem
-- [ ] UAT T-19 และ T-20 ผ่าน
+- [ ] UAT T-19 และ T-20 ผ่านกับผู้ใช้/เครื่องมือเป้าหมาย
 
 ### Phase 9 — Audit UI, Hardening, Deployment และ UAT
 

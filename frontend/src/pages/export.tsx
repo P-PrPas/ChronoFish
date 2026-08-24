@@ -28,33 +28,53 @@ type PrintableReport = {
   error: string;
 };
 
+function filterSummary(filters: DashboardFilters): string {
+  const values = Object.entries(filters).filter(([, value]) => value);
+  return values.length === 0
+    ? "All records"
+    : values.map(([key, value]) => `${key}=${value}`).join(" · ");
+}
+
 export function Export({ t = text.en }: { t?: AppText } = {}) {
   const [filters, setFilters] = useState<DashboardFilters>(() =>
     parseFilters(),
   );
   const [message, setMessage] = useState("");
+  const [downloading, setDownloading] = useState(false);
   useEffect(() => {
     const onPop = () => setFilters(parseFilters());
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
-  const download = async () => {
+  const download = async (path: string, init: RequestInit, filename: string) => {
+    setDownloading(true);
+    setMessage("");
     try {
-      const response = await request("/exports/excel", {
-        method: "POST",
-        body: JSON.stringify({ locale: "th", filters }),
-      });
+      const response = await request(path, init);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = "chronofish-export.xlsx";
+      link.download = filename;
+      link.rel = "noopener";
+      document.body.append(link);
       link.click();
+      link.remove();
       URL.revokeObjectURL(url);
     } catch (e) {
       setMessage((e as Error).message);
+    } finally {
+      setDownloading(false);
     }
   };
+  const downloadExcel = () =>
+    download(
+      "/exports/excel",
+      { method: "POST", body: JSON.stringify({ locale: "th", filters }) },
+      "chronofish-export.xlsx",
+    );
+  const downloadRTable = () =>
+    download(withFilters("/exports/r-table", filters), {}, "chronofish-r-analysis.csv");
   return (
     <>
       <section className="export-controls">
@@ -75,12 +95,17 @@ export function Export({ t = text.en }: { t?: AppText } = {}) {
           }}
         />
         <div className="action-grid">
-          <button className="action-card" onClick={download}>
+          <button className="action-card" onClick={downloadExcel} disabled={downloading} aria-busy={downloading}>
             <span className="action-icon">↓</span>
             <strong>{t.downloadExcel}</strong>
             <span>14 flat sheets with raw n and R analysis shape.</span>
           </button>
-          <button className="action-card" onClick={() => window.print()}>
+          <button className="action-card" onClick={downloadRTable} disabled={downloading} aria-busy={downloading}>
+            <span className="action-icon">⌁</span>
+            <strong>Download R CSV</strong>
+            <span>UTF-8, deterministic 30-column analysis table.</span>
+          </button>
+          <button className="action-card" onClick={() => window.print()} type="button">
             <span className="action-icon">▣</span>
             <strong>{t.printPDF}</strong>
             <span>
@@ -88,6 +113,7 @@ export function Export({ t = text.en }: { t?: AppText } = {}) {
             </span>
           </button>
         </div>
+        {downloading && <p className="table-note" role="status">Preparing export…</p>}
         {message && <ErrorMessage message={message} />}
       </section>
       <PrintableDashboard filters={filters} />
@@ -111,44 +137,23 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
   useEffect(() => {
     let cancelled = false;
     setReport((current) => ({ ...current, loading: true, error: "" }));
-    void Promise.all([
-      get(withFilters("/analytics/kpi", filters)),
-      get(withFilters("/analytics/funnel", filters)),
-      get(withFilters("/analytics/survival", filters)),
-      get(withFilters("/analytics/timing-deviation", filters)),
-      get(withFilters("/analytics/abnormality-onset", filters)),
-      get(
-        withFilters("/analytics/fish-survival?splitByCondition=true", filters),
-      ),
-      get(withFilters("/analytics/observation-gaps", filters)),
-      get(withFilters("/analytics/pipeline", filters)),
-    ])
-      .then(
-        ([
-          kpi,
-          funnel,
-          survival,
-          deviation,
-          abnormality,
-          fishSurvival,
-          gaps,
-          pipeline,
-        ]) => {
-          if (!cancelled)
-            setReport({
-              kpi,
-              funnel: funnel.items ?? [],
-              survival: survival.items ?? [],
-              deviation: deviation.items ?? [],
-              abnormality: abnormality.items ?? [],
-              fishSurvival: fishSurvival.items ?? [],
-              gaps: gaps.items ?? [],
-              pipeline: pipeline.items ?? [],
-              loading: false,
-              error: "",
-            });
-        },
-      )
+    void get(withFilters("/analytics/dashboard", filters))
+      .then((bundle) => {
+        const items = (value: unknown) => (value as ApiItem | undefined)?.items ?? [];
+        if (!cancelled)
+          setReport({
+            kpi: (bundle.kpi as ApiItem | null) ?? null,
+            funnel: items(bundle.funnel),
+            survival: items(bundle.survival),
+            deviation: items(bundle.timingDeviation),
+            abnormality: items(bundle.abnormalityOnset),
+            fishSurvival: items(bundle.fishSurvival),
+            gaps: items(bundle.observationGaps),
+            pipeline: items(bundle.pipeline),
+            loading: false,
+            error: "",
+          });
+      })
       .catch((error: Error) => {
         if (!cancelled)
           setReport((current) => ({
@@ -173,6 +178,7 @@ export function PrintableDashboard({ filters }: { filters: DashboardFilters }) {
           Generated from the same filtered analytical dataset as the dashboard
           and workbook.
         </p>
+        <p className="muted print-report__filters">Filters: {filterSummary(filters)}</p>
       </div>
       {report.loading && <p className="notice">Loading dashboard panels...</p>}
       {report.error && <ErrorMessage message={report.error} />}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import re
 from io import BytesIO, StringIO
 from pathlib import Path
 from zipfile import ZipFile
@@ -44,15 +45,55 @@ def test_excel_export_is_idempotent_valid_14_sheet_xlsx(client, write_headers):
     with ZipFile(BytesIO(first.content)) as archive:
         worksheet_names = [name for name in archive.namelist() if name.startswith("xl/worksheets/sheet")]
         workbook = archive.read("xl/workbook.xml").decode()
+        metadata = archive.read("xl/worksheets/sheet1.xml").decode()
         batch_sheet = archive.read("xl/worksheets/sheet2.xml").decode()
         embryo_matrix = archive.read("xl/worksheets/sheet4.xml").decode()
+        stage_counts = archive.read("xl/worksheets/sheet5.xml").decode()
         r_table = archive.read("xl/worksheets/sheet13.xml").decode()
     assert len(worksheet_names) == 14
+    assert re.findall(r'<sheet name="([^"]+)"', workbook) == [
+        "00_Metadata",
+        "01_Batches",
+        "02_Embryo_Observations",
+        "03_Embryo_Matrix",
+        "04_Stage_Counts",
+        "05_Timing_Deviation",
+        "06_Fish_Register",
+        "07_Fish_Observations",
+        "08_Fish_Matrix",
+        "09_Control_Arms",
+        "10_Specimens",
+        "11_Summary",
+        "12_R_Analysis_Table",
+        "13_Stage_Timing_Reference",
+    ]
     assert "00_Metadata" in workbook
     assert "13_Stage_Timing_Reference" in workbook
+    assert "system_version" in metadata
+    assert "timing_profile_version" in metadata
+    assert "row_count.12_R_Analysis_Table" in metadata
+    assert "row_count.00_Metadata" in metadata
+    assert "mergeCells" not in workbook + metadata + batch_sheet + embryo_matrix + stage_counts + r_table
     assert '<row r="2">' in batch_sheet
     assert '<row r="2">' in embryo_matrix
     assert '<row r="2">' in r_table
+    assert re.search(r'<c r="E2"><v>\d+</v></c>', stage_counts)
+    assert re.search(r'<c r="E2"><v>\d+</v></c>', r_table)
+
+
+def test_excel_export_can_select_flat_sheets(client, write_headers):
+    headers = {**write_headers, "X-Idempotency-Key": "01900000-0000-7000-8000-000000000299"}
+    response = client.post(
+        "/api/v1/exports/excel",
+        headers=headers,
+        json={"filters": {}, "sheets": ["00_Metadata", "12_R_Analysis_Table"]},
+    )
+    assert response.status_code == 200
+    with ZipFile(BytesIO(response.content)) as archive:
+        workbook = archive.read("xl/workbook.xml").decode()
+        metadata = archive.read("xl/worksheets/sheet1.xml").decode()
+    assert re.findall(r'<sheet name="([^"]+)"', workbook) == ["00_Metadata", "12_R_Analysis_Table"]
+    assert "row_count.12_R_Analysis_Table" in metadata
 
 
 def test_audit_filters_and_uses_opaque_cursor(client, write_headers):
