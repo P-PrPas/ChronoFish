@@ -46,6 +46,10 @@ jobs:
           docker compose -f compose.mysql.yaml --profile mysql config
       - name: Build production API image
         run: docker build -f backend/Dockerfile -t chronofish:ci .
+      - name: Verify production image metadata and user
+        run: |
+          test "$(docker image inspect chronofish:ci --format '{{.Config.User}}')" = "chronofish"
+          test "$(docker image inspect chronofish:ci --format '{{index .Config.Labels "org.opencontainers.image.title"}}')" = "ChronoFish API"
 
   contract:
     runs-on: ubuntu-latest

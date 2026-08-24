@@ -1,5 +1,14 @@
 FROM python:3.13.7-slim-bookworm
 
+ARG BUILD_DATE=unknown
+ARG VCS_REF=unknown
+
+LABEL org.opencontainers.image.title="ChronoFish API" \
+      org.opencontainers.image.description="ChronoFish cloning tracking API" \
+      org.opencontainers.image.source="https://github.com/P-PrPas/ChronoFish" \
+      org.opencontainers.image.revision="$VCS_REF" \
+      org.opencontainers.image.created="$BUILD_DATE"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PORT=8080 \

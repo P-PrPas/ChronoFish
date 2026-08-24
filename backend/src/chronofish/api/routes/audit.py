@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -12,11 +13,25 @@ from ...runtime.errors import APIError
 from ...store import Store
 
 BANGKOK = ZoneInfo("Asia/Bangkok")
+MAX_FILTER_LENGTH = 128
+
+
+def _filter(value: str | None, name: str) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    if len(value) > MAX_FILTER_LENGTH or any(ord(character) < 32 for character in value):
+        raise APIError(400, "invalid_query", f"{name} is invalid")
+    return value
 
 
 def _time(value: str | None) -> datetime | None:
     if not value:
         return None
+    if not isinstance(value, str):
+        raise APIError(400, "invalid_query", "timestamp must be an ISO 8601 string")
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError as error:
@@ -27,11 +42,18 @@ def _time(value: str | None) -> datetime | None:
 def _cursor(value: str | None) -> tuple[datetime, str] | None:
     if not value:
         return None
+    if len(value) > 512:
+        raise APIError(400, "invalid_query", "cursor is invalid")
     try:
         padding = "=" * (-len(value) % 4)
         decoded = json.loads(base64.urlsafe_b64decode(value + padding))
-        return _time(decoded["occurredAt"]), str(decoded["id"])  # type: ignore[return-value]
-    except (ValueError, TypeError, KeyError, json.JSONDecodeError) as error:
+        if not isinstance(decoded, dict) or not isinstance(decoded.get("id"), str):
+            raise ValueError("cursor payload is invalid")
+        occurred_at = _time(decoded.get("occurredAt"))
+        if occurred_at is None:
+            raise ValueError("cursor timestamp is invalid")
+        return occurred_at, decoded["id"]
+    except (binascii.Error, ValueError, TypeError, KeyError, json.JSONDecodeError) as error:
         raise APIError(400, "invalid_query", "cursor is invalid") from error
 
 
@@ -50,14 +72,17 @@ def build_audit_router(store: Store) -> APIRouter:
             limit = min(max(int(query.get("limit", "100")), 1), 500)
         except ValueError as error:
             raise APIError(400, "invalid_query", "limit must be an integer") from error
+        table = _filter(query.get("table"), "table")
+        record_id = _filter(query.get("recordId"), "recordId")
+        operator_id = _filter(query.get("operatorId"), "operatorId")
         from_time, to_time, cursor = _time(query.get("from")), _time(query.get("to")), _cursor(query.get("cursor"))
         if from_time and to_time and from_time > to_time:
             raise APIError(400, "invalid_query", "from must not be after to")
         if query_audits := getattr(store, "query_audits", None):
             page, more = query_audits(
-                table=query.get("table"),
-                record_id=query.get("recordId"),
-                operator_id=query.get("operatorId"),
+                table=table,
+                record_id=record_id,
+                operator_id=operator_id,
                 from_time=from_time,
                 to_time=to_time,
                 cursor=cursor,
@@ -67,11 +92,11 @@ def build_audit_router(store: Store) -> APIRouter:
         items = []
         for item in store.snapshot().audits:
             occurred = _time(str(item.get("occurredAt", "")))
-            if query.get("table") and item.get("tableName") != query["table"]:
+            if table and item.get("tableName") != table:
                 continue
-            if query.get("recordId") and item.get("recordId") != query["recordId"]:
+            if record_id and item.get("recordId") != record_id:
                 continue
-            if query.get("operatorId") and item.get("operatorId") != query["operatorId"]:
+            if operator_id and item.get("operatorId") != operator_id:
                 continue
             if not occurred or from_time and occurred < from_time or to_time and occurred > to_time:
                 continue

@@ -17,18 +17,29 @@ IP_ALLOWLIST=10.0.0.0/8,192.168.1.0/24
 
 `DB_DRIVER=memory` is restricted to development and test. Keep credentials in the deployment secret store, never in `.env` committed to the repository. The API validates configuration, connects, applies versioned migrations, loads canonical tables, and only then serves traffic.
 
+The API is not a TLS terminator. Production traffic must reach it through an HTTPS reverse proxy or private VPN, with the proxy enforcing the approved IP/CIDR allowlist. Set `IP_ALLOWLIST` as a second control when the API can be reached outside that proxy. Do not trust arbitrary forwarded headers from public clients.
+
 ## Build and deploy
 
 Build the API image from the repository root so migration files are included:
 
 ```powershell
-docker build -f backend/Dockerfile -t chronofish-api:local .
+docker build --build-arg VCS_REF=$(git rev-parse HEAD) -f backend/Dockerfile -t chronofish-api:local .
 cd frontend
 npm ci
 npm run check
 ```
 
 Serve `frontend/dist` from a static web server with SPA fallback to `index.html`, and proxy `/api/` to the API. Keep TLS termination and the external VPN/reverse-proxy allowlist in front of the API. If the API is directly reachable, set `IP_ALLOWLIST` as an additional control.
+
+The API image is pinned to a patch-level Python base, runs as the non-root `chronofish` user, contains only the installed backend and migrations, and carries OCI build metadata. Scan the exact image that will be deployed before promotion; for example:
+
+```powershell
+trivy image --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 chronofish-api:local
+docker image inspect chronofish-api:local --format '{{.Config.User}} {{index .Config.Labels "org.opencontainers.image.revision"}}'
+```
+
+The frontend is a static artifact. The production path does not require Node or a frontend container; if hosting requires one, use a separate web-server image with SPA fallback and keep Node out of the runtime image.
 
 For the default PostgreSQL stack:
 
@@ -65,6 +76,8 @@ mysql -h HOST -u chronofish -p chronofish_restore < chronofish-YYYYMMDD.sql
 ```
 
 After a restore, check `/api/v1/health`, run the database constraint checks, and verify one idempotent mutation plus its audit entry before reopening traffic.
+
+The API keeps no application state on the local filesystem. PostgreSQL/MySQL is the source of truth; local filesystem volumes are not a substitute for database backup or restore.
 
 ## Upgrade and rollback
 

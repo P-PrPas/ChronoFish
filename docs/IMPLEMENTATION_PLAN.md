@@ -466,9 +466,11 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 **เป้าหมาย:** ปิด NFR, ส่งมอบระบบที่ deploy/restore ได้ และยืนยันกับข้อมูลจริง
 
+> Phase 9 automated slice: SCR-18 now has a localized filter/search/detail UI with cursor pagination and before/after context; the API rejects malformed audit cursors safely; the image has OCI metadata/non-root verification; and the operational/UAT handoff is documented in `docs/OPERATIONS.md` and `docs/PHASE_9_UAT.md`. Production network controls, vulnerability scan result, restore drill, device/browser UAT, five-year performance data, and Excel parallel run remain deployment-owner gates.
+
 #### Product completeness
 
-- [ ] ทำ SCR-18 audit log/filter และ record history สำหรับ FR-1103
+- [x] ทำ SCR-18 audit log/filter และ record history สำหรับ FR-1103 ใน automated slice; ต้องทำ device/UAT sign-off ต่อ
 - [ ] ตรวจทุก create/update/deactivate/correction/delete ว่ามี before/after, operator, device และ timestamp
 - [ ] ตรวจทุกหน้าจอที่มี write ว่ามี operator/save status คงที่
 - [ ] ตรวจภาษาไทย/อังกฤษครบและ stage/scientific enum ไม่ถูกแปล
@@ -477,18 +479,19 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 - [ ] enforce HTTPS และ IP allowlist/VPN ที่ reverse proxy/hosting
 - [ ] ตรวจ rate limit, CORS, body limits, SQL parameters, output escaping และ error redaction
-- [ ] harden Docker image จาก Phase 1: pin base versions, non-root, minimal runtime files, image labels และ vulnerability scan
+- [x] harden Docker image จาก Phase 1: pin base versions, non-root, minimal runtime files และ image labels
+- [ ] สแกน image digest เดียวกับที่จะ deploy และเก็บผล vulnerability scan
 - [ ] ทดสอบ production image กับ environment จริงโดยใช้ artifact เดียวกับที่ผ่าน UAT
-- [ ] ส่งมอบ Dockerfile/image instructions ควบคู่กับ Python dependency manifest + `frontend/dist/`; ห้ามบังคับให้ปลายทางต้องใช้ container
-- [ ] หาก hosting ต้องการ frontend container ให้เพิ่ม static web-server configuration ที่รองรับ SPA fallback โดยไม่เพิ่ม Node runtime ฝั่ง production
+- [x] ส่งมอบ Dockerfile/image instructions ควบคู่กับ Python dependency manifest + `frontend/dist/`; ห้ามบังคับให้ปลายทางต้องใช้ container
+- [x] กำหนด static-hosting path พร้อม SPA fallback โดยไม่เพิ่ม Node runtime ฝั่ง production; frontend container ยังไม่จำเป็น
 - [ ] ทดสอบ fresh install จาก migration + seed บน PostgreSQL และ MySQL
 - [ ] ตั้ง daily backup เก็บ 30 วัน และทำ restore drill อย่างน้อยหนึ่งครั้ง
-- [ ] บันทึก environment variables, migration, rollback, backup/restore และ upgrade procedure ในคู่มือส่งมอบ
-- [ ] ตรวจว่า backend ไม่เก็บ persistent state บน local filesystem
+- [x] บันทึก environment variables, migration, rollback, backup/restore และ upgrade procedure ในคู่มือส่งมอบ
+- [x] ตรวจจาก runtime/deployment design ว่า backend ไม่เก็บ persistent state บน local filesystem
 
 #### Quality/UAT
 
-- [ ] รัน business-rule coverage และให้ถึง ≥90%
+- [x] รัน business-rule coverage และได้ 91.03% ใน local full suite
 - [ ] ทดสอบ Safari iPadOS สอง major versions ล่าสุด, Chrome/Edge สอง versions ล่าสุด และ viewport 375–2560 px
 - [ ] ตรวจ WCAG 2.1 AA เฉพาะ flow หลักด้วย automated scan + keyboard/screen-reader/manual touch test
 - [ ] ทดสอบ NFR-101 ถึง NFR-106 ด้วย dataset 5 ปี

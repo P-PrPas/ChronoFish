@@ -1,19 +1,48 @@
 from __future__ import annotations
 
+import ipaddress
+from pathlib import Path
 from uuid import UUID
 
 import pytest
+from fastapi.testclient import TestClient
 from starlette.requests import Request
 
+from chronofish.app import create_app
+from chronofish.config import Config
 from chronofish.domain.rules import deviation_label, promotion_eligible_at, stage_code, stage_number
 from chronofish.runtime.values import uuid7
+from chronofish.store import MemoryStore
 
 
 def test_health(client):
     response = client.get("/api/v1/health")
     assert response.status_code == 200
     assert response.headers["Content-Type"] == "application/json; charset=utf-8"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["Permissions-Policy"] == "camera=(), geolocation=(), microphone=()"
     assert response.json()["status"] == "ok"
+
+
+def test_production_sets_strict_transport_security():
+    config = Config(8080, "production", "memory", "", (), (), Path("."), 10, 5)
+
+    with TestClient(create_app(config, MemoryStore())) as production_client:
+        response = production_client.get("/api/v1/health")
+
+    assert response.headers["Strict-Transport-Security"] == "max-age=31536000; includeSubDomains"
+
+
+def test_network_allowlist_denies_unknown_client():
+    config = Config(8080, "test", "memory", "", (), (ipaddress.ip_network("10.0.0.0/8"),), Path("."), 10, 5)
+
+    with TestClient(create_app(config, MemoryStore())) as restricted_client:
+        response = restricted_client.get("/api/v1/health")
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "network_denied"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
 
 
 def test_uuid7_shape():
@@ -147,6 +176,18 @@ def test_malformed_json_uses_the_common_error_envelope(client, write_headers):
     )
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "invalid_request"
+
+
+def test_oversized_declared_body_is_rejected(client, write_headers):
+    response = client.post(
+        "/api/v1/sites",
+        headers={**write_headers, "Content-Type": "application/json", "Content-Length": str(10 * 1024 * 1024 + 1)},
+        content='{"code":"A","name":"A"}',
+    )
+
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "request_too_large"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
 
 
 def test_write_context_headers_are_required(client):

@@ -50,6 +50,17 @@ def create_app(config: Config | None = None, store: Store | None = None) -> Fast
 
     hits: defaultdict[str, deque[float]] = defaultdict(deque)
 
+    def secure(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = "camera=(), geolocation=(), microphone=()"
+        if config.app_env == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        if response.headers.get("content-type", "").partition(";")[0].lower() == "application/json":
+            response.headers["Content-Type"] = "application/json; charset=utf-8"
+        return response
+
     @app.middleware("http")
     async def security(request: Request, call_next):
         started = time.monotonic()
@@ -58,23 +69,42 @@ def create_app(config: Config | None = None, store: Store | None = None) -> Fast
             try:
                 address = ipaddress.ip_address(host)
             except ValueError:
-                return error_response(APIError(403, "network_denied", "เครือข่ายนี้ไม่ได้รับอนุญาต"))
+                return secure(error_response(APIError(403, "network_denied", "เครือข่ายนี้ไม่ได้รับอนุญาต")))
             if not any(address in network for network in config.ip_allowlist):
-                return error_response(APIError(403, "network_denied", "เครือข่ายนี้ไม่ได้รับอนุญาต"))
-        now, bucket = time.monotonic(), hits[host]
+                return secure(error_response(APIError(403, "network_denied", "เครือข่ายนี้ไม่ได้รับอนุญาต")))
+        now = time.monotonic()
+        # ponytail: cap per-process rate-limit memory; use a shared gateway for distributed limits.
+        if len(hits) >= 10_000:
+            for address, address_hits in list(hits.items()):
+                if not address_hits or now - address_hits[-1] >= 60:
+                    del hits[address]
+        bucket = hits[host]
         while bucket and now - bucket[0] >= 60:
             bucket.popleft()
         if len(bucket) >= 120:
             response = error_response(APIError(429, "rate_limited", "เรียก API ถี่เกินไป กรุณาลองใหม่ภายหลัง"))
             response.headers["Retry-After"] = "60"
-            return response
+            return secure(response)
         bucket.append(now)
         try:
             content_length = int(request.headers.get("content-length", "0") or 0)
         except ValueError:
-            return error_response(APIError(400, "invalid_request", "Content-Length is invalid"))
+            return secure(error_response(APIError(400, "invalid_request", "Content-Length is invalid")))
         if content_length > MAX_REQUEST_BYTES:
-            return error_response(APIError(413, "request_too_large", "request body is too large"))
+            return secure(error_response(APIError(413, "request_too_large", "request body is too large")))
+        received_bytes = 0
+        receive = request._receive
+
+        async def limited_receive():
+            nonlocal received_bytes
+            message = await receive()
+            if message.get("type") == "http.request":
+                received_bytes += len(message.get("body", b""))
+                if received_bytes > MAX_REQUEST_BYTES:
+                    raise APIError(413, "request_too_large", "request body is too large")
+            return message
+
+        request._receive = limited_receive
         media_type = request.headers.get("content-type", "").partition(";")[0].strip().lower()
         expected_media_type = "text/csv" if request.url.path == "/api/v1/timing-profiles/csv" else "application/json"
         if (request.method in {"POST", "PUT", "PATCH"} or content_length) and media_type != expected_media_type:
@@ -93,12 +123,7 @@ def create_app(config: Config | None = None, store: Store | None = None) -> Fast
             response.status_code,
             (time.monotonic() - started) * 1000,
         )
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        if response.headers.get("content-type", "").partition(";")[0].lower() == "application/json":
-            response.headers["Content-Type"] = "application/json; charset=utf-8"
-        return response
+        return secure(response)
 
     @app.get("/api/v1/health")
     def health() -> dict[str, str]:
