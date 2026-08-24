@@ -215,6 +215,81 @@ def test_concurrent_batch_codes_and_live_wells_remain_unique():
     store.close()
 
 
+def test_concurrent_promotions_allocate_unique_fish_numbers():
+    suffix = uuid7().split("-")[0]
+    store = SQLStore(_config())
+    client = TestClient(create_app(_config(), store))
+    try:
+        site = client.post(
+            "/api/v1/sites", headers=_headers(), json={"code": f"F-{suffix}", "name": f"Fish site {suffix}"}
+        ).json()
+        donor = client.post(
+            "/api/v1/donor-cell-lines",
+            headers=_headers(),
+            json={"strain": f"fish-{suffix}", "preparation": "CHUNKS"},
+        ).json()
+        treatment = client.post(
+            "/api/v1/treatment-groups",
+            headers=_headers(),
+            json={"code": f"F-{suffix}", "name": "Fish promotion", "armType": "SCNT"},
+        ).json()
+        batch = client.post(
+            "/api/v1/batches",
+            headers=_headers(),
+            json={
+                "batchCode": f"FISH-{suffix}",
+                "experimentDate": datetime.now(UTC).date().isoformat(),
+                "siteId": site["id"],
+                "operatorId": DEMO_OPERATOR_ID,
+                "protocolId": PROTOCOL_ID,
+                "treatmentGroupId": treatment["id"],
+            },
+        ).json()
+        lot = client.post(
+            f"/api/v1/batches/{batch['id']}/injection-lots",
+            headers=_headers(),
+            json={
+                "lotNo": "1",
+                "donorCellLineId": donor["id"],
+                "activatedAt": (datetime.now(UTC) - timedelta(days=6)).isoformat(),
+                "nActivated": 2,
+            },
+        ).json()
+        observations = [
+            {
+                "clientUuid": uuid7(),
+                "embryoId": embryo["id"],
+                "stageCode": "stage_26_5D",
+                "observedAt": datetime.now(UTC).isoformat(),
+                "outcome": "ALIVE",
+                "condition": "NORMAL",
+            }
+            for embryo in lot["embryos"]
+        ]
+        assert (
+            client.post(
+                "/api/v1/observations/embryo", headers=_headers(), json={"observations": observations}
+            ).status_code
+            == 200
+        )
+
+        def promote(index: int):
+            return client.post(
+                "/api/v1/promotions",
+                headers=_headers(),
+                json={"promotions": [{"clientUuid": uuid7(), "embryoId": lot["embryos"][index]["id"]}]},
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            responses = list(executor.map(promote, range(2)))
+
+        assert [response.status_code for response in responses] == [201, 201]
+        running_numbers = sorted(response.json()["items"][0]["fish"]["runningNo"] for response in responses)
+        assert running_numbers[1] == running_numbers[0] + 1
+    finally:
+        store.close()
+
+
 def test_concurrent_observation_save_correction_and_soft_delete_are_consistent():
     suffix = uuid7().split("-")[0]
     store = SQLStore(_config())

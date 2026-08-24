@@ -20,116 +20,43 @@ from ...domain.state import State
 from ...runtime.errors import APIError
 from ...runtime.mutations import audit
 from ...runtime.values import iso_now, normalize, parse_datetime, utc_now, uuid7
+from ...services.fish import (
+    SEX_VALUES,
+    apply_fish_update,
+    enrich_fish,
+    find_fish_for_embryo,
+    fish_box_is_assignable,
+    fish_was_alive_on,
+    latest_embryo_observation,
+    promotion_threshold,
+    recompute_fish,
+    suggest_fish_code,
+)
 from ...store import Store
 
 BANGKOK = ZoneInfo("Asia/Bangkok")
-SEX_VALUES = {"UNKNOWN", "M", "F"}
+SPECIMEN_KINDS = {"CL", "RT", "DC"}
+SPECIMEN_TYPES = {"WHOLE_EMBRYO", "CAUDAL_FIN_CLIP"}
+SPECIMEN_STORAGES = {"-20", "-80"}
+FISH_OBSERVATION_PATCH_FIELDS = {"observedOn", "outcome", "condition", "notes", "overrideReason", "correctionReason"}
+FISH_OBSERVATION_CREATE_FIELDS = {
+    "clientUuid",
+    "cloneFishId",
+    "observedOn",
+    "outcome",
+    "condition",
+    "notes",
+    "overrideReason",
+}
 
 
-def _fish_for_embryo(state: State, embryo_id: str) -> dict[str, Any] | None:
-    return next(
-        (
-            fish
-            for fish in state.entities["fish"].values()
-            if fish.get("embryoId") == embryo_id and fish.get("active") is not False and fish.get("deletedAt") is None
-        ),
-        None,
-    )
-
-
-def _latest_embryo_observation(state: State, embryo_id: str) -> dict[str, Any] | None:
-    return max(
-        (
-            item
-            for item in state.observations.values()
-            if item.get("embryoId") == embryo_id and item.get("deletedAt") is None
-        ),
-        key=lambda item: str(item.get("observedAt", "")),
-        default=None,
-    )
-
-
-def _threshold(state: State, batch: dict[str, Any]) -> int:
-    protocol = state.entities["protocols"].get(str(batch.get("protocolId")), {})
-    return max(int(protocol.get("stage1MaxAgeDays", 5)), 1)
-
-
-def _fish_code(embryo: dict[str, Any], strain: str, activated: datetime, running_no: int) -> str:
-    day = activated.astimezone(BANGKOK).strftime("%d")
-    return f"No.{running_no}_Clone{int(embryo.get('seqInLot', 0))}-{strain or 'unknown'} cell-{day}"
-
-
-def _enrich_fish(state: State, fish: dict[str, Any]) -> dict[str, Any]:
-    result = copy.deepcopy(fish)
+def _specimen_date(value: Any, field: str) -> date | None:
+    if value in (None, ""):
+        return None
     try:
-        result["ageDays"] = age_days_on(date.fromisoformat(str(fish["dob"])), datetime.now(BANGKOK).date())
-    except (KeyError, ValueError):
-        result["ageDays"] = 0
-    donor = state.entities["donor-cell-lines"].get(str(fish.get("donorCellLineId")), {})
-    result["strain"] = donor.get("strain", "")
-    box = state.entities["fish-boxes"].get(str(fish.get("fishBoxId")), {})
-    result["fishBoxCode"] = box.get("boxCode")
-    embryo = state.entities["embryos"].get(str(fish.get("embryoId")), {})
-    lot = state.entities["injection-lots"].get(str(embryo.get("injectionLotId")), {})
-    batch = state.entities["batches"].get(str(lot.get("batchId")), {})
-    result["treatmentGroupId"] = batch.get("treatmentGroupId")
-    return result
-
-
-def _recompute_fish(state: State, fish_id: str) -> None:
-    fish = state.entities["fish"].get(fish_id)
-    if not fish:
-        return
-    values = [
-        item
-        for item in state.fish_observations.values()
-        if item.get("cloneFishId") == fish_id and item.get("deletedAt") is None
-    ]
-    latest = max(values, key=lambda item: str(item.get("observedOn", "")), default=None)
-    abnormal = min(
-        (item for item in values if item.get("condition") == "ABNORMAL"),
-        key=lambda item: str(item.get("observedOn", "")),
-        default=None,
-    )
-    embryo = state.entities["embryos"].get(str(fish.get("embryoId")), {})
-    inherited = {
-        field: embryo[field]
-        for field in ("firstAbnormalOn", "firstAbnormalAgeDays", "firstAbnormalStageCode", "firstAbnormalStageId")
-        if embryo.get(field) is not None
-    }
-    if latest:
-        fish["condition"] = latest["condition"]
-        if latest["outcome"] in {"ALIVE", "NOT_OBSERVED"}:
-            fish["status"] = "ALIVE"
-            fish.pop("exitDate", None)
-            fish.pop("exitReason", None)
-        else:
-            fish.update(
-                {"status": latest["outcome"], "exitDate": latest["observedOn"], "exitReason": latest["outcome"]}
-            )
-    if abnormal and (not inherited.get("firstAbnormalOn") or abnormal["observedOn"] < inherited["firstAbnormalOn"]):
-        fish.update(
-            {
-                "firstAbnormalOn": abnormal["observedOn"],
-                "firstAbnormalAgeDays": age_days_on(
-                    date.fromisoformat(fish["dob"]), date.fromisoformat(abnormal["observedOn"])
-                ),
-                "firstAbnormalSource": "fish",
-            }
-        )
-    elif inherited:
-        fish.update(inherited)
-        fish["firstAbnormalSource"] = "embryo"
-    elif fish.get("firstAbnormalSource") == "fish":
-        for field in (
-            "firstAbnormalOn",
-            "firstAbnormalAgeDays",
-            "firstAbnormalSource",
-            "firstAbnormalStageCode",
-            "firstAbnormalStageId",
-        ):
-            fish.pop(field, None)
-    fish["updatedAt"] = iso_now()
+        return date.fromisoformat(str(value))
+    except ValueError as error:
+        raise APIError(422, "validation_error", f"{field} ต้องเป็น YYYY-MM-DD") from error
 
 
 def build_fish_router(store: Store) -> APIRouter:
@@ -146,10 +73,10 @@ def build_fish_router(store: Store) -> APIRouter:
                 embryo.get("active") is False
                 or embryo.get("deletedAt") is not None
                 or embryo.get("exitReason")
-                or _fish_for_embryo(state, embryo_id)
+                or find_fish_for_embryo(state, embryo_id)
             ):
                 continue
-            latest = _latest_embryo_observation(state, embryo_id)
+            latest = latest_embryo_observation(state, embryo_id)
             lot = state.entities["injection-lots"].get(str(embryo.get("injectionLotId")))
             batch = state.entities["batches"].get(str((lot or {}).get("batchId")))
             if not latest or latest.get("outcome") != "ALIVE" or not lot or not batch:
@@ -157,7 +84,7 @@ def build_fish_router(store: Store) -> APIRouter:
             if siteId and batch.get("siteId") != siteId:
                 continue
             activated = parse_datetime(str(lot["activatedAt"]))
-            if not promotion_eligible_at(False, True, activated, now, _threshold(state, batch)):
+            if not promotion_eligible_at(False, True, activated, now, promotion_threshold(state, batch)):
                 continue
             donor = state.entities["donor-cell-lines"].get(str(lot.get("donorCellLineId")), {})
             strain = str(donor.get("strain") or "")
@@ -178,7 +105,7 @@ def build_fish_router(store: Store) -> APIRouter:
                     "firstAbnormalStageLabel": stage_label(stage_number(str(embryo.get("firstAbnormalStageCode", ""))))
                     if embryo.get("firstAbnormalStageCode")
                     else None,
-                    "suggestedFishCode": _fish_code(embryo, strain, activated, next_no + len(candidates)),
+                    "suggestedFishCode": suggest_fish_code(embryo, strain, activated, next_no + len(candidates)),
                     "suggestedRunningNo": next_no + len(candidates),
                 }
             )
@@ -205,11 +132,11 @@ def build_fish_router(store: Store) -> APIRouter:
                     )
                     continue
                 embryo = state.entities["embryos"].get(str(item.get("embryoId")))
-                existing = _fish_for_embryo(state, str(item.get("embryoId")))
+                existing = find_fish_for_embryo(state, str(item.get("embryoId")))
                 if existing:
                     results.append({"clientUuid": client_id, "status": "duplicate", "id": existing["id"]})
                     continue
-                latest = _latest_embryo_observation(state, str(item.get("embryoId")))
+                latest = latest_embryo_observation(state, str(item.get("embryoId")))
                 lot = state.entities["injection-lots"].get(str((embryo or {}).get("injectionLotId")))
                 batch = state.entities["batches"].get(str((lot or {}).get("batchId")))
                 activated = parse_datetime(str(lot["activatedAt"])) if lot and lot.get("activatedAt") else None
@@ -223,7 +150,7 @@ def build_fish_router(store: Store) -> APIRouter:
                     and lot
                     and batch
                     and activated
-                    and promotion_eligible_at(False, True, activated, utc_now(), _threshold(state, batch))
+                    and promotion_eligible_at(False, True, activated, utc_now(), promotion_threshold(state, batch))
                 )
                 if not eligible:
                     results.append(
@@ -234,10 +161,22 @@ def build_fish_router(store: Store) -> APIRouter:
                         }
                     )
                     continue
+                if item.get("fishBoxId") and not fish_box_is_assignable(
+                    state, str(item["fishBoxId"]), str(batch.get("siteId") or "")
+                ):
+                    results.append(
+                        {
+                            "clientUuid": client_id,
+                            "status": "rejected",
+                            "error": {"message": "ไม่พบ fishBoxId ที่ active ใน site นี้"},
+                        }
+                    )
+                    continue
                 donor = state.entities["donor-cell-lines"].get(str(lot.get("donorCellLineId")), {})
                 running_no = state.next_fish_no
                 fish_code = str(
-                    item.get("fishCode") or _fish_code(embryo, str(donor.get("strain") or ""), activated, running_no)
+                    item.get("fishCode")
+                    or suggest_fish_code(embryo, str(donor.get("strain") or ""), activated, running_no)
                 )
                 if any(
                     str(fish.get("fishCode", "")).casefold() == fish_code.casefold()
@@ -308,7 +247,7 @@ def build_fish_router(store: Store) -> APIRouter:
         for fish in state.entities["fish"].values():
             if fish.get("active") is False or fish.get("deletedAt") is not None:
                 continue
-            item = _enrich_fish(state, fish)
+            item = enrich_fish(state, fish)
             if status and item.get("status") != status or siteId and item.get("siteId") != siteId:
                 continue
             if boxId and item.get("fishBoxId") != boxId or condition and item.get("condition") != condition:
@@ -364,8 +303,14 @@ def build_fish_router(store: Store) -> APIRouter:
                 raise APIError(422, "validation_error", "sex ไม่ถูกต้อง")
             fish_id, now = uuid7(), iso_now()
             fish = {
-                **body,
                 "id": fish_id,
+                "embryoId": None,
+                "fishCode": str(body["fishCode"]),
+                "dob": dob.isoformat(),
+                "donorCellLineId": body["donorCellLineId"],
+                "siteId": body.get("siteId"),
+                "fishBoxId": body.get("fishBoxId"),
+                "remarks": body.get("remarks"),
                 "runningNo": state.next_fish_no,
                 "status": "ALIVE",
                 "condition": body.get("condition") or "NORMAL",
@@ -377,8 +322,16 @@ def build_fish_router(store: Store) -> APIRouter:
             }
             state.next_fish_no += 1
             state.entities["fish"][fish_id] = fish
-            audit(state, request, "INSERT", "clone_fish", fish_id, None, fish)
-            return 201, _enrich_fish(state, fish)
+            audit(
+                state,
+                request,
+                "INSERT",
+                "clone_fish",
+                fish_id,
+                None,
+                {**fish, "overrideReason": body.get("overrideReason")},
+            )
+            return 201, enrich_fish(state, fish)
 
         return store.execute_mutation(request, body, operation)
 
@@ -389,7 +342,7 @@ def build_fish_router(store: Store) -> APIRouter:
         fish = state.entities["fish"].get(fish_id)
         if not fish or fish.get("active") is False or fish.get("deletedAt") is not None:
             raise APIError(404, "not_found", "ไม่พบปลา")
-        result = _enrich_fish(state, fish)
+        result = enrich_fish(state, fish)
         result["observations"] = sorted(
             (
                 copy.deepcopy(item)
@@ -401,7 +354,7 @@ def build_fish_router(store: Store) -> APIRouter:
         result["specimens"] = [
             copy.deepcopy(item)
             for item in state.entities["specimens"].values()
-            if item.get("cloneFishId") == fish_id and item.get("deletedAt") is None
+            if item.get("cloneFishId") == fish_id and item.get("active") is not False and item.get("deletedAt") is None
         ]
         result["embryoTimeline"] = sorted(
             (
@@ -419,20 +372,9 @@ def build_fish_router(store: Store) -> APIRouter:
         body = normalize(body)
 
         def operation(state: State):
-            fish = state.entities["fish"].get(fish_id)
-            if not fish:
-                raise APIError(404, "not_found", "ไม่พบปลา")
-            if body.get("sex") and body["sex"] not in SEX_VALUES:
-                raise APIError(422, "validation_error", "sex ไม่ถูกต้อง")
-            if body.get("fishCode") and any(
-                item["id"] != fish_id and str(item.get("fishCode", "")).casefold() == str(body["fishCode"]).casefold()
-                for item in state.entities["fish"].values()
-            ):
-                raise APIError(409, "conflict", "fishCode ซ้ำ")
-            old = copy.deepcopy(fish)
-            fish.update({**body, "updatedAt": iso_now()})
+            old, fish = apply_fish_update(state, fish_id, body)
             audit(state, request, "UPDATE", "clone_fish", fish_id, old, fish)
-            return 200, _enrich_fish(state, fish)
+            return 200, enrich_fish(state, fish)
 
         return store.execute_mutation(request, body, operation)
 
@@ -462,15 +404,39 @@ def build_fish_router(store: Store) -> APIRouter:
             for field in ("specimenCode", "specimenKind", "specimenType"):
                 if not body.get(field):
                     raise APIError(422, "validation_error", f"ต้องระบุ {field}")
-            if body["specimenKind"] not in {"CL", "RT", "DC"} or body["specimenType"] not in {
-                "WHOLE_EMBRYO",
-                "CAUDAL_FIN_CLIP",
-            }:
+            if body["specimenKind"] not in SPECIMEN_KINDS or body["specimenType"] not in SPECIMEN_TYPES:
                 raise APIError(422, "validation_error", "specimenKind หรือ specimenType ไม่ถูกต้อง")
-            if any(item.get("specimenCode") == body["specimenCode"] for item in state.entities["specimens"].values()):
+            collected_on = _specimen_date(body.get("collectedOn"), "collectedOn")
+            frozen_on = _specimen_date(body.get("frozenOn"), "frozenOn")
+            if collected_on and collected_on > datetime.now(BANGKOK).date():
+                raise APIError(422, "validation_error", "collectedOn ห้ามอยู่ในอนาคต")
+            if frozen_on and frozen_on > datetime.now(BANGKOK).date():
+                raise APIError(422, "validation_error", "frozenOn ห้ามอยู่ในอนาคต")
+            if frozen_on and collected_on and frozen_on < collected_on:
+                raise APIError(422, "validation_error", "frozenOn ต้องไม่ก่อน collectedOn")
+            if body.get("storage") not in (None, "") and not frozen_on:
+                raise APIError(422, "validation_error", "ต้องระบุ frozenOn เมื่อระบุ storage")
+            if body.get("storage") not in (None, "") and body["storage"] not in SPECIMEN_STORAGES:
+                raise APIError(422, "validation_error", "storage ต้องเป็น -20 หรือ -80")
+            code = str(body["specimenCode"]).casefold()
+            if any(
+                str(item.get("specimenCode", "")).casefold() == code for item in state.entities["specimens"].values()
+            ):
                 raise APIError(409, "conflict", "specimenCode ซ้ำ")
             item_id = uuid7()
-            specimen = {**body, "id": item_id, "cloneFishId": fish_id, "active": True, "createdAt": iso_now()}
+            specimen = {
+                "id": item_id,
+                "cloneFishId": fish_id,
+                "specimenCode": str(body["specimenCode"]),
+                "specimenKind": body["specimenKind"],
+                "specimenType": body["specimenType"],
+                "collectedOn": collected_on.isoformat() if collected_on else None,
+                "frozenOn": frozen_on.isoformat() if frozen_on else None,
+                "storage": body.get("storage") or None,
+                "notes": body.get("notes"),
+                "active": True,
+                "createdAt": iso_now(),
+            }
             state.entities["specimens"][item_id] = specimen
             audit(state, request, "INSERT", "specimen", item_id, None, specimen)
             if body.get("markFinClipped"):
@@ -497,26 +463,36 @@ def build_fish_router(store: Store) -> APIRouter:
                 continue
             if siteId and fish.get("siteId") != siteId or boxId and fish.get("fishBoxId") != boxId:
                 continue
+            dob = date.fromisoformat(fish["dob"])
+            if observed_date < dob or not fish_was_alive_on(fish, observed_date):
+                continue
             embryo = state.entities["embryos"].get(str(fish.get("embryoId")), {})
             lot = state.entities["injection-lots"].get(str(embryo.get("injectionLotId")), {})
             donor = state.entities["donor-cell-lines"].get(str(lot.get("donorCellLineId")), {})
             box = state.entities["fish-boxes"].get(str(fish.get("fishBoxId")), {})
+            recorded = next(
+                (
+                    item
+                    for item in state.fish_observations.values()
+                    if item.get("cloneFishId") == fish["id"]
+                    and item.get("observedOn") == value
+                    and item.get("deletedAt") is None
+                ),
+                None,
+            )
             items.append(
                 {
                     "fishId": fish["id"],
                     "fishCode": fish["fishCode"],
                     "injectionLotId": lot.get("id"),
                     "ageDays": age_days_on(date.fromisoformat(fish["dob"]), observed_date),
-                    "status": fish["status"],
+                    "status": "ALIVE",
                     "condition": fish["condition"],
                     "strain": donor.get("strain"),
                     "fishBoxCode": box.get("boxCode"),
-                    "alreadyRecorded": any(
-                        item.get("cloneFishId") == fish["id"]
-                        and item.get("observedOn") == value
-                        and item.get("deletedAt") is None
-                        for item in state.fish_observations.values()
-                    ),
+                    "alreadyRecorded": recorded is not None,
+                    "observationId": recorded.get("id") if recorded else None,
+                    "recordedOutcome": recorded.get("outcome") if recorded else None,
                     "firstAbnormalOn": fish.get("firstAbnormalOn"),
                     "firstAbnormalAgeDays": fish.get("firstAbnormalAgeDays"),
                 }
@@ -540,6 +516,16 @@ def build_fish_router(store: Store) -> APIRouter:
                 except ValueError:
                     results.append(
                         {"clientUuid": client_id, "status": "rejected", "error": {"message": "ข้อมูลบังคับไม่ครบ"}}
+                    )
+                    continue
+                unknown = set(item) - FISH_OBSERVATION_CREATE_FIELDS
+                if unknown:
+                    results.append(
+                        {
+                            "clientUuid": client_id,
+                            "status": "rejected",
+                            "error": {"message": f"field นี้ไม่ได้รับอนุญาต: {sorted(unknown)[0]}"},
+                        }
                     )
                     continue
                 fish = state.entities["fish"].get(str(item.get("cloneFishId")))
@@ -606,8 +592,14 @@ def build_fish_router(store: Store) -> APIRouter:
                     continue
                 observation_id = uuid7()
                 observation = {
-                    **item,
                     "id": observation_id,
+                    "clientUuid": client_id,
+                    "cloneFishId": fish["id"],
+                    "observedOn": observed.isoformat(),
+                    "outcome": item["outcome"],
+                    "condition": item["condition"],
+                    "notes": item.get("notes"),
+                    "overrideReason": item.get("overrideReason"),
                     "operatorId": request.headers.get("X-Operator-Id"),
                     "deviceId": request.headers.get("X-Device-Id"),
                     "isBackdated": backdated,
@@ -616,7 +608,7 @@ def build_fish_router(store: Store) -> APIRouter:
                 }
                 state.fish_observations[observation_id] = observation
                 old_fish = copy.deepcopy(fish)
-                _recompute_fish(state, fish["id"])
+                recompute_fish(state, fish["id"])
                 audit(state, request, "INSERT", "fish_observation", observation_id, None, observation)
                 if old_fish != fish:
                     audit(state, request, "UPDATE", "clone_fish", fish["id"], old_fish, fish)
@@ -638,7 +630,7 @@ def build_fish_router(store: Store) -> APIRouter:
 
         def operation(state: State):
             observation = state.fish_observations.get(observation_id)
-            if not observation:
+            if not observation or observation.get("deletedAt") is not None:
                 raise APIError(404, "not_found", "ไม่พบ observation")
             old = copy.deepcopy(observation)
             if request.method == "DELETE":
@@ -647,10 +639,20 @@ def build_fish_router(store: Store) -> APIRouter:
                 observation.update({"deletedAt": iso_now(), "overrideReason": reason.strip(), "updatedAt": iso_now()})
                 status, result, action = 204, b"", "DELETE"
             else:
+                unknown = set(payload) - FISH_OBSERVATION_PATCH_FIELDS
+                if unknown:
+                    raise APIError(422, "validation_error", f"แก้ไข field นี้ไม่ได้: {sorted(unknown)[0]}")
                 correction = str(payload.get("overrideReason") or payload.get("correctionReason") or "").strip()
                 if not correction:
                     raise APIError(422, "validation_error", "ต้องระบุ correctionReason")
-                candidate = {**observation, **{key: value for key, value in payload.items() if key != "id"}}
+                candidate = {
+                    **observation,
+                    **{
+                        key: value
+                        for key, value in payload.items()
+                        if key in {"observedOn", "outcome", "condition", "notes"}
+                    },
+                }
                 if not fish_outcome_valid(str(candidate.get("outcome"))) or not condition_valid(
                     str(candidate.get("condition"))
                 ):
@@ -671,7 +673,7 @@ def build_fish_router(store: Store) -> APIRouter:
                 status, result, action = 200, observation, "UPDATE"
             fish_id = str(observation["cloneFishId"])
             old_fish = copy.deepcopy(state.entities["fish"].get(fish_id, {}))
-            _recompute_fish(state, fish_id)
+            recompute_fish(state, fish_id)
             audit(state, request, action, "fish_observation", observation_id, old, observation)
             if old_fish != state.entities["fish"].get(fish_id):
                 audit(state, request, "UPDATE", "clone_fish", fish_id, old_fish, state.entities["fish"][fish_id])

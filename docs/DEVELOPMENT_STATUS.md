@@ -1,7 +1,7 @@
 # ChronoFish Development Status
 
-> อัปเดตล่าสุด: 23 สิงหาคม 2026  
-> Branch: `feat/phase-5-network-resilience`
+> อัปเดตล่าสุด: 24 สิงหาคม 2026
+> Branch: `feat/phase-6-promotion-fish`
 > Go baseline ก่อนย้ายภาษา: `6adc25e`
 
 ## สรุปสถานะ
@@ -18,6 +18,8 @@ Phase 4 — Due Now และ Embryo Checkpoint Entry implement ครบตา�
 
 Phase 5 — Network Resilience implement ครบตาม automated checklist แล้ว: ทุก mutation มี idempotency contract และ transaction-safe replay ที่คืน status/body เดิม (observation UUID ซ้ำคืน HTTP 200 ตาม AC-1003), frontend มี durable IndexedDB queue, logical-write dedupe, optimistic status, exponential backoff/jitter, durable rejection review, beforeunload guard และ app-shell Service Worker; เหลือการทดสอบ UAT T-06/T-07 และ AC-1002/AC-1003 บน Safari iPad จริง
 
+Phase 6 — Promotion, Fish Registry, Daily Roll-call และ Specimen implement ครบตาม automated checklist แล้ว: pending/bulk promotion แบบ transaction เดียว, DOB/running number/ABNORMAL inheritance, fish registry/detail, historical risk-set roll-call, backdate แบบช่วงวันพร้อม audit reason, state transition/recalculation, correction/audit และ specimen validation; เหลือ UAT T-09 ถึง T-14 บนอุปกรณ์จริง
+
 ## สิ่งที่ implement แล้ว
 
 - API ครบ 70 operations: master data, timing profile, batch/lot/embryo, copied-lot activation, observations, promotion/fish, analytics, audit และ export
@@ -32,7 +34,7 @@ Phase 5 — Network Resilience implement ครบตาม automated checklist 
 - Master Data UI มี loading/empty/error/retry states, แสดง queued-write conflict เป็น alert และ reload server state หลัง create/update/deactivate ถูก reject
 - keyboard focus ครอบคลุม controls, touch target ขั้นต่ำ 44×44 px และสีข้อความผ่าน contrast baseline 4.5:1 โดยสถานะสำคัญมีข้อความกำกับ
 - historical batch detail resolve Site, Operator, Treatment Group และ Donor Cell Line ที่ inactive ได้ โดย dropdown สร้างรายการใหม่ยังคืนเฉพาะ active ตาม FR-111
-- backend package แยกเป็น `api/routes`, `domain`, `runtime`, `store` และ `reporting`; ลบ `core.py` และโครงสร้าง Go ว่างออกจาก working tree
+- backend package แยกเป็น `api/routes`, `domain`, `services`, `runtime`, `store` และ `reporting`; fish state transition/read-model/update validation อยู่ใน service layer ที่ทดสอบผ่าน HTTP seam
 - Dockerfile แบบ non-root, Compose สำหรับ PostgreSQL/MySQL, native virtual-environment workflow และ Python CI
 - route-contract test เทียบ OpenAPI ทั้ง 70 operations และ pytest behavior/integration suite
 - Timing Profile API คืน canonical Stage Definition ครบ 36 รายการ, รองรับ partial override โดยสร้าง version เต็มชุดใหม่, ป้องกัน duplicate/ค่าติดลบ/NaN และ validate CSV ทั้งไฟล์ก่อนเขียนพร้อม row-level errors
@@ -50,17 +52,20 @@ Phase 5 — Network Resilience implement ครบตาม automated checklist 
 - monotonic survival, implied checkpoints, exit projection, correction และ soft delete ผ่าน audit/recalculation โดย snapshot เวลาอ้างอิงเดิมไม่เปลี่ยน
 - Phase 5 queue เก็บ payload/context/idempotency key แบบ durable ใน IndexedDB, dedupe logical write ที่ยังค้าง, drain แบบ single-flight, แยก 429/5xx/network retry ออกจาก 4xx rejection และให้ตรวจเหตุผล/เปิดหน้าที่เกี่ยวข้อง/ลบทิ้งได้หลัง reload
 - Phase 5 UI แสดง `บันทึกแล้ว` / `กำลังส่ง…` / `ค้าง N รายการ`, เตือนก่อนปิดแท็บ และ sync/reconcile จาก queue events
+- Phase 6 promotion API ตรวจ BR-09/BR-10/BR-12/BR-13/BR-14, สืบทอด abnormality, ตรวจ Fish Box และป้องกัน running number ซ้ำภายใต้ concurrent writes
+- Phase 6 fish API รองรับ historical risk set, partial update ที่ไม่ล้าง Fish Box, OpenAPI `finClipped`, age ตาม Bangkok date, filters/pagination, state recalculation หลัง correction/soft-delete และ specimen date/storage validation
+- SCR-07/SCR-08/SCR-09/SCR-10 รองรับ bulk promotion, fish registry/detail, one-request all-alive, per-fish outcome actions, backdate แบบช่วงวันพร้อมเหตุผล และ responsive 375 px layout
 
 ## ผลตรวจล่าสุด
 
 - `ruff format --check` และ `ruff check`: ผ่าน
-- pytest memory suite: 57 passed, 4 database-only tests skipped
-- domain coverage: 96.91% (เกณฑ์ 90%)
+- pytest memory suite: 64 passed, 5 database-only tests skipped
+- domain + service business-rule coverage: 90.00% (เกณฑ์ 90%)
 - PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–9, workflow เดิม, concurrent batch-code/live-well uniqueness และ concurrent observation/correction/soft-delete ใน PR #7
 - MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL รวม migration 9 และ Phase 4 concurrency/audit flow ใน PR #7
 - OpenAPI validation: 51 paths / 70 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
-- frontend: generated API/build ผ่าน และ 42 tests ผ่าน
+- frontend: generated API/build ผ่าน และ 47 tests ผ่าน
 - Compose configuration ทั้งสองไฟล์: ผ่าน
 - Docker image build: ผ่าน CI ของ PR #7; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
 

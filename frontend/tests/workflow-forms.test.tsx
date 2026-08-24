@@ -1,16 +1,17 @@
 // @vitest-environment happy-dom
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
+import { indexedDB as fakeIndexedDB } from 'fake-indexeddb'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Batches } from '../src/pages/batches'
 import { Fish } from '../src/pages/fish'
-import { Controls, Timing } from '../src/pages/settings'
+import { Controls, Promotions, Timing } from '../src/pages/settings'
 import { text } from '../src/types'
 
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
 
 describe('lab workflow forms', () => {
-  afterEach(() => { document.body.innerHTML = ''; vi.restoreAllMocks() })
+  afterEach(() => { if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('chronofish'); document.body.innerHTML = ''; vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
   it('exposes required batch fields and foreign-key selectors', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
@@ -142,6 +143,160 @@ describe('lab workflow forms', () => {
     await act(async () => { registryTab?.click(); await Promise.resolve() })
     expect(document.body.textContent).toContain('DOB from')
     expect(document.body.textContent).toContain('Treatment')
+    root.unmount()
+  })
+
+  it('confirms selected pending promotions in one bulk request', async () => {
+    const candidate = {
+      embryoId: 'embryo-1',
+      embryoCode: 'B-1_1_1',
+      dob: '2026-08-18',
+      strain: 'AB',
+      condition: 'ABNORMAL',
+      firstAbnormalStageLabel: 'Day 5',
+      suggestedFishCode: 'No.1_Clone1-AB cell-18',
+      suggestedRunningNo: 1,
+    }
+    let posted = false
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input)
+      if (path.includes('/promotions/pending')) return json({ items: posted ? [] : [candidate] })
+      if (path.includes('/fish-boxes')) return json({ items: [{ id: 'box-1', boxCode: 'A1' }] })
+      if (path.endsWith('/promotions') && init?.method === 'POST') { posted = true; return json({ items: [{ status: 'created', fish: { id: 'fish-1' } }] }) }
+      return json({ items: [] })
+    })
+    vi.stubGlobal('indexedDB', fakeIndexedDB)
+    vi.stubGlobal('fetch', fetchMock)
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Promotions t={text.en} />); await Promise.resolve() })
+    const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement
+    await act(async () => { checkbox.click(); await Promise.resolve() })
+    const confirm = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Confirm selected'))
+    await act(async () => { confirm?.click(); await Promise.resolve() })
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(([input, init]) => String(input).includes('/promotions') && init?.method === 'POST')).toBe(true))
+
+    const post = fetchMock.mock.calls.find(([input, init]) => String(input).includes('/promotions') && init?.method === 'POST')
+    expect(post).not.toBeUndefined()
+    expect(JSON.parse(String(post?.[1]?.body)).promotions).toHaveLength(1)
+    expect(document.body.textContent).toContain('No eligible embryo promotions')
+    root.unmount()
+  })
+
+  it('sends all alive roll-call entries in one request', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.includes('/fish/roll-call')) return json({ items: [
+        { fishId: 'fish-1', fishCode: 'F-1', status: 'ALIVE', condition: 'NORMAL', alreadyRecorded: false },
+        { fishId: 'fish-2', fishCode: 'F-2', status: 'ALIVE', condition: 'ABNORMAL', alreadyRecorded: false },
+      ] })
+      return json({ items: [] })
+    })
+    vi.stubGlobal('indexedDB', fakeIndexedDB)
+    vi.stubGlobal('fetch', fetchMock)
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Fish t={text.en} />); await Promise.resolve() })
+    const allAlive = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'All alive')
+    await act(async () => { allAlive?.click(); await Promise.resolve() })
+    await vi.waitFor(() => expect(fetchMock.mock.calls.filter(([input, init]) => String(input).includes('/observations/fish') && init?.method === 'POST')).toHaveLength(1))
+
+    const posts = fetchMock.mock.calls.filter(([input, init]) => String(input).includes('/observations/fish') && init?.method === 'POST')
+    expect(posts).toHaveLength(1)
+    expect(JSON.parse(String(posts[0][1]?.body)).observations).toHaveLength(2)
+    root.unmount()
+  })
+
+  it('corrects an already-recorded roll-call outcome through the audit endpoint', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/fish/roll-call')) return json({ items: [{ fishId: 'fish-1', fishCode: 'F-1', status: 'ALIVE', condition: 'NORMAL', alreadyRecorded: true, observationId: 'observation-1', recordedOutcome: 'ALIVE' }] })
+      return json({ items: [] })
+    })
+    vi.stubGlobal('indexedDB', fakeIndexedDB)
+    vi.stubGlobal('fetch', fetchMock)
+    vi.stubGlobal('prompt', vi.fn(() => 'corrected after review'))
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Fish t={text.en} />); await Promise.resolve() })
+
+    const dead = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Dead')
+    await act(async () => { dead?.click(); await Promise.resolve() })
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(([input, init]) => String(input).includes('/observations/fish/observation-1') && init?.method === 'PATCH')).toBe(true))
+
+    const patchCall = fetchMock.mock.calls.find(([input, init]) => String(input).includes('/observations/fish/observation-1') && init?.method === 'PATCH')
+    expect(JSON.parse(String(patchCall?.[1]?.body))).toMatchObject({ outcome: 'DEAD', overrideReason: 'corrected after review' })
+    root.unmount()
+  })
+
+  it('sends a backdated roll-call range with an audit reason in one request', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes('/fish/roll-call')) {
+        return json({ items: [{ fishId: 'fish-1', fishCode: 'F-1', status: 'ALIVE', condition: 'NORMAL', alreadyRecorded: false }] })
+      }
+      return json({ items: [] })
+    })
+    vi.stubGlobal('indexedDB', fakeIndexedDB)
+    vi.stubGlobal('fetch', fetchMock)
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Fish t={text.en} />); await Promise.resolve() })
+
+    const setInput = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    const start = document.querySelector('input[name="rollCallStart"]') as HTMLInputElement
+    const end = document.querySelector('input[name="rollCallEnd"]') as HTMLInputElement
+    await act(async () => {
+      setInput?.call(start, '2026-08-20'); start.dispatchEvent(new Event('input', { bubbles: true }))
+      await Promise.resolve()
+      setInput?.call(end, '2026-08-22'); end.dispatchEvent(new Event('input', { bubbles: true }))
+      await Promise.resolve()
+    })
+    const reason = document.querySelector('input[name="rollCallOverrideReason"]') as HTMLInputElement
+    await act(async () => {
+      setInput?.call(reason, 'weekend closure'); reason.dispatchEvent(new Event('input', { bubbles: true }))
+      await Promise.resolve()
+    })
+    const allAlive = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'All alive')
+    await act(async () => { allAlive?.click(); await Promise.resolve() })
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(([input, init]) => String(input).includes('/observations/fish') && init?.method === 'POST')).toBe(true))
+
+    const post = fetchMock.mock.calls.find(([input, init]) => String(input).includes('/observations/fish') && init?.method === 'POST')
+    const observations = JSON.parse(String(post?.[1]?.body)).observations
+    expect(observations.map((item: { observedOn: string }) => item.observedOn)).toEqual(['2026-08-20', '2026-08-21', '2026-08-22'])
+    expect(observations.every((item: { overrideReason?: string }) => item.overrideReason === 'weekend closure')).toBe(true)
+    root.unmount()
+  })
+
+  it('collects an audit reason when manually registering an older fish', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.endsWith('/donor-cell-lines')) return json({ items: [{ id: 'donor-1', strain: 'AB' }] })
+      if (path.includes('/fish/roll-call')) return json({ items: [] })
+      return json({ items: [] })
+    })
+    vi.stubGlobal('indexedDB', fakeIndexedDB)
+    vi.stubGlobal('fetch', fetchMock)
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Fish t={text.en} />); await Promise.resolve() })
+    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Register fish')?.click(); await Promise.resolve() })
+
+    const setInput = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    const setSelect = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
+    const form = Array.from(document.querySelectorAll('form')).find((item) => item.textContent?.includes('Register clone fish')) as HTMLFormElement
+    const fishCode = Array.from(form.querySelectorAll('label')).find((label) => label.textContent?.startsWith('Fish code'))?.querySelector('input') as HTMLInputElement
+    const dob = Array.from(form.querySelectorAll('label')).find((label) => label.textContent?.startsWith('DOB'))?.querySelector('input') as HTMLInputElement
+    const donor = Array.from(form.querySelectorAll('label')).find((label) => label.textContent?.startsWith('Donor'))?.querySelector('select') as HTMLSelectElement
+    await act(async () => {
+      setInput?.call(fishCode, 'legacy-fish'); fishCode.dispatchEvent(new Event('input', { bubbles: true }))
+      setInput?.call(dob, '2026-08-20'); dob.dispatchEvent(new Event('input', { bubbles: true }))
+      setSelect?.call(donor, 'donor-1'); donor.dispatchEvent(new Event('change', { bubbles: true }))
+      await Promise.resolve()
+    })
+    const reason = form.querySelector('input[name="manualFishOverrideReason"]') as HTMLInputElement
+    await act(async () => {
+      setInput?.call(reason, 'migrated paper record'); reason.dispatchEvent(new Event('input', { bubbles: true }))
+      form.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true }))
+      await Promise.resolve()
+    })
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith('/fish') && init?.method === 'POST')).toBe(true))
+
+    const post = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/fish') && init?.method === 'POST')
+    expect(JSON.parse(String(post?.[1]?.body)).overrideReason).toBe('migrated paper record')
     root.unmount()
   })
 

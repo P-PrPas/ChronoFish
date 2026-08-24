@@ -2408,14 +2408,25 @@ components:
       properties:
         fishId: { type: string, format: uuid }
         fishCode: { type: string, examples: ['No.6_Clone3-AB cell-16'] }
+        injectionLotId: { type: [string, 'null'], format: uuid }
         ageDays: { type: integer, examples: [329] }
         status: { $ref: '#/components/schemas/FishStatus' }
         condition: { $ref: '#/components/schemas/Condition' }
+        strain: { type: [string, 'null'] }
+        firstAbnormalOn: { type: [string, 'null'], format: date }
         firstAbnormalAgeDays: { type: [integer, 'null'] }
         fishBoxCode: { type: [string, 'null'] }
         alreadyRecorded:
           type: boolean
           description: True when this date already has an observation, so the screen can show it as done.
+        observationId:
+          type: [string, 'null']
+          format: uuid
+          description: Existing observation for this fish/date, used by the correction flow.
+        recordedOutcome:
+          oneOf:
+            - $ref: '#/components/schemas/FishOutcome'
+            - type: 'null'
 
     FishObservationInput:
       type: object

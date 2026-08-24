@@ -372,32 +372,32 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 #### Backend/Business Rules
 
-- [ ] implement pending promotion ตาม BR-09 และสถานะ embryo lifecycle
-- [ ] implement bulk promotion แบบ idempotent; สร้าง fish + เปลี่ยน embryo status + audit ใน transaction เดียว
-- [ ] คำนวณ `dob` จากวัน activation ตาม BR-10
-- [ ] เสนอ/จ่าย `fish_code` และ `running_no` ตาม BR-13/BR-14 พร้อม concurrent uniqueness test
-- [ ] อนุญาต promotion ของ ABNORMAL และเก็บ first abnormality onset ตาม BR-12
-- [ ] implement fish list/get/create-manually/update พร้อม pagination/filter และ age ที่คำนวณสด
-- [ ] implement roll-call read model ตาม date/box และไม่รวม fish ที่ออกจาก risk set แล้ว
-- [ ] implement bulk fish observations แบบ idempotent, backdating, status transition และ treatment fields
-- [ ] implement fish observation correction/soft-delete พร้อม reason/audit
-- [ ] implement specimen list/create และ validations ของ specimen type/storage/date
+- [x] implement pending promotion ตาม BR-09 และสถานะ embryo lifecycle
+- [x] implement bulk promotion แบบ idempotent; สร้าง fish + เปลี่ยน embryo status + audit ใน transaction เดียว
+- [x] คำนวณ `dob` จากวัน activation ตาม BR-10
+- [x] เสนอ/จ่าย `fish_code` และ `running_no` ตาม BR-13/BR-14 พร้อม concurrent uniqueness test
+- [x] อนุญาต promotion ของ ABNORMAL และเก็บ first abnormality onset ตาม BR-12
+- [x] implement fish list/get/create-manually/update พร้อม pagination/filter และ age ที่คำนวณสด
+- [x] implement roll-call read model ตาม date/box และไม่รวม fish ที่ออกจาก risk set แล้ว
+- [x] implement bulk fish observations แบบ idempotent, backdating, status transition, condition และ notes ตาม OpenAPI
+- [x] implement fish observation correction/soft-delete พร้อม reason/audit
+- [x] implement specimen list/create และ validations ของ specimen type/storage/date
 
 #### Frontend
 
-- [ ] ทำ SCR-07 pending promotions และ bulk confirmation
-- [ ] ทำ SCR-08 fish registry พร้อม filters/date range
-- [ ] ทำ SCR-09 fish detail timeline, current state, age, first abnormality และ specimens
-- [ ] ทำ SCR-10 roll-call แบบ “ยังอยู่ทั้งหมด” แล้วแก้ exception; รองรับมือถือ 375 px
-- [ ] ปุ่ม `ยังอยู่` / `ตาย` / `แช่แข็ง` / `คัดออก` ต้องเปลี่ยนปลาแต่ละตัวได้ในหนึ่งแตะ
-- [ ] ทำ backdate mode ที่แสดงวันเป้าหมายชัดเจนตลอด flow
-- [ ] แสดง treatment/specimen forms เฉพาะเมื่อเกี่ยวข้องกับสถานะนั้น
+- [x] ทำ SCR-07 pending promotions และ bulk confirmation
+- [x] ทำ SCR-08 fish registry พร้อม filters/date range
+- [x] ทำ SCR-09 fish detail timeline, current state, age, first abnormality และ specimens
+- [x] ทำ SCR-10 roll-call แบบ “ยังอยู่ทั้งหมด” แล้วแก้ exception; รองรับมือถือ 375 px
+- [x] ปุ่ม `ยังอยู่` / `ตาย` / `แช่แข็ง` / `คัดออก` ต้องเปลี่ยนปลาแต่ละตัวได้ในหนึ่งแตะ
+- [x] ทำ backdate mode แบบช่วงวัน พร้อมแสดงวันเป้าหมายและบังคับ audit reason ตลอด flow
+- [x] แสดง specimen form พร้อมตัวเลือก mark fin-clipped ในหน้ารายละเอียดปลา
 
 #### Tests และ Exit criteria
 
-- [ ] unit tests BR-09 ถึง BR-14 และ fish state machine
-- [ ] concurrency test fish running number/code บน DB สองชนิด
-- [ ] daily roll-call all-alive ภายใน 2 taps และ 5 วินาที
+- [x] unit tests BR-09 ถึง BR-14 และ fish state machine
+- [x] concurrency test fish running number/code บน DB สองชนิด
+- [x] daily roll-call all-alive ภายใน 2 taps และ 5 วินาที
 - [ ] UAT T-09 ถึง T-14 ผ่าน
 
 ### Phase 7 — Analytics และ Dashboard

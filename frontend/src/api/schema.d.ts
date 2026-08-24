@@ -1657,14 +1657,25 @@ export interface components {
             fishId: string;
             /** @example No.6_Clone3-AB cell-16 */
             fishCode: string;
+            /** Format: uuid */
+            injectionLotId?: string | null;
             /** @example 329 */
             ageDays: number;
             status: components["schemas"]["FishStatus"];
             condition: components["schemas"]["Condition"];
+            strain?: string | null;
+            /** Format: date */
+            firstAbnormalOn?: string | null;
             firstAbnormalAgeDays?: number | null;
             fishBoxCode?: string | null;
             /** @description True when this date already has an observation, so the screen can show it as done. */
             alreadyRecorded: boolean;
+            /**
+             * Format: uuid
+             * @description Existing observation for this fish/date, used by the correction flow.
+             */
+            observationId?: string | null;
+            recordedOutcome?: components["schemas"]["FishOutcome"] | null;
         };
         FishObservationInput: {
             /** Format: uuid */

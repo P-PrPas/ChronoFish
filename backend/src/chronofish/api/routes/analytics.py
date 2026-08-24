@@ -11,8 +11,8 @@ from fastapi import APIRouter, Query, Request
 from ...domain.rules import age_days_on, round4, stage_code, stage_label, stage_number
 from ...domain.state import State
 from ...runtime.values import parse_datetime, utc_now
+from ...services.fish import enrich_fish
 from ...store import Store
-from .fish import _enrich_fish
 from .observations import _expected_hpa
 
 BANGKOK = ZoneInfo("Asia/Bangkok")
@@ -67,7 +67,7 @@ def filtered_fish(state: State, query: dict[str, str]) -> dict[str, dict[str, An
     for fish_id, fish in state.entities["fish"].items():
         if fish.get("active") is False or fish.get("deletedAt") is not None:
             continue
-        enriched = _enrich_fish(state, fish)
+        enriched = enrich_fish(state, fish)
         simple = {
             "status": "status",
             "siteId": "siteId",
