@@ -1,6 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { type ApiItem, get } from '../api/client'
 import { putQueue, type QueuedWrite } from '../offline'
+import { parseFilters, withFilters } from '../filters'
 import { type AppText } from '../types'
 import { Empty, ErrorMessage, ReportTable } from '../components'
 import { uuidv7 } from '../uuidv7'
@@ -23,7 +24,8 @@ const dateRange = (start: string, end: string) => {
 }
 
 export function Fish({ t }: { t: AppText }) {
-  const [mode, setMode] = useState<'rollcall' | 'registry'>('rollcall')
+  const [dashboardFilters] = useState(() => parseFilters())
+  const [mode, setMode] = useState<'rollcall' | 'registry'>(() => Object.keys(dashboardFilters).length ? 'registry' : 'rollcall')
   const [date, setDate] = useState(bangkokDate())
   const [endDate, setEndDate] = useState(bangkokDate())
   const [backdateReason, setBackdateReason] = useState('')
@@ -34,7 +36,7 @@ export function Fish({ t }: { t: AppText }) {
   const [showCreate, setShowCreate] = useState(false)
   const [outcomesByFish, setOutcomesByFish] = useState<Record<string, FishOutcome>>({})
   const [search, setSearch] = useState('')
-  const [filters, setFilters] = useState({ siteId: '', boxId: '', status: '', strain: '', treatmentGroupId: '', dobFrom: '', dobTo: '' })
+  const [filters, setFilters] = useState({ siteId: dashboardFilters.siteId ?? '', boxId: '', status: '', strain: dashboardFilters.strain ?? '', treatmentGroupId: dashboardFilters.treatmentGroupId ?? '', dobFrom: '', dobTo: '' })
   const [masters, setMasters] = useState<Record<string, ApiItem[]>>({ sites: [], 'fish-boxes': [], 'treatment-groups': [] })
 
   const loadRollCall = useCallback(() => {
@@ -43,8 +45,8 @@ export function Fish({ t }: { t: AppText }) {
     }).catch((e: Error) => setError(e.message))
   }, [date])
   const loadRegistry = useCallback(() => {
-    void get('/fish?includeInactive=true').then((data) => setRegistry(data.items ?? [])).catch((e: Error) => setError(e.message))
-  }, [])
+    void get(withFilters('/fish?includeInactive=true', dashboardFilters)).then((data) => setRegistry(data.items ?? [])).catch((e: Error) => setError(e.message))
+  }, [dashboardFilters])
   useEffect(() => {
     void Promise.all(['sites', 'fish-boxes', 'treatment-groups'].map(async (resource) => [resource, (await get(`/${resource}`)).items ?? []] as [string, ApiItem[]]))
       .then((result) => setMasters(Object.fromEntries(result))).catch(() => undefined)

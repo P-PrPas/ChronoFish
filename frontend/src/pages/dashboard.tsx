@@ -10,16 +10,46 @@ import { type AppText, type Page } from "../types";
 import { ErrorMessage, Metric, ReportPanel, ReportTable } from "../components";
 
 type DashboardTab = "stage1" | "stage2" | "overall";
+type AnalyticsMeta = {
+  sampleSize?: number;
+  denominators?: Record<string, number>;
+  unknown?: Record<string, number>;
+  missing?: Record<string, number>;
+};
 type DashboardData = {
   kpi: ApiItem | null;
+  kpiMeta: AnalyticsMeta | null;
   funnel: ApiItem[];
+  funnelMeta: AnalyticsMeta | null;
   survival: ApiItem[];
+  survivalMeta: AnalyticsMeta | null;
   deviation: ApiItem[];
+  deviationMeta: AnalyticsMeta | null;
   abnormality: ApiItem[];
+  abnormalityMeta: AnalyticsMeta | null;
   fishSurvival: ApiItem[];
+  fishSurvivalMeta: AnalyticsMeta | null;
   gaps: ApiItem[];
+  gapsMeta: AnalyticsMeta | null;
   pipeline: ApiItem[];
+  pipelineMeta: AnalyticsMeta | null;
 };
+
+function responseMeta(response: ApiItem): AnalyticsMeta {
+  return (response.meta as AnalyticsMeta | undefined) ?? {};
+}
+
+function percent(value: unknown): string {
+  return value == null ? "Unknown" : `${(Number(value) * 100).toFixed(2)}%`;
+}
+
+function QualityNote({ meta }: { meta: AnalyticsMeta | null }) {
+  if (!meta) return null;
+  const unknown = Object.entries(meta.unknown ?? {}).map(([key, value]) => `${key}: ${value}`);
+  const missing = Object.entries(meta.missing ?? {}).map(([key, value]) => `${key}: ${value}`);
+  if (unknown.length === 0 && missing.length === 0) return null;
+  return <p className="table-note" role="status">Data quality — unknown: {unknown.join(", ") || "none"}; missing: {missing.join(", ") || "none"}.</p>;
+}
 
 function useMasterOptions(resource: string): ApiItem[] {
   const [items, setItems] = useState<ApiItem[]>([]);
@@ -224,13 +254,14 @@ export function FunnelChart({ points }: { points: ApiItem[] }) {
 export function DeviationChart({ points }: { points: ApiItem[] }) {
   if (points.length === 0) return null;
   const width = 560;
-  const height = 150;
-  const max = Math.max(
-    0.25,
-    ...points.map((point) => Math.abs(Number(point.meanDeviationH ?? 0))),
-  );
-  const axis = height / 2;
-  const barWidth = Math.max(4, (width - 32) / points.length - 3);
+  const height = 180;
+  const values = points.flatMap((point) => [Number(point.minDeviationH ?? 0), Number(point.maxDeviationH ?? 0)]);
+  const min = Math.min(0, ...values);
+  const max = Math.max(0, ...values);
+  const span = Math.max(0.5, max - min);
+  const y = (value: number) => 14 + ((max - value) / span) * (height - 34);
+  const slotWidth = (width - 28) / points.length;
+  const axis = y(0);
   return (
     <svg
       className="chart"
@@ -247,21 +278,25 @@ export function DeviationChart({ points }: { points: ApiItem[] }) {
         opacity=".35"
       />
       {points.map((point, index) => {
-        const value = Number(point.meanDeviationH ?? 0);
-        const barHeight = (Math.abs(value) / max) * (axis - 24);
-        const x = 16 + index * (barWidth + 3);
-        const y = value >= 0 ? axis - barHeight : axis;
+        const minimum = Number(point.minDeviationH ?? 0);
+        const q1 = Number(point.q1DeviationH ?? point.medianDeviationH ?? 0);
+        const median = Number(point.medianDeviationH ?? 0);
+        const q3 = Number(point.q3DeviationH ?? point.medianDeviationH ?? 0);
+        const maximum = Number(point.maxDeviationH ?? 0);
+        const mean = Number(point.meanDeviationH ?? 0);
+        const x = 14 + slotWidth * (index + 0.5);
+        const boxWidth = Math.max(4, Math.min(18, slotWidth * 0.65));
         return (
-          <rect
-            key={`${String(point.stageOrder)}-${String(point.treatmentGroup ?? "")}-${index}`}
-            x={x}
-            y={y}
-            width={barWidth}
-            height={Math.max(1, barHeight)}
-            fill={value >= 0 ? "#f2a65a" : "#6dc5b0"}
-          >
-            <title>{`${String(point.treatmentGroup ?? point.strain ?? "All")} · ${String(point.stageLabel ?? point.stageOrder)}: ${value.toFixed(4)} h`}</title>
-          </rect>
+          <g key={`${String(point.stageOrder)}-${String(point.treatmentGroup ?? "")}-${index}`}>
+            <line x1={x} y1={y(maximum)} x2={x} y2={y(minimum)} stroke="currentColor" />
+            <line x1={x - boxWidth / 3} y1={y(maximum)} x2={x + boxWidth / 3} y2={y(maximum)} stroke="currentColor" />
+            <line x1={x - boxWidth / 3} y1={y(minimum)} x2={x + boxWidth / 3} y2={y(minimum)} stroke="currentColor" />
+            <rect x={x - boxWidth / 2} y={y(q3)} width={boxWidth} height={Math.max(1, y(q1) - y(q3))} fill="#f2a65a" fillOpacity=".35" stroke="currentColor" />
+            <line x1={x - boxWidth / 2} y1={y(median)} x2={x + boxWidth / 2} y2={y(median)} stroke="currentColor" strokeWidth="2" />
+            <circle cx={x} cy={y(mean)} r="2" fill="#6dc5b0">
+              <title>{`${String(point.treatmentGroup ?? point.strain ?? "All")} · ${String(point.stageLabel ?? point.stageOrder)}: median ${median.toFixed(4)} h`}</title>
+            </circle>
+          </g>
         );
       })}
       <text x="12" y="14">
@@ -308,54 +343,57 @@ export function Dashboard({
   );
   const [tab, setTab] = useState<DashboardTab>("stage1");
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DashboardData>({
     kpi: null,
+    kpiMeta: null,
     funnel: [],
+    funnelMeta: null,
     survival: [],
+    survivalMeta: null,
     deviation: [],
+    deviationMeta: null,
     abnormality: [],
+    abnormalityMeta: null,
     fishSurvival: [],
+    fishSurvivalMeta: null,
     gaps: [],
+    gapsMeta: null,
     pipeline: [],
+    pipelineMeta: null,
   });
   const load = useCallback(() => {
     setLoading(true);
     setError("");
-    void Promise.all([
-      get(withFilters("/analytics/kpi", filters)),
-      get(withFilters("/analytics/funnel", filters)),
-      get(withFilters("/analytics/survival", filters)),
-      get(withFilters("/analytics/timing-deviation", filters)),
-      get(withFilters("/analytics/abnormality-onset", filters)),
-      get(
-        withFilters("/analytics/fish-survival?splitByCondition=true", filters),
-      ),
-      get(withFilters("/analytics/observation-gaps", filters)),
-      get(withFilters("/analytics/pipeline", filters)),
-    ])
-      .then(
-        ([
+    void get(withFilters("/analytics/dashboard", filters))
+      .then((bundle) => {
+        const kpi = bundle.kpi as ApiItem;
+        const funnel = bundle.funnel as ApiItem;
+        const survival = bundle.survival as ApiItem;
+        const deviation = bundle.timingDeviation as ApiItem;
+        const abnormality = bundle.abnormalityOnset as ApiItem;
+        const fishSurvival = bundle.fishSurvival as ApiItem;
+        const gaps = bundle.observationGaps as ApiItem;
+        const pipeline = bundle.pipeline as ApiItem;
+        setData({
           kpi,
-          funnel,
-          survival,
-          deviation,
-          abnormality,
-          fishSurvival,
-          gaps,
-          pipeline,
-        ]) =>
-          setData({
-            kpi,
-            funnel: funnel.items ?? [],
-            survival: survival.items ?? [],
-            deviation: deviation.items ?? [],
-            abnormality: abnormality.items ?? [],
-            fishSurvival: fishSurvival.items ?? [],
-            gaps: gaps.items ?? [],
-            pipeline: pipeline.items ?? [],
-          }),
-      )
+          kpiMeta: responseMeta(kpi),
+          funnel: funnel.items ?? [],
+          funnelMeta: responseMeta(funnel),
+          survival: survival.items ?? [],
+          survivalMeta: responseMeta(survival),
+          deviation: deviation.items ?? [],
+          deviationMeta: responseMeta(deviation),
+          abnormality: abnormality.items ?? [],
+          abnormalityMeta: responseMeta(abnormality),
+          fishSurvival: fishSurvival.items ?? [],
+          fishSurvivalMeta: responseMeta(fishSurvival),
+          gaps: gaps.items ?? [],
+          gapsMeta: responseMeta(gaps),
+          pipeline: pipeline.items ?? [],
+          pipelineMeta: responseMeta(pipeline),
+        });
+      })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [filters]);
@@ -366,6 +404,10 @@ export function Dashboard({
   const changeFilters = (next: DashboardFilters) => {
     setFilters(next);
     updateFilterURL(next);
+  };
+  const openSource = (page: Page) => {
+    updateFilterURL(filters);
+    onNavigate(page);
   };
   const stage1 = data.kpi?.stage1 as ApiItem | undefined;
   const stage2 = data.kpi?.stage2 as ApiItem | undefined;
@@ -389,14 +431,15 @@ export function Dashboard({
         </button>
       </div>
       <FilterBar filters={filters} onChange={changeFilters} />
+      {loading && <p className="table-note dashboard-status" role="status">Loading dashboard analytics…</p>}
       {error && <ErrorMessage message={error} />}
-      {data.kpi && (
+      {data.kpi && !loading && (
         <div className="metric-grid">
           <Metric label="Activated" value={Number(stage1?.nActivated ?? 0)} />
           <Metric label="Reached Shield" value={Number(stage1?.nReachedShield ?? 0)} />
           <Metric label="Reached Day 1" value={Number(stage1?.nReachedDay1 ?? 0)} />
           <Metric label="Promoted" value={Number(stage1?.nPromoted ?? 0)} />
-          <Metric label="Normal %" value={`${(Number(stage1?.pctNormal ?? 0) * 100).toFixed(2)}%`} />
+          <Metric label="Normal %" value={percent(stage1?.pctNormal)} />
           <Metric label="Fish all" value={Number(stage2?.nFish ?? 0)} />
           <Metric label="Alive fish" value={Number(stage2?.nAlive ?? 0)} />
           <Metric label="Frozen" value={Number(stage2?.nFrozen ?? 0)} />
@@ -406,7 +449,7 @@ export function Dashboard({
           <Metric label="Abnormal" value={Number(stage2?.nAbnormal ?? 0)} />
           <Metric
             label="Mean age (alive)"
-            value={Number(stage2?.meanAgeDaysAlive ?? 0)}
+            value={stage2?.meanAgeDaysAlive == null ? "Unknown" : Number(stage2.meanAgeDaysAlive)}
           />
         </div>
       )}
@@ -438,9 +481,10 @@ export function Dashboard({
       </div>
       {tab === "stage1" && (
         <>
-          <ReportPanel title="Stage 1 survival curve">
+          <ReportPanel title="Stage 1 survival curve" loading={loading} empty={data.survival.length === 0} emptyMessage="No survival observations match these filters." sampleSize={data.survivalMeta?.sampleSize} quality={<QualityNote meta={data.survivalMeta} />}>
             <SurvivalChart points={data.survival} />
             <ReportTable
+              caption="Stage 1 survival by checkpoint"
               headers={[
                 "Site",
                 "Strain",
@@ -457,27 +501,39 @@ export function Dashboard({
                 String(point.stageLabel ?? point.stageOrder),
                 Number(point.riskSet ?? 0),
                 Number(point.alive ?? 0),
-                Number(point.surv ?? 0).toFixed(4),
+                point.surv == null ? "Unknown" : Number(point.surv).toFixed(4),
               ])}
             />
-            {data.survival.length === 0 && <NoData />}
+            <p className="table-note">Source records: <button type="button" className="inline-action" onClick={() => openSource("batches")}>Open filtered batches</button><button type="button" className="inline-action" onClick={() => openSource("due")}>Open embryo checkpoints</button></p>
           </ReportPanel>
-          <ReportPanel title="Attrition / abnormality onset">
+          <ReportPanel title="Attrition / abnormality onset" loading={loading} empty={data.funnelMeta?.sampleSize === 0 && data.abnormality.length === 0} emptyMessage="No attrition or abnormality observations match these filters." sampleSize={data.funnelMeta?.sampleSize} quality={<QualityNote meta={data.funnelMeta} />}>
             <FunnelChart points={data.funnel} />
             <ReportTable
+              caption="Attrition ranking by checkpoint"
+              headers={["Rank", "Stage", "At risk", "Dead"]}
+              rows={[...data.funnel]
+                .sort((left, right) => Number(right.nDead ?? 0) - Number(left.nDead ?? 0))
+                .map((point, index) => [
+                  index + 1,
+                  String(point.stageLabel ?? point.stageOrder),
+                  Number(point.riskSet ?? 0),
+                  Number(point.nDead ?? 0),
+                ])}
+            />
+            <ReportTable
+              caption="Abnormality onset by checkpoint"
               headers={["Stage", "n"]}
               rows={data.abnormality.map((point) => [
                 String(point.stageLabel ?? point.stageOrder),
                 Number(point.count ?? 0),
               ])}
             />
-            {data.abnormality.length === 0 && (
-              <NoData message="No abnormality has been recorded for this filter." />
-            )}
+            <QualityNote meta={data.abnormalityMeta} />
           </ReportPanel>
-          <ReportPanel title="Timing box plot / group comparison">
+          <ReportPanel title="Timing box plot / group comparison" loading={loading} empty={data.deviation.length === 0} emptyMessage="No timing deviations match these filters." sampleSize={data.deviationMeta?.sampleSize} quality={<QualityNote meta={data.deviationMeta} />}>
             <DeviationChart points={data.deviation} />
             <ReportTable
+              caption="Timing deviation by checkpoint and group"
               headers={[
                 "Group",
                 "Stage",
@@ -497,10 +553,11 @@ export function Dashboard({
                 Number(point.maxDeviationH ?? 0).toFixed(4),
               ])}
             />
-            {data.deviation.length === 0 && <NoData />}
+            <p className="table-note">Source records: <button type="button" className="inline-action" onClick={() => openSource("batches")}>Open filtered batches</button></p>
           </ReportPanel>
-          <ReportPanel title="SCNT / control comparison">
+          <ReportPanel title="SCNT / control comparison" loading={loading} empty={data.kpiMeta?.denominators?.stage1Condition === 0 && comparison.every((point) => Number(point.n ?? 0) === 0)} emptyMessage="No SCNT or control-arm counts match these filters." sampleSize={data.kpiMeta?.sampleSize} quality={<QualityNote meta={data.kpiMeta} />}>
             <ReportTable
+              caption="SCNT and control-arm comparison"
               headers={["Arm", "Stage", "n", "Normal", "Abnormal", "Normal %"]}
               rows={comparison.map((point) => [
                 String(point.armType),
@@ -508,20 +565,18 @@ export function Dashboard({
                 Number(point.n ?? 0),
                 Number(point.nNormal ?? 0),
                 Number(point.nAbnormal ?? 0),
-                `${(Number(point.pctNormal ?? 0) * 100).toFixed(2)}%`,
+                percent(point.pctNormal),
               ])}
             />
-            {comparison.length === 0 && (
-              <NoData message="No SCNT or control-arm counts match these filters." />
-            )}
           </ReportPanel>
         </>
       )}
       {tab === "stage2" && (
         <>
-          <ReportPanel title="Fish survival by age">
+          <ReportPanel title="Fish survival by age" loading={loading} empty={data.fishSurvival.length === 0} emptyMessage="No fish survival observations match these filters." sampleSize={data.fishSurvivalMeta?.sampleSize} quality={<QualityNote meta={data.fishSurvivalMeta} />}>
             <FishSurvivalChart points={data.fishSurvival} />
             <ReportTable
+              caption="Fish survival by age and condition"
               headers={[
                 "Condition",
                 "Strain",
@@ -548,13 +603,14 @@ export function Dashboard({
                 Number(point.nDiscarded ?? 0),
                 `${Number(point.nMale ?? 0)}/${Number(point.nFemale ?? 0)}`,
                 Number(point.nBoxes ?? 0),
-                Number(point.surv ?? 0).toFixed(4),
+                point.surv == null ? "Unknown" : Number(point.surv).toFixed(4),
               ])}
             />
-            {data.fishSurvival.length === 0 && <NoData />}
+            <p className="table-note">Source records: <button type="button" className="inline-action" onClick={() => openSource("fish")}>Open filtered fish registry</button></p>
           </ReportPanel>
-          <ReportPanel title="Observation gaps">
+          <ReportPanel title="Observation gaps" loading={loading} empty={data.gaps.length === 0} emptyMessage="No fish observation gaps for this filter." sampleSize={data.gapsMeta?.sampleSize} quality={<QualityNote meta={data.gapsMeta} />}>
             <ReportTable
+              caption="Fish observation gaps"
               headers={["Fish", "Last observed", "Missed days"]}
               rows={data.gaps.map((point) => [
                 String(point.fishCode ?? "—"),
@@ -562,29 +618,29 @@ export function Dashboard({
                 Number(point.missedDays ?? 0),
               ])}
             />
-            {data.gaps.length === 0 && (
-              <NoData message="No fish observation gaps for this filter." />
-            )}
+            <p className="table-note">Source records: <button type="button" className="inline-action" onClick={() => openSource("fish")}>Open fish records</button></p>
           </ReportPanel>
         </>
       )}
       {tab === "overall" && (
         <>
-          <ReportPanel title="Pipeline conversion">
+          <ReportPanel title="Pipeline conversion" loading={loading} empty={data.pipelineMeta?.sampleSize === 0} emptyMessage="No pipeline records match these filters." sampleSize={data.pipelineMeta?.sampleSize} quality={<QualityNote meta={data.pipelineMeta} />}>
             <ReportTable
+              caption="End-to-end pipeline conversion"
               headers={["Step", "n", "% previous", "% activated"]}
               rows={data.pipeline.map((point) => [
                 String(point.step),
                 Number(point.count ?? 0),
-                `${(Number(point.pctOfPrevious ?? 0) * 100).toFixed(2)}%`,
-                `${(Number(point.pctOfStart ?? 0) * 100).toFixed(2)}%`,
+                percent(point.pctOfPrevious),
+                percent(point.pctOfStart),
               ])}
             />
-            {data.pipeline.length === 0 && <NoData />}
+            <p className="table-note">Source records: <button type="button" className="inline-action" onClick={() => openSource("batches")}>Open batches</button><button type="button" className="inline-action" onClick={() => openSource("fish")}>Open fish registry</button></p>
           </ReportPanel>
-          <ReportPanel title="Timing deviation evidence">
+          <ReportPanel title="Timing deviation evidence" loading={loading} empty={data.deviation.length === 0} emptyMessage="No timing deviations match these filters." sampleSize={data.deviationMeta?.sampleSize} quality={<QualityNote meta={data.deviationMeta} />}>
             <DeviationChart points={data.deviation} />
             <ReportTable
+              caption="Timing deviation evidence"
               headers={["Stage", "n", "Mean H", "SD H"]}
               rows={data.deviation.map((point) => [
                 String(point.stageLabel ?? point.stageOrder),

@@ -62,6 +62,11 @@ def enrich_fish(state: State, fish: dict[str, Any]) -> dict[str, Any]:
     lot = state.entities["injection-lots"].get(str(embryo.get("injectionLotId")), {})
     batch = state.entities["batches"].get(str(lot.get("batchId")), {})
     result["treatmentGroupId"] = batch.get("treatmentGroupId")
+    treatment = state.entities["treatment-groups"].get(str(batch.get("treatmentGroupId")), {})
+    result["treatmentGroup"] = treatment.get("code")
+    result["batchId"] = batch.get("id")
+    result["batchCode"] = batch.get("batchCode")
+    result["operatorId"] = batch.get("operatorId")
     return result
 
 

@@ -9,6 +9,7 @@ import { operatorId, type ApiItem, get } from "../api/client";
 import { putQueue, type QueuedWrite } from "../offline";
 import { type AppText } from "../types";
 import { Empty, ErrorMessage } from "../components";
+import { parseFilters, withFilters } from "../filters";
 import {
   dateTimeLocalToRFC3339,
   formatBangkokDateTime,
@@ -43,15 +44,20 @@ const masterName = (items: ApiItem[] | undefined, id: unknown) => {
 };
 
 export function Batches({ t }: { t: AppText }) {
+  const [dashboardFilters] = useState(parseFilters);
   const [items, setItems] = useState<ApiItem[]>([]);
   const [selected, setSelected] = useState<ApiItem | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [message, setMessage] = useState("");
   const load = useCallback(() => {
-    void get("/batches")
-      .then((data) => setItems(data.items ?? []))
+    void get(withFilters("/batches", dashboardFilters))
+      .then((data) => {
+        const filtered = (data.items ?? []).filter((item) => !dashboardFilters.batchId || String(item.id) === dashboardFilters.batchId);
+        setItems(filtered);
+        if (dashboardFilters.batchId && filtered.length === 1) setSelected(filtered[0]);
+      })
       .catch((e: Error) => setMessage(e.message));
-  }, []);
+  }, [dashboardFilters]);
   useEffect(load, [load]);
   useEffect(() => {
     const refresh = () => load();

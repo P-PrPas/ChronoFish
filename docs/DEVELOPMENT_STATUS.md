@@ -1,12 +1,12 @@
 # ChronoFish Development Status
 
 > อัปเดตล่าสุด: 24 สิงหาคม 2026
-> Branch: `feat/phase-6-promotion-fish`
+> Branch: `feat/phase-7-analytics-dashboard`
 > Go baseline ก่อนย้ายภาษา: `6adc25e`
 
 ## สรุปสถานะ
 
-การย้าย backend จาก Go เป็น Python เสร็จแล้วใน source tree ปัจจุบัน โดยมี OpenAPI 3.1 จำนวน 70 operations ระบบใช้ Python 3.13+, FastAPI, SQLAlchemy synchronous, Uvicorn, PostgreSQL 16 เป็นฐานหลัก และ MySQL 8 เป็น compatibility target ส่วน Go runtime, Go tests และ Go CI ถูกถอดออกหลัง Python ผ่าน behavior, contract และ database integration gates
+การย้าย backend จาก Go เป็น Python เสร็จแล้วใน source tree ปัจจุบัน โดยมี OpenAPI 3.1 จำนวน 71 operations ระบบใช้ Python 3.13+, FastAPI, SQLAlchemy synchronous, Uvicorn, PostgreSQL 16 เป็นฐานหลัก และ MySQL 8 เป็น compatibility target ส่วน Go runtime, Go tests และ Go CI ถูกถอดออกหลัง Python ผ่าน behavior, contract และ database integration gates
 
 Frontend ยังคงเป็น Vite + React + TypeScript แบบ static SPA และใช้ generated types จาก `api/openapi.yaml` ซึ่งเป็น HTTP contract แหล่งเดียวของระบบ
 
@@ -20,9 +20,11 @@ Phase 5 — Network Resilience implement ครบตาม automated checklist 
 
 Phase 6 — Promotion, Fish Registry, Daily Roll-call และ Specimen implement ครบตาม automated checklist แล้ว: pending/bulk promotion แบบ transaction เดียว, DOB/running number/ABNORMAL inheritance, fish registry/detail, historical risk-set roll-call, backdate แบบช่วงวันพร้อม audit reason, state transition/recalculation, correction/audit และ specimen validation; เหลือ UAT T-09 ถึง T-14 บนอุปกรณ์จริง
 
+Phase 7 — Analytics และ Dashboard implement ครบใน automated scope แล้ว: calculation service แยกจาก HTTP routes, dashboard bundle จาก snapshot เดียว, shared filters, KPI/funnel/survival/timing box plot/attrition ranking/control comparison/fish survival/gaps/pipeline และ drill-down ที่รักษาตัวกรอง; เหลือ performance sign-off ด้วย SQL dataset 5 ปีจริงและ UAT บนอุปกรณ์จริง
+
 ## สิ่งที่ implement แล้ว
 
-- API ครบ 70 operations: master data, timing profile, batch/lot/embryo, copied-lot activation, observations, promotion/fish, analytics, audit และ export
+- API ครบ 71 operations: master data, timing profile, batch/lot/embryo, copied-lot activation, observations, promotion/fish, analytics, audit และ export
 - business rules 36 stages, HPA/deviation, Bangkok calendar age, backdated override, embryo/fish lifecycle และ promotion threshold
 - durable writes บน PostgreSQL/MySQL: transaction, audit, soft delete, idempotent replay/conflict และ fish running number ภายใต้ database lock
 - Python migration runner สำหรับ SQL versions 1–9 พร้อม migration lock และ dirty-state protection
@@ -36,7 +38,7 @@ Phase 6 — Promotion, Fish Registry, Daily Roll-call และ Specimen impleme
 - historical batch detail resolve Site, Operator, Treatment Group และ Donor Cell Line ที่ inactive ได้ โดย dropdown สร้างรายการใหม่ยังคืนเฉพาะ active ตาม FR-111
 - backend package แยกเป็น `api/routes`, `domain`, `services`, `runtime`, `store` และ `reporting`; fish state transition/read-model/update validation อยู่ใน service layer ที่ทดสอบผ่าน HTTP seam
 - Dockerfile แบบ non-root, Compose สำหรับ PostgreSQL/MySQL, native virtual-environment workflow และ Python CI
-- route-contract test เทียบ OpenAPI ทั้ง 70 operations และ pytest behavior/integration suite
+- route-contract test เทียบ OpenAPI ทั้ง 71 operations และ pytest behavior/integration suite
 - Timing Profile API คืน canonical Stage Definition ครบ 36 รายการ, รองรับ partial override โดยสร้าง version เต็มชุดใหม่, ป้องกัน duplicate/ค่าติดลบ/NaN และ validate CSV ทั้งไฟล์ก่อนเขียนพร้อม row-level errors
 - SCR-15 แสดง current/old HPA, version/ผู้แก้/เวลา/ค่าที่เปลี่ยน, ยืนยันก่อนสร้าง version และ preview CSV พร้อมปิดการ import เมื่อพบข้อผิดพลาดต่อแถว
 - acceptance test ของ AC-204/T-08 ยืนยันว่า observation และ batch เก่ายังคง profile snapshot เดิม ขณะที่ batch ใหม่ผูกกับ current profile ใหม่
@@ -59,13 +61,13 @@ Phase 6 — Promotion, Fish Registry, Daily Roll-call และ Specimen impleme
 ## ผลตรวจล่าสุด
 
 - `ruff format --check` และ `ruff check`: ผ่าน
-- pytest memory suite: 64 passed, 5 database-only tests skipped
-- domain + service business-rule coverage: 90.00% (เกณฑ์ 90%)
+- pytest memory suite: 73 passed, 5 database-only tests skipped
+- domain + service business-rule coverage: 91.01% (เกณฑ์ 90%)
 - PostgreSQL integration บน clean temporary cluster: ผ่าน migrations 1–9, workflow เดิม, concurrent batch-code/live-well uniqueness และ concurrent observation/correction/soft-delete ใน PR #7
 - MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL รวม migration 9 และ Phase 4 concurrency/audit flow ใน PR #7
-- OpenAPI validation: 51 paths / 70 operations ผ่าน
+- OpenAPI validation: 52 paths / 71 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
-- frontend: generated API/build ผ่าน และ 47 tests ผ่าน
+- frontend: generated API/build ผ่าน และ 48 tests ผ่าน
 - Compose configuration ทั้งสองไฟล์: ผ่าน
 - Docker image build: ผ่าน CI ของ PR #7; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
 

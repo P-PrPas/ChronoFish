@@ -16,6 +16,18 @@ def setup_embryo(client, write_headers, count=1):
     return batch, lot, lot["embryos"][0], activated
 
 
+def test_due_queue_honors_dashboard_batch_and_date_filters(client, write_headers):
+    batch, lot, _embryo, _activated = setup_embryo(client, write_headers)
+
+    matching = client.get(f"/api/v1/due-checkpoints?batchId={batch['id']}").json()
+    excluded_batch = client.get("/api/v1/due-checkpoints?batchId=00000000-0000-7000-8000-000000000999").json()
+    excluded_date = client.get("/api/v1/due-checkpoints?dateFrom=2999-01-01").json()
+
+    assert any(item["injectionLotId"] == lot["id"] for item in matching["overdue"] + matching["upcoming"])
+    assert excluded_batch["overdue"] + excluded_batch["upcoming"] == []
+    assert excluded_date["overdue"] + excluded_date["upcoming"] == []
+
+
 def test_due_and_checkpoint_read_models_track_original_and_surviving_embryos(client, write_headers):
     _batch, lot, _embryo, activated = setup_embryo(client, write_headers, count=3)
     observed = (datetime.fromisoformat(activated.replace("Z", "+00:00")) + timedelta(hours=1)).isoformat()

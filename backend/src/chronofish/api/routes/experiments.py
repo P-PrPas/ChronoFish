@@ -233,15 +233,21 @@ def build_experiments_router(store: Store) -> APIRouter:
     def list_batches(
         dateFrom: str | None = None,
         dateTo: str | None = None,
+        batchId: str | None = None,
         siteId: str | None = None,
         operatorId: str | None = None,
         treatmentGroupId: str | None = None,
+        donorCellLineId: str | None = None,
+        strain: str | None = None,
         cursor: str | None = None,
         limit: int = Query(100, ge=1, le=500),
     ) -> dict[str, Any]:
+        state = store.snapshot()
         items = []
-        for item in store.snapshot().entities["batches"].values():
+        for item in state.entities["batches"].values():
             if item.get("active") is False or item.get("deletedAt") is not None:
+                continue
+            if batchId and item.get("id") != batchId:
                 continue
             if dateFrom and str(item.get("experimentDate", "")) < dateFrom:
                 continue
@@ -253,6 +259,29 @@ def build_experiments_router(store: Store) -> APIRouter:
                 continue
             if treatmentGroupId and item.get("treatmentGroupId") != treatmentGroupId:
                 continue
+            if donorCellLineId or strain:
+                matching_lot = next(
+                    (
+                        lot
+                        for lot in state.entities["injection-lots"].values()
+                        if lot.get("batchId") == item.get("id")
+                        and lot.get("active") is not False
+                        and lot.get("deletedAt") is None
+                        and (not donorCellLineId or lot.get("donorCellLineId") == donorCellLineId)
+                        and (
+                            not strain
+                            or str(
+                                state.entities["donor-cell-lines"]
+                                .get(str(lot.get("donorCellLineId")), {})
+                                .get("strain", "")
+                            ).casefold()
+                            == strain.casefold()
+                        )
+                    ),
+                    None,
+                )
+                if matching_lot is None:
+                    continue
             items.append(copy.deepcopy(item))
         items.sort(key=lambda item: (str(item.get("experimentDate", "")), str(item.get("batchCode", ""))), reverse=True)
         try:
