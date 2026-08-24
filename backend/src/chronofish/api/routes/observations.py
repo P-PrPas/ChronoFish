@@ -186,7 +186,16 @@ def build_observations_router(store: Store) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
 
     @router.get("/due-checkpoints")
-    def due_checkpoints(siteId: str | None = None, operatorId: str | None = None) -> dict[str, Any]:
+    def due_checkpoints(
+        siteId: str | None = None,
+        operatorId: str | None = None,
+        batchId: str | None = None,
+        treatmentGroupId: str | None = None,
+        donorCellLineId: str | None = None,
+        strain: str | None = None,
+        dateFrom: str | None = None,
+        dateTo: str | None = None,
+    ) -> dict[str, Any]:
         state, now = store.snapshot(), utc_now()
         observed_order: dict[str, int] = {}
         for observation in state.observations.values():
@@ -202,7 +211,25 @@ def build_observations_router(store: Store) -> APIRouter:
             batch = state.entities["batches"].get(str(lot.get("batchId")))
             if not batch or batch.get("active") is False or batch.get("deletedAt") is not None:
                 continue
-            if siteId and batch.get("siteId") != siteId or operatorId and batch.get("operatorId") != operatorId:
+            donor = state.entities["donor-cell-lines"].get(str(lot.get("donorCellLineId")), {})
+            if (
+                siteId
+                and batch.get("siteId") != siteId
+                or operatorId
+                and batch.get("operatorId") != operatorId
+                or batchId
+                and batch.get("id") != batchId
+                or treatmentGroupId
+                and batch.get("treatmentGroupId") != treatmentGroupId
+                or donorCellLineId
+                and lot.get("donorCellLineId") != donorCellLineId
+                or strain
+                and str(donor.get("strain", "")).casefold() != strain.casefold()
+                or dateFrom
+                and str(batch.get("experimentDate", "")) < dateFrom
+                or dateTo
+                and str(batch.get("experimentDate", "")) > dateTo
+            ):
                 continue
             embryos = [
                 item

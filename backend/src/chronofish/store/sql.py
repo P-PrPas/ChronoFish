@@ -249,24 +249,23 @@ class SQLStore:
         return result
 
     def _hydrate_derived(self, state: State) -> None:
+        first_abnormal: dict[str, dict[str, Any]] = {}
         for observation in state.observations.values():
             embryo = state.entities["embryos"].get(str(observation.get("embryoId")))
             if embryo:
                 observation["injectionLotId"] = embryo.get("injectionLotId")
+            if observation.get("condition") != "ABNORMAL" or observation.get("deletedAt") is not None:
+                continue
+            embryo_id = str(observation.get("embryoId"))
+            current = first_abnormal.get(embryo_id)
+            key = (str(observation.get("observedAt")), str(observation.get("stageCode")))
+            if current is None or key < (str(current.get("observedAt")), str(current.get("stageCode"))):
+                first_abnormal[embryo_id] = observation
         for embryo in state.entities["embryos"].values():
-            abnormal = sorted(
-                (
-                    item
-                    for item in state.observations.values()
-                    if item.get("embryoId") == embryo["id"]
-                    and item.get("condition") == "ABNORMAL"
-                    and item.get("deletedAt") is None
-                ),
-                key=lambda item: (str(item.get("observedAt")), str(item.get("stageCode"))),
-            )
+            abnormal = first_abnormal.get(str(embryo["id"]))
             if abnormal:
-                embryo["firstAbnormalObservationId"] = abnormal[0]["id"]
-                embryo["firstAbnormalStageCode"] = abnormal[0]["stageCode"]
+                embryo["firstAbnormalObservationId"] = abnormal["id"]
+                embryo["firstAbnormalStageCode"] = abnormal["stageCode"]
 
     def _stage_ids(self, connection: Connection) -> dict[str, str]:
         return {

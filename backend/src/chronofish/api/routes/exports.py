@@ -14,8 +14,7 @@ from ...domain.rules import stage_code, stage_label, stage_number
 from ...domain.state import State
 from ...reporting.xlsx import Sheet, build_xlsx
 from ...runtime.values import iso_now
-from ...store import Store
-from .analytics import (
+from ...services.analytics import (
     checkpoint_status,
     filtered_batches,
     filtered_embryos,
@@ -24,6 +23,7 @@ from .analytics import (
     reached_count,
     stage_survival,
 )
+from ...store import Store
 
 
 def _text(value: Any) -> str:

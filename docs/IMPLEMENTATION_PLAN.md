@@ -411,7 +411,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [x] implement KPI, funnel, risk set/survival, timing deviation, abnormality onset, fish survival, observation gaps และ end-to-end pipeline
 - [x] ใช้ BR-15/BR-16/BR-17 เป็นสูตรเดียวใน service/query; ไม่เก็บเปอร์เซ็นต์คำนวณแล้วลง DB
 - [x] ระบุ denominator/unknown/missing data ใน response ให้ UI ไม่ตีความเอง
-- [x] ตรวจ query path ของ dataset จำลอง 5 ปีแล้ว; ไม่เพิ่ม index โดยไม่มี query-plan evidence
+- [x] ลด dashboard เหลือ snapshot/request เดียวและตัดการ hydrate observation แบบ O(embryo × observation)
 - [x] ยืนยันผล query เหมือนกันทั้ง PostgreSQL/MySQL ด้วย golden expectations เดียวกัน
 
 #### Frontend
@@ -430,7 +430,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 - [x] formula unit tests BR-15 ถึง BR-17 รวม zero denominator และ missing checkpoint
 - [x] golden analytics integration tests บนฐานข้อมูลสองชนิด
 - [x] ตรวจตัวเลขกับการนับด้วยมือจาก fixture
-- [x] โหลดข้อมูลจำลอง 5 ปีและ dashboard ครบ <3 วินาที
+- [ ] รัน performance sign-off บน SQL dataset ตาม NFR-7.2 จริง (500 batch / 50,000 embryo / 500,000 observation) และยืนยัน dashboard ครบ <3 วินาที; smoke fixture อัตโนมัติผ่านแล้วแต่ไม่นับแทน volume test
 - [x] UAT T-18 ผ่าน automated UI/API acceptance coverage
 
 ### Phase 8 — Excel, R-ready Table และ PDF Export

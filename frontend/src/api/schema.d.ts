@@ -858,6 +858,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/analytics/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Complete analytics dashboard from one consistent snapshot
+         * @description Bundles all dashboard panels so filters and counts cannot drift between requests.
+         */
+        get: operations["getAnalyticsDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/analytics/kpi": {
         parameters: {
             query?: never;
@@ -1869,8 +1889,8 @@ export interface components {
         };
         KpiResponse: {
             stage1: {
-                nBatches?: number;
-                nEggs?: number;
+                nBatches: number;
+                nEggs: number;
                 nActivated: number;
                 nReachedShield: number;
                 nReachedDay1: number;
@@ -1879,6 +1899,7 @@ export interface components {
                 pctNormal: number | null;
                 /** @description Fraction of filtered embryos/fish marked ABNORMAL; null when the denominator is zero. */
                 pctAbnormal?: number | null;
+                controlComparison: components["schemas"]["ControlComparisonPoint"][];
             };
             stage2: {
                 nFish: number;
@@ -1892,6 +1913,27 @@ export interface components {
                 meanAgeDaysAlive?: number | null;
             };
             meta: components["schemas"]["AnalyticsMeta"];
+        };
+        DashboardAnalyticsResponse: {
+            kpi: components["schemas"]["KpiResponse"];
+            funnel: paths["/analytics/funnel"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+            survival: paths["/analytics/survival"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+            timingDeviation: paths["/analytics/timing-deviation"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+            abnormalityOnset: paths["/analytics/abnormality-onset"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+            fishSurvival: paths["/analytics/fish-survival"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+            observationGaps: paths["/analytics/observation-gaps"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+            pipeline: paths["/analytics/pipeline"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+        };
+        ControlComparisonPoint: {
+            armType: components["schemas"]["ArmType"];
+            stageOrder: number;
+            stageCode: string;
+            stageLabel: string;
+            n: number;
+            nNormal: number;
+            nAbnormal: number;
+            pctNormal: number | null;
+            pctAbnormal: number | null;
         };
         AnalyticsMeta: {
             filters: {
@@ -1912,8 +1954,9 @@ export interface components {
             stageOrder: number;
             stageCode: string;
             stageLabel: string;
-            riskSet?: number;
+            riskSet: number;
             alive: number;
+            nDead: number;
             pctOfActivated: number | null;
         };
         SurvivalPoint: {
@@ -1946,9 +1989,11 @@ export interface components {
             /** @example 0.1333 */
             meanDeviationH: number;
             medianDeviationH: number;
+            q1DeviationH: number;
+            q3DeviationH: number;
             sdDeviationH?: number | null;
-            minDeviationH?: number;
-            maxDeviationH?: number;
+            minDeviationH: number;
+            maxDeviationH: number;
         };
         ExportRequest: {
             filters?: components["schemas"]["AnalyticsFilter"];
@@ -3318,6 +3363,12 @@ export interface operations {
             query?: {
                 siteId?: string;
                 operatorId?: string;
+                batchId?: string;
+                treatmentGroupId?: string;
+                donorCellLineId?: string;
+                strain?: string;
+                dateFrom?: string;
+                dateTo?: string;
             };
             header?: never;
             path?: never;
@@ -3860,6 +3911,34 @@ export interface operations {
                 };
             };
             409: components["responses"]["Conflict"];
+        };
+    };
+    getAnalyticsDashboard: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
+                 *     can swap panels without rebuilding its query state:
+                 *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
+                 *     `donorCellLineId`, `strain`, `batchId`.
+                 */
+                filters?: components["parameters"]["AnalyticsFilters"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dashboard analytics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardAnalyticsResponse"];
+                };
+            };
         };
     };
     getKpi: {

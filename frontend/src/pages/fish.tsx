@@ -25,7 +25,7 @@ const dateRange = (start: string, end: string) => {
 
 export function Fish({ t }: { t: AppText }) {
   const [dashboardFilters] = useState(() => parseFilters())
-  const [mode, setMode] = useState<'rollcall' | 'registry'>('rollcall')
+  const [mode, setMode] = useState<'rollcall' | 'registry'>(() => Object.keys(dashboardFilters).length ? 'registry' : 'rollcall')
   const [date, setDate] = useState(bangkokDate())
   const [endDate, setEndDate] = useState(bangkokDate())
   const [backdateReason, setBackdateReason] = useState('')

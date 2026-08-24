@@ -73,6 +73,31 @@ def test_dashboard_endpoints_return_complete_shapes(client, write_headers):
         assert set(response.json()["meta"]) == {"filters", "sampleSize", "denominators", "unknown", "missing"}
 
 
+def test_dashboard_bundle_uses_one_consistent_snapshot(client, store, monkeypatch):
+    original = store.snapshot
+    calls = 0
+
+    def counted_snapshot():
+        nonlocal calls
+        calls += 1
+        return original()
+
+    monkeypatch.setattr(store, "snapshot", counted_snapshot)
+    response = client.get("/api/v1/analytics/dashboard")
+    assert response.status_code == 200, response.text
+    assert set(response.json()) == {
+        "kpi",
+        "funnel",
+        "survival",
+        "timingDeviation",
+        "abnormalityOnset",
+        "fishSurvival",
+        "observationGaps",
+        "pipeline",
+    }
+    assert calls == 1
+
+
 def test_survival_returns_twenty_six_stages_and_fractional_survival(client, write_headers):
     setup_eligible_embryo(client, write_headers)
     rows = client.get("/api/v1/analytics/survival").json()["items"]
@@ -162,6 +187,8 @@ def test_manual_fish_is_not_counted_as_promoted_and_uses_unknown_metadata(client
     assert result["stage1"]["nPromoted"] == 0
     assert result["stage2"]["nFish"] == 1
     assert result["meta"]["unknown"]["fishSex"] == 1
+    filtered = client.get("/api/v1/analytics/kpi", params={"donorCellLineId": donor["id"]}).json()
+    assert filtered["stage2"]["nFish"] == 1
     fish_survival = client.get("/api/v1/analytics/fish-survival", params={"splitByCondition": True}).json()
     assert fish_survival["items"][0]["treatmentGroup"] == "ALL"
 
@@ -188,7 +215,7 @@ def test_zero_denominator_and_missing_checkpoint_are_explicit(client, write_head
     assert survival["meta"]["missing"]["stageCheckpoint"] >= len(lot["embryos"])
 
 
-def test_five_year_dashboard_fixture_stays_under_three_seconds(client, store):
+def test_dashboard_bundle_smoke_fixture_stays_under_three_seconds(client, store):
     today = datetime.now().date()
     with store.lock:
         store.state.entities["fish"] = {
@@ -207,17 +234,7 @@ def test_five_year_dashboard_fixture_stays_under_three_seconds(client, store):
             for index in range(500)
         }
     start = perf_counter()
-    for endpoint in (
-        "kpi",
-        "funnel",
-        "survival",
-        "timing-deviation",
-        "abnormality-onset",
-        "fish-survival",
-        "observation-gaps",
-        "pipeline",
-    ):
-        assert client.get(f"/api/v1/analytics/{endpoint}").status_code == 200
+    assert client.get("/api/v1/analytics/dashboard").status_code == 200
     assert perf_counter() - start < 3
 
 
@@ -238,3 +255,71 @@ def test_fish_survival_respects_dead_status_without_exit_date(client, store):
         }
     point = client.get("/api/v1/analytics/fish-survival").json()["items"][0]
     assert (point["atRisk"], point["alive"], point["surv"]) == (1, 0, 0)
+
+
+def test_nullable_egg_count_is_reported_without_breaking_kpi(client, write_headers):
+    batch, donor = create_batch(client, write_headers)
+    response = client.post(
+        f"/api/v1/batches/{batch['id']}/injection-lots",
+        headers=headers(write_headers, 540),
+        json={
+            "lotNo": "unknown-eggs",
+            "donorCellLineId": donor["id"],
+            "activatedAt": (datetime.now(UTC) - timedelta(hours=1)).isoformat(),
+            "nEggs": None,
+            "nActivated": 1,
+        },
+    )
+    assert response.status_code == 201, response.text
+    kpi = client.get("/api/v1/analytics/kpi")
+    assert kpi.status_code == 200, kpi.text
+    assert kpi.json()["stage1"]["nEggs"] == 0
+    assert kpi.json()["meta"]["missing"]["nEggs"] == 1
+
+
+def test_control_comparison_pairs_scnt_at_control_stage_and_keeps_zero_unknown(client, write_headers):
+    batch, _donor = create_batch(client, write_headers)
+    saved = client.put(
+        f"/api/v1/batches/{batch['id']}/control-arm-counts",
+        headers=headers(write_headers, 541),
+        json={
+            "items": [
+                {
+                    "armType": "IVF",
+                    "stageCode": "stage_03_4C",
+                    "nNormal": 0,
+                    "nAbnormal": 0,
+                }
+            ]
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    comparison = client.get("/api/v1/analytics/kpi", params={"batchId": batch["id"]}).json()["stage1"][
+        "controlComparison"
+    ]
+    stage_three = [item for item in comparison if item["stageOrder"] == 3]
+    assert {item["armType"] for item in stage_three} == {"SCNT", "IVF"}
+    ivf = next(item for item in stage_three if item["armType"] == "IVF")
+    assert ivf["pctNormal"] is None
+    assert ivf["pctAbnormal"] is None
+
+    second_batch = client.post(
+        "/api/v1/batches",
+        headers=headers(write_headers, 542),
+        json={
+            "experimentDate": "2026-08-21",
+            "siteId": batch["siteId"],
+            "operatorId": batch["operatorId"],
+            "protocolId": batch["protocolId"],
+            "treatmentGroupId": batch["treatmentGroupId"],
+        },
+    ).json()
+    client.put(
+        f"/api/v1/batches/{second_batch['id']}/control-arm-counts",
+        headers=headers(write_headers, 543),
+        json={"items": [{"armType": "IVF", "stageCode": "stage_03_4C", "nNormal": 2, "nAbnormal": 1}]},
+    )
+    aggregated = client.get("/api/v1/analytics/kpi").json()["stage1"]["controlComparison"]
+    ivf_rows = [item for item in aggregated if item["stageOrder"] == 3 and item["armType"] == "IVF"]
+    assert len(ivf_rows) == 1
+    assert (ivf_rows[0]["n"], ivf_rows[0]["nNormal"], ivf_rows[0]["nAbnormal"]) == (3, 2, 1)

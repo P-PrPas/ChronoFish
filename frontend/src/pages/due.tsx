@@ -5,6 +5,7 @@ import { type AppText } from '../types'
 import { Empty, ErrorMessage } from '../components'
 import { dateTimeLocalToRFC3339, rfc3339ToDateTimeLocal } from '../time'
 import { uuidv7 } from '../uuidv7'
+import { parseFilters, withFilters } from '../filters'
 
 type EmbryoOutcome = 'ALIVE' | 'DEAD' | 'DEGENERATED' | 'NOT_OBSERVED'
 type ObservationDraft = { embryoId?: unknown; [key: string]: unknown }
@@ -43,20 +44,19 @@ export function checkpointTiming(activatedAt: string, observedAt: string, expect
 }
 
 export function Due({ t }: { t: AppText }) {
+  const [dashboardFilters] = useState(parseFilters)
   const [data, setData] = useState<ApiItem>({ overdue: [], upcoming: [] })
   const [selected, setSelected] = useState<ApiItem | null>(null)
-  const [siteId, setSiteId] = useState('')
-  const [selectedOperatorId, setSelectedOperatorId] = useState('')
+  const [siteId, setSiteId] = useState(dashboardFilters.siteId ?? '')
+  const [selectedOperatorId, setSelectedOperatorId] = useState(dashboardFilters.operatorId ?? '')
   const [masters, setMasters] = useState<Record<string, ApiItem[]>>({ sites: [], operators: [] })
   const [error, setError] = useState('')
   const load = useCallback(() => {
-    const query = new URLSearchParams()
-    if (siteId) query.set('siteId', siteId)
-    if (selectedOperatorId) query.set('operatorId', selectedOperatorId)
-    void get(`/due-checkpoints${query.size ? `?${query}` : ''}`).then((value) => {
+    const filters = { ...dashboardFilters, siteId: siteId || undefined, operatorId: selectedOperatorId || undefined }
+    void get(withFilters('/due-checkpoints', filters)).then((value) => {
       setData(value)
     }).catch((e: Error) => setError(e.message))
-  }, [selectedOperatorId, siteId])
+  }, [dashboardFilters, selectedOperatorId, siteId])
   useEffect(() => { load(); const timer = window.setInterval(load, 60_000); return () => window.clearInterval(timer) }, [load])
   useEffect(() => {
     void Promise.all(['sites', 'operators'].map((resource) =>

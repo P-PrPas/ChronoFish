@@ -254,13 +254,14 @@ export function FunnelChart({ points }: { points: ApiItem[] }) {
 export function DeviationChart({ points }: { points: ApiItem[] }) {
   if (points.length === 0) return null;
   const width = 560;
-  const height = 150;
-  const max = Math.max(
-    0.25,
-    ...points.map((point) => Math.abs(Number(point.meanDeviationH ?? 0))),
-  );
-  const axis = height / 2;
-  const barWidth = Math.max(4, (width - 32) / points.length - 3);
+  const height = 180;
+  const values = points.flatMap((point) => [Number(point.minDeviationH ?? 0), Number(point.maxDeviationH ?? 0)]);
+  const min = Math.min(0, ...values);
+  const max = Math.max(0, ...values);
+  const span = Math.max(0.5, max - min);
+  const y = (value: number) => 14 + ((max - value) / span) * (height - 34);
+  const slotWidth = (width - 28) / points.length;
+  const axis = y(0);
   return (
     <svg
       className="chart"
@@ -277,21 +278,25 @@ export function DeviationChart({ points }: { points: ApiItem[] }) {
         opacity=".35"
       />
       {points.map((point, index) => {
-        const value = Number(point.meanDeviationH ?? 0);
-        const barHeight = (Math.abs(value) / max) * (axis - 24);
-        const x = 16 + index * (barWidth + 3);
-        const y = value >= 0 ? axis - barHeight : axis;
+        const minimum = Number(point.minDeviationH ?? 0);
+        const q1 = Number(point.q1DeviationH ?? point.medianDeviationH ?? 0);
+        const median = Number(point.medianDeviationH ?? 0);
+        const q3 = Number(point.q3DeviationH ?? point.medianDeviationH ?? 0);
+        const maximum = Number(point.maxDeviationH ?? 0);
+        const mean = Number(point.meanDeviationH ?? 0);
+        const x = 14 + slotWidth * (index + 0.5);
+        const boxWidth = Math.max(4, Math.min(18, slotWidth * 0.65));
         return (
-          <rect
-            key={`${String(point.stageOrder)}-${String(point.treatmentGroup ?? "")}-${index}`}
-            x={x}
-            y={y}
-            width={barWidth}
-            height={Math.max(1, barHeight)}
-            fill={value >= 0 ? "#f2a65a" : "#6dc5b0"}
-          >
-            <title>{`${String(point.treatmentGroup ?? point.strain ?? "All")} · ${String(point.stageLabel ?? point.stageOrder)}: ${value.toFixed(4)} h`}</title>
-          </rect>
+          <g key={`${String(point.stageOrder)}-${String(point.treatmentGroup ?? "")}-${index}`}>
+            <line x1={x} y1={y(maximum)} x2={x} y2={y(minimum)} stroke="currentColor" />
+            <line x1={x - boxWidth / 3} y1={y(maximum)} x2={x + boxWidth / 3} y2={y(maximum)} stroke="currentColor" />
+            <line x1={x - boxWidth / 3} y1={y(minimum)} x2={x + boxWidth / 3} y2={y(minimum)} stroke="currentColor" />
+            <rect x={x - boxWidth / 2} y={y(q3)} width={boxWidth} height={Math.max(1, y(q1) - y(q3))} fill="#f2a65a" fillOpacity=".35" stroke="currentColor" />
+            <line x1={x - boxWidth / 2} y1={y(median)} x2={x + boxWidth / 2} y2={y(median)} stroke="currentColor" strokeWidth="2" />
+            <circle cx={x} cy={y(mean)} r="2" fill="#6dc5b0">
+              <title>{`${String(point.treatmentGroup ?? point.strain ?? "All")} · ${String(point.stageLabel ?? point.stageOrder)}: median ${median.toFixed(4)} h`}</title>
+            </circle>
+          </g>
         );
       })}
       <text x="12" y="14">
@@ -360,48 +365,35 @@ export function Dashboard({
   const load = useCallback(() => {
     setLoading(true);
     setError("");
-    void Promise.all([
-      get(withFilters("/analytics/kpi", filters)),
-      get(withFilters("/analytics/funnel", filters)),
-      get(withFilters("/analytics/survival", filters)),
-      get(withFilters("/analytics/timing-deviation", filters)),
-      get(withFilters("/analytics/abnormality-onset", filters)),
-      get(
-        withFilters("/analytics/fish-survival?splitByCondition=true", filters),
-      ),
-      get(withFilters("/analytics/observation-gaps", filters)),
-      get(withFilters("/analytics/pipeline", filters)),
-    ])
-      .then(
-        ([
+    void get(withFilters("/analytics/dashboard", filters))
+      .then((bundle) => {
+        const kpi = bundle.kpi as ApiItem;
+        const funnel = bundle.funnel as ApiItem;
+        const survival = bundle.survival as ApiItem;
+        const deviation = bundle.timingDeviation as ApiItem;
+        const abnormality = bundle.abnormalityOnset as ApiItem;
+        const fishSurvival = bundle.fishSurvival as ApiItem;
+        const gaps = bundle.observationGaps as ApiItem;
+        const pipeline = bundle.pipeline as ApiItem;
+        setData({
           kpi,
-          funnel,
-          survival,
-          deviation,
-          abnormality,
-          fishSurvival,
-          gaps,
-          pipeline,
-        ]) =>
-          setData({
-            kpi,
-            kpiMeta: responseMeta(kpi),
-            funnel: funnel.items ?? [],
-            funnelMeta: responseMeta(funnel),
-            survival: survival.items ?? [],
-            survivalMeta: responseMeta(survival),
-            deviation: deviation.items ?? [],
-            deviationMeta: responseMeta(deviation),
-            abnormality: abnormality.items ?? [],
-            abnormalityMeta: responseMeta(abnormality),
-            fishSurvival: fishSurvival.items ?? [],
-            fishSurvivalMeta: responseMeta(fishSurvival),
-            gaps: gaps.items ?? [],
-            gapsMeta: responseMeta(gaps),
-            pipeline: pipeline.items ?? [],
-            pipelineMeta: responseMeta(pipeline),
-          }),
-      )
+          kpiMeta: responseMeta(kpi),
+          funnel: funnel.items ?? [],
+          funnelMeta: responseMeta(funnel),
+          survival: survival.items ?? [],
+          survivalMeta: responseMeta(survival),
+          deviation: deviation.items ?? [],
+          deviationMeta: responseMeta(deviation),
+          abnormality: abnormality.items ?? [],
+          abnormalityMeta: responseMeta(abnormality),
+          fishSurvival: fishSurvival.items ?? [],
+          fishSurvivalMeta: responseMeta(fishSurvival),
+          gaps: gaps.items ?? [],
+          gapsMeta: responseMeta(gaps),
+          pipeline: pipeline.items ?? [],
+          pipelineMeta: responseMeta(pipeline),
+        });
+      })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [filters]);
@@ -517,6 +509,18 @@ export function Dashboard({
           <ReportPanel title="Attrition / abnormality onset" loading={loading} empty={data.funnelMeta?.sampleSize === 0 && data.abnormality.length === 0} emptyMessage="No attrition or abnormality observations match these filters." sampleSize={data.funnelMeta?.sampleSize} quality={<QualityNote meta={data.funnelMeta} />}>
             <FunnelChart points={data.funnel} />
             <ReportTable
+              caption="Attrition ranking by checkpoint"
+              headers={["Rank", "Stage", "At risk", "Dead"]}
+              rows={[...data.funnel]
+                .sort((left, right) => Number(right.nDead ?? 0) - Number(left.nDead ?? 0))
+                .map((point, index) => [
+                  index + 1,
+                  String(point.stageLabel ?? point.stageOrder),
+                  Number(point.riskSet ?? 0),
+                  Number(point.nDead ?? 0),
+                ])}
+            />
+            <ReportTable
               caption="Abnormality onset by checkpoint"
               headers={["Stage", "n"]}
               rows={data.abnormality.map((point) => [
@@ -561,7 +565,7 @@ export function Dashboard({
                 Number(point.n ?? 0),
                 Number(point.nNormal ?? 0),
                 Number(point.nAbnormal ?? 0),
-                `${(Number(point.pctNormal ?? 0) * 100).toFixed(2)}%`,
+                percent(point.pctNormal),
               ])}
             />
           </ReportPanel>

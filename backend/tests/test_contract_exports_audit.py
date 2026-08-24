@@ -24,7 +24,7 @@ def test_fastapi_registers_every_openapi_operation(client):
         if method in {"GET", "POST", "PUT", "PATCH", "DELETE"}
     }
     assert expected <= actual
-    assert len(expected) == 70
+    assert len(expected) == 71
 
 
 def test_r_export_has_stable_30_column_shape(client):

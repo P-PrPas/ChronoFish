@@ -959,6 +959,12 @@ paths:
       parameters:
         - { name: siteId, in: query, schema: { type: string, format: uuid } }
         - { name: operatorId, in: query, schema: { type: string, format: uuid } }
+        - { name: batchId, in: query, schema: { type: string, format: uuid } }
+        - { name: treatmentGroupId, in: query, schema: { type: string, format: uuid } }
+        - { name: donorCellLineId, in: query, schema: { type: string, format: uuid } }
+        - { name: strain, in: query, schema: { type: string } }
+        - { name: dateFrom, in: query, schema: { type: string, format: date } }
+        - { name: dateTo, in: query, schema: { type: string, format: date } }
       responses:
         '200':
           description: Work queue
@@ -1448,6 +1454,20 @@ paths:
         '409': { $ref: '#/components/responses/Conflict' }
 
   # ----------------------------------------------------------------- analytics
+  /analytics/dashboard:
+    get:
+      tags: [Analytics]
+      summary: Complete analytics dashboard from one consistent snapshot
+      description: Bundles all dashboard panels so filters and counts cannot drift between requests.
+      operationId: getAnalyticsDashboard
+      parameters: [ $ref: '#/components/parameters/AnalyticsFilters' ]
+      responses:
+        '200':
+          description: Dashboard analytics
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardAnalyticsResponse' }
+
   /analytics/kpi:
     get:
       tags: [Analytics]
@@ -2637,7 +2657,7 @@ components:
       properties:
         stage1:
           type: object
-          required: [nActivated, nReachedShield, nReachedDay1, nPromoted, pctNormal]
+          required: [nBatches, nEggs, nActivated, nReachedShield, nReachedDay1, nPromoted, pctNormal, controlComparison]
           properties:
             nBatches: { type: integer }
             nEggs: { type: integer }
@@ -2647,6 +2667,9 @@ components:
             nPromoted: { type: integer }
             pctNormal: { type: [number, 'null'], minimum: 0, maximum: 1, description: Fraction of filtered embryos/fish marked NORMAL; null when the denominator is zero. }
             pctAbnormal: { type: [number, 'null'], minimum: 0, maximum: 1, description: Fraction of filtered embryos/fish marked ABNORMAL; null when the denominator is zero. }
+            controlComparison:
+              type: array
+              items: { $ref: '#/components/schemas/ControlComparisonPoint' }
         stage2:
           type: object
           required: [nFish, nAlive, nDead, nFrozen, nDiscarded]
@@ -2661,6 +2684,33 @@ components:
             nUndetermined: { type: integer }
             meanAgeDaysAlive: { type: [number, 'null'] }
         meta: { $ref: '#/components/schemas/AnalyticsMeta' }
+
+    DashboardAnalyticsResponse:
+      type: object
+      required: [kpi, funnel, survival, timingDeviation, abnormalityOnset, fishSurvival, observationGaps, pipeline]
+      properties:
+        kpi: { $ref: '#/components/schemas/KpiResponse' }
+        funnel: { $ref: '#/paths/~1analytics~1funnel/get/responses/200/content/application~1json/schema' }
+        survival: { $ref: '#/paths/~1analytics~1survival/get/responses/200/content/application~1json/schema' }
+        timingDeviation: { $ref: '#/paths/~1analytics~1timing-deviation/get/responses/200/content/application~1json/schema' }
+        abnormalityOnset: { $ref: '#/paths/~1analytics~1abnormality-onset/get/responses/200/content/application~1json/schema' }
+        fishSurvival: { $ref: '#/paths/~1analytics~1fish-survival/get/responses/200/content/application~1json/schema' }
+        observationGaps: { $ref: '#/paths/~1analytics~1observation-gaps/get/responses/200/content/application~1json/schema' }
+        pipeline: { $ref: '#/paths/~1analytics~1pipeline/get/responses/200/content/application~1json/schema' }
+
+    ControlComparisonPoint:
+      type: object
+      required: [armType, stageOrder, stageCode, stageLabel, n, nNormal, nAbnormal, pctNormal, pctAbnormal]
+      properties:
+        armType: { $ref: '#/components/schemas/ArmType' }
+        stageOrder: { type: integer }
+        stageCode: { type: string }
+        stageLabel: { type: string }
+        n: { type: integer, minimum: 0 }
+        nNormal: { type: integer, minimum: 0 }
+        nAbnormal: { type: integer, minimum: 0 }
+        pctNormal: { type: [number, 'null'], minimum: 0, maximum: 1 }
+        pctAbnormal: { type: [number, 'null'], minimum: 0, maximum: 1 }
 
     AnalyticsMeta:
       type: object
@@ -2682,13 +2732,14 @@ components:
 
     FunnelStep:
       type: object
-      required: [stageOrder, stageCode, stageLabel, alive, pctOfActivated]
+      required: [stageOrder, stageCode, stageLabel, riskSet, alive, nDead, pctOfActivated]
       properties:
         stageOrder: { type: integer }
         stageCode: { type: string }
         stageLabel: { type: string }
         riskSet: { type: integer }
         alive: { type: integer }
+        nDead: { type: integer }
         pctOfActivated: { type: [number, 'null'] }
 
     SurvivalPoint:
@@ -2713,7 +2764,7 @@ components:
 
     DeviationSummary:
       type: object
-      required: [stageOrder, stageLabel, n, meanDeviationH, medianDeviationH]
+      required: [stageOrder, stageLabel, n, meanDeviationH, medianDeviationH, q1DeviationH, q3DeviationH, minDeviationH, maxDeviationH]
       properties:
         siteId: { type: [string, 'null'] }
         strain: { type: [string, 'null'] }
@@ -2726,6 +2777,8 @@ components:
         n: { type: integer }
         meanDeviationH: { type: number, examples: [0.1333] }
         medianDeviationH: { type: number }
+        q1DeviationH: { type: number }
+        q3DeviationH: { type: number }
         sdDeviationH: { type: [number, 'null'] }
         minDeviationH: { type: number }
         maxDeviationH: { type: number }
