@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import json
-import statistics
 from collections import defaultdict
 from io import StringIO
 from typing import Any
@@ -10,11 +9,15 @@ from typing import Any
 from fastapi import APIRouter, Request
 from fastapi.responses import Response
 
+from ... import __version__
 from ...domain.rules import stage_code, stage_label, stage_number
 from ...domain.state import State
 from ...reporting.xlsx import Sheet, build_xlsx
+from ...runtime.errors import APIError
 from ...runtime.values import iso_now
 from ...services.analytics import (
+    ANALYTICS_FILTER_KEYS,
+    Analytics,
     checkpoint_status,
     filtered_batches,
     filtered_embryos,
@@ -24,6 +27,23 @@ from ...services.analytics import (
     stage_survival,
 )
 from ...store import Store
+
+SHEET_NAMES = (
+    "00_Metadata",
+    "01_Batches",
+    "02_Embryo_Observations",
+    "03_Embryo_Matrix",
+    "04_Stage_Counts",
+    "05_Timing_Deviation",
+    "06_Fish_Register",
+    "07_Fish_Observations",
+    "08_Fish_Matrix",
+    "09_Control_Arms",
+    "10_Specimens",
+    "11_Summary",
+    "12_R_Analysis_Table",
+    "13_Stage_Timing_Reference",
+)
 
 
 def _text(value: Any) -> str:
@@ -52,7 +72,24 @@ R_HEADERS = ["Sites", "Strain", "Replicate", "Strain_Rep", *(stage_code(order) f
 
 
 def _query(request: Request) -> dict[str, str]:
-    return dict(request.query_params)
+    return {key: str(request.query_params[key]) for key in ANALYTICS_FILTER_KEYS if request.query_params.get(key)}
+
+
+def _export_filters(value: Any) -> dict[str, str]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise APIError(422, "validation_error", "filters ต้องเป็น object")
+    unknown = set(value) - set(ANALYTICS_FILTER_KEYS)
+    if unknown:
+        raise APIError(422, "validation_error", f"unsupported filter: {sorted(unknown)[0]}")
+    invalid = next(
+        (key for key in ANALYTICS_FILTER_KEYS if value.get(key) is not None and not isinstance(value[key], str)),
+        None,
+    )
+    if invalid:
+        raise APIError(422, "validation_error", f"filter {invalid} ต้องเป็น string")
+    return {key: str(value[key]) for key in ANALYTICS_FILTER_KEYS if value.get(key) is not None and value[key] != ""}
 
 
 def _batch_rows(state: State, query: dict[str, str]) -> list[list[object]]:
@@ -66,6 +103,8 @@ def _batch_rows(state: State, query: dict[str, str]) -> list[list[object]]:
         site = state.entities["sites"].get(str(batch.get("siteId")), {})
         operator = state.entities["operators"].get(str(batch.get("operatorId")), {})
         treatment = state.entities["treatment-groups"].get(str(batch.get("treatmentGroupId")), {})
+        recipient = state.entities["recipient-egg-lots"].get(str(batch.get("recipientEggLotId")), {})
+        csof = state.entities["csof-lots"].get(str(batch.get("csofLotId")), {})
         rows.append(
             [
                 batch.get("batchCode"),
@@ -75,8 +114,8 @@ def _batch_rows(state: State, query: dict[str, str]) -> list[list[object]]:
                 treatment.get("code"),
                 batch.get("clutchCode"),
                 batch.get("replicateNo"),
-                batch.get("recipientEggLotId"),
-                batch.get("csofLotId"),
+                recipient.get("label", batch.get("recipientEggLotId")),
+                csof.get("lotCode", batch.get("csofLotId")),
                 batch.get("incubationTempC"),
                 lot.get("lotNo"),
                 donor.get("strain"),
@@ -124,7 +163,7 @@ def _embryo_observation_rows(state: State, query: dict[str, str]) -> list[list[o
                 deviation / expected * 100 if expected else "",
                 item.get("outcome"),
                 item.get("condition"),
-                item.get("operatorId"),
+                state.entities["operators"].get(str(item.get("operatorId")), {}).get("name", item.get("operatorId")),
                 item.get("isBackdated"),
                 item.get("notes"),
             ]
@@ -135,7 +174,7 @@ def _embryo_observation_rows(state: State, query: dict[str, str]) -> list[list[o
 def _embryo_matrix_rows(state: State, query: dict[str, str]) -> list[list[object]]:
     observations = observation_index(state)
     rows = []
-    for embryo in filtered_embryos(state, query):
+    for embryo in sorted(filtered_embryos(state, query), key=lambda item: _text(item.get("id"))):
         lot = state.entities["injection-lots"].get(str(embryo.get("injectionLotId")), {})
         batch = state.entities["batches"].get(str(lot.get("batchId")), {})
         site = state.entities["sites"].get(str(batch.get("siteId")), {})
@@ -198,46 +237,50 @@ def _stage_count_rows(state: State, query: dict[str, str]) -> list[list[object]]
 
 
 def _timing_deviation_rows(state: State, query: dict[str, str]) -> list[list[object]]:
-    allowed = {str(item["id"]) for item in filtered_embryos(state, query)}
-    groups: defaultdict[tuple[str, str, str, int], list[float]] = defaultdict(list)
-    for item in state.observations.values():
-        embryo = state.entities["embryos"].get(str(item.get("embryoId")))
-        if not embryo or embryo["id"] not in allowed or item.get("deletedAt") is not None:
-            continue
-        lot = state.entities["injection-lots"][str(embryo["injectionLotId"])]
-        batch = state.entities["batches"][str(lot["batchId"])]
-        site = state.entities["sites"].get(str(batch.get("siteId")), {})
-        donor = state.entities["donor-cell-lines"].get(str(lot.get("donorCellLineId")), {})
-        treatment = state.entities["treatment-groups"].get(str(batch.get("treatmentGroupId")), {})
-        key = (
-            _text(site.get("code")),
-            _text(donor.get("strain")),
-            _text(treatment.get("code")),
-            stage_number(_text(item.get("stageCode"))),
-        )
-        groups[key].append(float(item.get("deviationH") or 0))
+    items = Analytics(state, query).timing_deviation()["items"]
     return [
         [
-            site,
-            strain,
-            treatment,
-            order,
-            stage_label(order),
-            len(values),
-            statistics.mean(values),
-            statistics.median(values),
-            statistics.stdev(values) if len(values) > 1 else 0,
-            min(values),
-            max(values),
+            _text(state.entities["sites"].get(str(item.get("siteId")), {}).get("code")),
+            item.get("strain"),
+            item.get("treatmentGroup"),
+            item.get("stageOrder"),
+            item.get("stageLabel"),
+            item.get("n"),
+            item.get("meanDeviationH"),
+            item.get("medianDeviationH"),
+            item.get("sdDeviationH"),
+            item.get("minDeviationH"),
+            item.get("maxDeviationH"),
         ]
-        for (site, strain, treatment, order), values in sorted(groups.items())
+        for item in sorted(
+            items,
+            key=lambda value: (
+                int(value.get("stageOrder", 0)),
+                _text(value.get("siteId")),
+                _text(value.get("strain")),
+                _text(value.get("treatmentGroup")),
+            ),
+        )
     ]
+
+
+def _fish_observation_index(state: State) -> defaultdict[str, list[dict[str, Any]]]:
+    result: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+    for observation in state.fish_observations.values():
+        if observation.get("deletedAt") is None:
+            result[str(observation.get("cloneFishId"))].append(observation)
+    return result
 
 
 def _fish_rows(
     state: State, query: dict[str, str]
 ) -> tuple[list[list[object]], list[list[object]], list[list[object]]]:
     fish = filtered_fish(state, query)
+    observations_by_fish = _fish_observation_index(state)
+    specimens_by_fish: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+    for specimen in state.entities["specimens"].values():
+        if specimen.get("deletedAt") is None:
+            specimens_by_fish[str(specimen.get("cloneFishId"))].append(specimen)
     register, observations, specimens = [], [], []
     for fish_id, item in sorted(fish.items()):
         donor = state.entities["donor-cell-lines"].get(str(item.get("donorCellLineId")), {})
@@ -266,56 +309,57 @@ def _fish_rows(
                 item.get("remarks"),
             ]
         )
-        for observation in state.fish_observations.values():
-            if observation.get("cloneFishId") == fish_id and observation.get("deletedAt") is None:
-                observations.append(
-                    [
-                        item.get("fishCode"),
-                        observation.get("observedOn"),
-                        observation.get("ageDays"),
-                        observation.get("outcome"),
-                        observation.get("condition"),
-                        observation.get("operatorId"),
-                        observation.get("isBackdated"),
-                        observation.get("notes"),
-                    ]
-                )
-        for specimen in state.entities["specimens"].values():
-            if specimen.get("cloneFishId") == fish_id and specimen.get("deletedAt") is None:
-                specimens.append(
-                    [
-                        specimen.get("specimenCode"),
-                        item.get("fishCode"),
-                        specimen.get("specimenKind"),
-                        specimen.get("specimenType"),
-                        specimen.get("collectedOn"),
-                        specimen.get("frozenOn"),
-                        specimen.get("storage"),
-                        specimen.get("notes"),
-                    ]
-                )
+        operator = state.entities["operators"].get(str(item.get("operatorId")), {})
+        for observation in sorted(
+            observations_by_fish.get(fish_id, []),
+            key=lambda value: (_text(value.get("observedOn")), _text(value.get("id"))),
+        ):
+            observation_operator = state.entities["operators"].get(str(observation.get("operatorId")), operator)
+            observations.append(
+                [
+                    item.get("fishCode"),
+                    observation.get("observedOn"),
+                    observation.get("ageDays"),
+                    observation.get("outcome"),
+                    observation.get("condition"),
+                    observation_operator.get("name", observation.get("operatorId")),
+                    observation.get("isBackdated"),
+                    observation.get("notes"),
+                ]
+            )
+        for specimen in sorted(specimens_by_fish.get(fish_id, []), key=lambda value: _text(value.get("id"))):
+            specimens.append(
+                [
+                    specimen.get("specimenCode"),
+                    item.get("fishCode"),
+                    specimen.get("specimenKind"),
+                    specimen.get("specimenType"),
+                    specimen.get("collectedOn"),
+                    specimen.get("frozenOn"),
+                    specimen.get("storage"),
+                    specimen.get("notes"),
+                ]
+            )
     return register, observations, specimens
 
 
 def _fish_matrix(state: State, query: dict[str, str]) -> tuple[list[str], list[list[object]]]:
     fish = filtered_fish(state, query)
+    observations_by_fish = _fish_observation_index(state)
     max_age = max(
-        (
-            int(item.get("ageDays") or 0)
-            for item in state.fish_observations.values()
-            if item.get("cloneFishId") in fish and item.get("deletedAt") is None
-        ),
+        (int(item.get("ageDays") or 0) for fish_id in fish for item in observations_by_fish.get(fish_id, [])),
         default=0,
     )
     columns = [f"d{age}" for age in range(1, max_age + 1)]
     rows = []
     for fish_id, item in sorted(fish.items()):
         donor = state.entities["donor-cell-lines"].get(str(item.get("donorCellLineId")), {})
-        by_age = {
-            int(value["ageDays"]): 1 if value.get("outcome") == "ALIVE" else 0
-            for value in state.fish_observations.values()
-            if value.get("cloneFishId") == fish_id and value.get("deletedAt") is None
-        }
+        by_age = {}
+        for value in sorted(
+            observations_by_fish.get(fish_id, []),
+            key=lambda item: (int(item.get("ageDays") or 0), _text(item.get("observedOn")), _text(item.get("id"))),
+        ):
+            by_age[int(value["ageDays"])] = 1 if value.get("outcome") == "ALIVE" else 0
         rows.append(
             [
                 item.get("fishCode"),
@@ -331,7 +375,7 @@ def _fish_matrix(state: State, query: dict[str, str]) -> tuple[list[str], list[l
 def _control_rows(state: State, query: dict[str, str]) -> list[list[object]]:
     batches = filtered_batches(state, query)
     rows = []
-    for item in state.entities["control-arm-counts"].values():
+    for item in sorted(state.entities["control-arm-counts"].values(), key=lambda value: _text(value.get("id"))):
         batch = batches.get(str(item.get("batchId")))
         if not batch or item.get("deletedAt") is not None:
             continue
@@ -363,12 +407,16 @@ def _summary_rows(state: State, query: dict[str, str]) -> list[list[object]]:
         lots = {str(item["injectionLotId"]) for item in embryos}
         batches = {str(state.entities["injection-lots"][lot]["batchId"]) for lot in lots}
         latest = [
-            max(index.get(str(embryo["id"]), []), key=lambda item: str(item.get("observedAt")), default={})
+            max(
+                index.get(str(embryo["id"]), []),
+                key=lambda item: (str(item.get("observedAt")), str(item.get("id"))),
+                default={},
+            )
             for embryo in embryos
         ]
         normal = sum(item.get("condition") == "NORMAL" for item in latest)
         abnormal = sum(item.get("condition") == "ABNORMAL" for item in latest)
-        promoted = sum(item.get("strain") == strain for item in fish.values())
+        promoted = sum(bool(item.get("embryoId")) and item.get("strain") == strain for item in fish.values())
         rows.append(
             [
                 strain,
@@ -387,10 +435,24 @@ def _summary_rows(state: State, query: dict[str, str]) -> list[list[object]]:
     return rows
 
 
-def _timing_rows(state: State) -> list[list[object]]:
+def _profile_ids(state: State, query: dict[str, str]) -> set[str]:
+    profile_ids = {
+        str(batch.get("timingProfileId"))
+        for batch in filtered_batches(state, query).values()
+        if batch.get("timingProfileId")
+    }
+    return profile_ids or {
+        str(profile.get("id")) for profile in state.entities["timing-profiles"].values() if profile.get("isCurrent")
+    }
+
+
+def _timing_rows(state: State, profile_ids: set[str]) -> list[list[object]]:
     rows = []
-    for profile in sorted(state.entities["timing-profiles"].values(), key=lambda item: int(item.get("version", 0))):
-        for entry in profile.get("entries", []):
+    for profile in sorted(
+        (item for item in state.entities["timing-profiles"].values() if str(item.get("id")) in profile_ids),
+        key=lambda item: int(item.get("version", 0)),
+    ):
+        for entry in sorted(profile.get("entries", []), key=lambda item: int(item.get("stageOrder", 0))):
             rows.append(
                 [
                     entry.get("stageOrder"),
@@ -399,7 +461,6 @@ def _timing_rows(state: State) -> list[list[object]]:
                     entry.get("expectedHpa"),
                     entry.get("phase"),
                     entry.get("stageScope"),
-                    profile.get("id"),
                     profile.get("version"),
                     profile.get("referenceTempC"),
                     profile.get("sourceNote"),
@@ -408,12 +469,19 @@ def _timing_rows(state: State) -> list[list[object]]:
     return rows
 
 
-def _sheets(state: State, query: dict[str, str]) -> list[Sheet]:
-    fish_register, fish_observations, specimens = _fish_rows(state, query)
-    fish_columns, fish_matrix = _fish_matrix(state, query)
-    r_rows = _r_rows(state, query)
+def _sheets(state: State, query: dict[str, str], selected_names: set[str] | None = None) -> list[Sheet]:
+    def selected(name: str) -> bool:
+        return selected_names is None or name in selected_names
+
+    fish_register, fish_observations, specimens = (
+        _fish_rows(state, query)
+        if any(selected(name) for name in ("06_Fish_Register", "07_Fish_Observations", "10_Specimens"))
+        else ([], [], [])
+    )
+    fish_columns, fish_matrix = _fish_matrix(state, query) if selected("08_Fish_Matrix") else ([], [])
+    r_rows = _r_rows(state, query) if selected("12_R_Analysis_Table") else []
     sheets: list[Sheet] = [
-        ("00_Metadata", ["key", "value"], [["exported_at", iso_now()], ["filters", json.dumps(query, sort_keys=True)]]),
+        ("00_Metadata", ["key", "value"], []),
         (
             "01_Batches",
             [
@@ -441,7 +509,7 @@ def _sheets(state: State, query: dict[str, str]) -> list[Sheet]:
                 "n_activated",
                 "notes",
             ],
-            _batch_rows(state, query),
+            _batch_rows(state, query) if selected("01_Batches") else [],
         ),
         (
             "02_Embryo_Observations",
@@ -464,7 +532,7 @@ def _sheets(state: State, query: dict[str, str]) -> list[Sheet]:
                 "is_backdated",
                 "notes",
             ],
-            _embryo_observation_rows(state, query),
+            _embryo_observation_rows(state, query) if selected("02_Embryo_Observations") else [],
         ),
         (
             "03_Embryo_Matrix",
@@ -476,7 +544,7 @@ def _sheets(state: State, query: dict[str, str]) -> list[Sheet]:
                 "treatment_group",
                 *(stage_code(order) for order in range(1, 27)),
             ],
-            _embryo_matrix_rows(state, query),
+            _embryo_matrix_rows(state, query) if selected("03_Embryo_Matrix") else [],
         ),
         (
             "04_Stage_Counts",
@@ -494,7 +562,7 @@ def _sheets(state: State, query: dict[str, str]) -> list[Sheet]:
                 "surv",
                 "pct_of_development",
             ],
-            _stage_count_rows(state, query),
+            _stage_count_rows(state, query) if selected("04_Stage_Counts") else [],
         ),
         (
             "05_Timing_Deviation",
@@ -511,7 +579,7 @@ def _sheets(state: State, query: dict[str, str]) -> list[Sheet]:
                 "min_deviation_h",
                 "max_deviation_h",
             ],
-            _timing_deviation_rows(state, query),
+            _timing_deviation_rows(state, query) if selected("05_Timing_Deviation") else [],
         ),
         (
             "06_Fish_Register",
@@ -546,7 +614,7 @@ def _sheets(state: State, query: dict[str, str]) -> list[Sheet]:
         (
             "09_Control_Arms",
             ["batch_code", "experiment_date", "site", "arm_type", "stage_label", "n_normal", "n_abnormal"],
-            _control_rows(state, query),
+            _control_rows(state, query) if selected("09_Control_Arms") else [],
         ),
         (
             "10_Specimens",
@@ -577,7 +645,7 @@ def _sheets(state: State, query: dict[str, str]) -> list[Sheet]:
                 "pct_normal",
                 "pct_abnormal",
             ],
-            _summary_rows(state, query),
+            _summary_rows(state, query) if selected("11_Summary") else [],
         ),
         ("12_R_Analysis_Table", R_HEADERS, r_rows),
         (
@@ -589,16 +657,49 @@ def _sheets(state: State, query: dict[str, str]) -> list[Sheet]:
                 "expected_hpa",
                 "phase",
                 "stage_scope",
-                "profile_id",
                 "profile_version",
                 "reference_temp_c",
                 "source_note",
             ],
-            _timing_rows(state),
+            _timing_rows(state, _profile_ids(state, query)) if selected("13_Stage_Timing_Reference") else [],
         ),
     ]
-    sheets[0][2].extend([[f"row_count.{name}", len(rows)] for name, _headers, rows in sheets[1:]])
-    return sheets
+    selected = [sheet for sheet in sheets if selected_names is None or sheet[0] in selected_names]
+    selected_without_metadata = [sheet for sheet in selected if sheet[0] != "00_Metadata"]
+    metadata = [
+        ["exported_at", iso_now()],
+        ["data_range", _data_range(state, query)],
+        ["date_from", query.get("dateFrom", "")],
+        ["date_to", query.get("dateTo", "")],
+        ["filters", json.dumps(query, sort_keys=True, separators=(",", ":"))],
+        ["system_version", __version__],
+        ["timing_profile_version", _profile_versions(state, _profile_ids(state, query))],
+    ]
+    metadata.extend([[f"row_count.{name}", len(rows)] for name, _headers, rows in selected_without_metadata])
+    if selected_names is None or "00_Metadata" in selected_names:
+        metadata.append(["row_count.00_Metadata", len(metadata) + 1])
+        return [("00_Metadata", ["key", "value"], metadata), *selected_without_metadata]
+    return selected
+
+
+def _data_range(state: State, query: dict[str, str]) -> str:
+    dates = sorted(
+        _text(batch.get("experimentDate"))
+        for batch in filtered_batches(state, query).values()
+        if batch.get("experimentDate")
+    )
+    start = query.get("dateFrom") or (dates[0] if dates else "")
+    end = query.get("dateTo") or (dates[-1] if dates else "")
+    return f"{start}..{end}" if start or end else "all"
+
+
+def _profile_versions(state: State, profile_ids: set[str]) -> str:
+    versions = sorted(
+        str(profile.get("version"))
+        for profile in state.entities["timing-profiles"].values()
+        if str(profile.get("id")) in profile_ids
+    )
+    return ",".join(versions) or "none"
 
 
 def build_export_router(store: Store) -> APIRouter:
@@ -619,17 +720,24 @@ def build_export_router(store: Store) -> APIRouter:
     @router.post("/excel")
     async def export_excel(request: Request) -> Response:
         body = await request.json()
+        if not isinstance(body, dict):
+            raise APIError(422, "validation_error", "export request ต้องเป็น object")
+        requested_sheets = body.get("sheets")
+        if requested_sheets is not None and (
+            not isinstance(requested_sheets, list)
+            or not requested_sheets
+            or any(not isinstance(name, str) or name not in SHEET_NAMES for name in requested_sheets)
+            or len(set(requested_sheets)) != len(requested_sheets)
+        ):
+            raise APIError(422, "validation_error", "sheets ต้องเป็นชื่อ sheet ที่รองรับอย่างน้อยหนึ่งรายการ")
+        selected_names = set(requested_sheets) if requested_sheets is not None else None
+        filters = _export_filters(body.get("filters"))
 
-        def operation(state: State):
-            filters = {key: _text(value) for key, value in (body.get("filters") or {}).items() if value is not None}
-            return (
-                200,
-                build_xlsx(_sheets(state, filters)),
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            )
-
-        response = store.execute_mutation(request, body, operation)
-        response.headers["Content-Disposition"] = 'attachment; filename="chronofish-export.xlsx"'
-        return response
+        content = build_xlsx(_sheets(store.snapshot(), filters, selected_names))
+        return Response(
+            content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": 'attachment; filename="chronofish-export.xlsx"'},
+        )
 
     return router

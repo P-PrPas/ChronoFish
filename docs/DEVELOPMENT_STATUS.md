@@ -1,7 +1,7 @@
 # ChronoFish Development Status
 
 > อัปเดตล่าสุด: 24 สิงหาคม 2026
-> Branch: `feat/phase-7-analytics-dashboard`
+> Branch: `feat/phase-8-export-reporting`
 > Go baseline ก่อนย้ายภาษา: `6adc25e`
 
 ## สรุปสถานะ
@@ -22,6 +22,8 @@ Phase 6 — Promotion, Fish Registry, Daily Roll-call และ Specimen impleme
 
 Phase 7 — Analytics และ Dashboard implement ครบใน automated scope แล้ว: calculation service แยกจาก HTTP routes, dashboard bundle จาก snapshot เดียว, shared filters, KPI/funnel/survival/timing box plot/attrition ranking/control comparison/fish survival/gaps/pipeline และ drill-down ที่รักษาตัวกรอง; เหลือ performance sign-off ด้วย SQL dataset 5 ปีจริงและ UAT บนอุปกรณ์จริง
 
+Phase 8 — Excel, R-ready Table และ PDF export implement ครบใน automated scope แล้ว: workbook 14 flat sheets แบบ in-memory, numeric checkpoint cells สำหรับ `readxl`, metadata พร้อม filters/data range/system/timing-profile version/row counts, deterministic filtered ordering, optional sheet selection, UTF-8 R CSV และ SCR-17 download progress/error states; printable dashboard ใช้ analytics snapshot เดียว, แสดง filter context และ print stylesheet A4 พร้อม page-break controls; เหลือเปิดไฟล์กับ Excel/LibreOffice/pandas/readxl, full-volume benchmark และ UAT T-19/T-20
+
 ## สิ่งที่ implement แล้ว
 
 - API ครบ 71 operations: master data, timing profile, batch/lot/embryo, copied-lot activation, observations, promotion/fish, analytics, audit และ export
@@ -29,7 +31,7 @@ Phase 7 — Analytics และ Dashboard implement ครบใน automated sc
 - durable writes บน PostgreSQL/MySQL: transaction, audit, soft delete, idempotent replay/conflict และ fish running number ภายใต้ database lock
 - Python migration runner สำหรับ SQL versions 1–9 พร้อม migration lock และ dirty-state protection
 - audit query แบบ indexed keyset pagination โดยไม่ materialize audit history ทั้งหมด
-- Excel 14 sheets แบบ flat table, R-ready CSV 30 columns และ binary idempotent replay
+- Excel 14 sheets แบบ flat table, typed numeric R-ready table/CSV 30 columns, metadata และ binary idempotent replay
 - middleware สำหรับ CORS, IP allowlist, rate limit, body-size limit, generic error redaction, security headers และ metadata-only request logging
 - บังคับ content type ตาม OpenAPI (JSON และ CSV import) และแปลง FastAPI request-validation failure เป็น `ErrorResponse`/HTTP 400 ตาม SRS
 - native required-field validation สำหรับ master-data forms พร้อม tests ของ operator/device persistence
@@ -67,7 +69,7 @@ Phase 7 — Analytics และ Dashboard implement ครบใน automated sc
 - MySQL integration บน clean temporary instance: ผ่านชุดเดียวกับ PostgreSQL รวม migration 9 และ Phase 4 concurrency/audit flow ใน PR #7
 - OpenAPI validation: 52 paths / 71 operations ผ่าน
 - PostgreSQL → MySQL generated migration parity: ผ่าน
-- frontend: generated API/build ผ่าน และ 48 tests ผ่าน
+- frontend: generated API/build ผ่าน และ Phase 8 export test เพิ่มจากชุดเดิม
 - Compose configuration ทั้งสองไฟล์: ผ่าน
 - Docker image build: ผ่าน CI ของ PR #7; เครื่องพัฒนานี้ยังไม่มี Docker daemon สำหรับ clean-checkout Compose gate
 
@@ -86,7 +88,7 @@ Phase 7 — Analytics และ Dashboard implement ครบใน automated sc
 - ยืนยัน production hosting, TLS/VPN/IP allowlist, secret store และ deployment owner
 - รัน `docker compose up --build` และ health check จาก clean checkout บนเครื่องที่มี Docker daemon
 - backup/restore drill กับ production-like infrastructure
-- เทียบ Excel/R/PDF กับไฟล์อ้างอิงจริงของห้องแลป
+- เปิด Excel/LibreOffice/pandas/readxl และเทียบ Excel/R/PDF กับไฟล์อ้างอิงจริงของห้องแลป
 - performance sign-off ด้วยชุดข้อมูลเทียบเท่า 5 ปี; SQLStore ปัจจุบันโหลด operational snapshot สำหรับ analytics/export และมี `ponytail:` marker ให้เปลี่ยนเป็น bounded SQL projections เมื่อ dataset จริงพิสูจน์ว่าจำเป็น
 
 ## คำสั่งพัฒนาและตรวจสอบ

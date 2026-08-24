@@ -77,6 +77,8 @@ def main() -> int:
         for method, operation in path_item.items():
             if method not in mutation_methods or not isinstance(operation, dict):
                 continue
+            if operation.get("x-read-only") is True:
+                continue
             references = {parameter.get("$ref") for parameter in operation.get("parameters", []) if isinstance(parameter, dict)}
             for required_header in required_write_headers - references:
                 errors.append(f"{method.upper()} {path} is missing {required_header}")

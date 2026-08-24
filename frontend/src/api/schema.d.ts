@@ -1057,7 +1057,7 @@ export interface paths {
          *     and readxl can read it directly — which is precisely what the current
          *     spreadsheets cannot do.
          *
-         *     Generated per request and streamed; nothing is written to disk (FR-909,
+         *     Generated and returned directly per request; nothing is written to disk (FR-909,
          *     CON-05), which is also what lets the backend run on a filesystem-less
          *     platform.
          */
@@ -1915,6 +1915,11 @@ export interface components {
             meta: components["schemas"]["AnalyticsMeta"];
         };
         DashboardAnalyticsResponse: {
+            reportMeta: {
+                /** Format: date-time */
+                generatedAt: string;
+                timingProfileVersions: number[];
+            };
             kpi: components["schemas"]["KpiResponse"];
             funnel: paths["/analytics/funnel"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
             survival: paths["/analytics/survival"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
@@ -4227,14 +4232,7 @@ export interface operations {
     exportExcel: {
         parameters: {
             query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
+            header?: never;
             path?: never;
             cookie?: never;
         };

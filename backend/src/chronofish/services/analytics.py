@@ -624,7 +624,24 @@ class Analytics:
         }
 
     def dashboard(self) -> dict[str, Any]:
+        profile_ids = {
+            str(batch.get("timingProfileId")) for batch in self.batches.values() if batch.get("timingProfileId")
+        } or {
+            str(profile.get("id"))
+            for profile in self.state.entities["timing-profiles"].values()
+            if profile.get("isCurrent")
+        }
         return {
+            "reportMeta": {
+                "generatedAt": utc_now().isoformat().replace("+00:00", "Z"),
+                "timingProfileVersions": sorted(
+                    {
+                        int(profile["version"])
+                        for profile in self.state.entities["timing-profiles"].values()
+                        if str(profile.get("id")) in profile_ids
+                    }
+                ),
+            },
             "kpi": self.kpi(),
             "funnel": self.funnel(),
             "survival": self.survival(),
