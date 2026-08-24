@@ -17,18 +17,40 @@ IP_ALLOWLIST=10.0.0.0/8,192.168.1.0/24
 
 `DB_DRIVER=memory` is restricted to development and test. Keep credentials in the deployment secret store, never in `.env` committed to the repository. The API validates configuration, connects, applies versioned migrations, loads canonical tables, and only then serves traffic.
 
+The API is not a TLS terminator. Production traffic must reach it through an HTTPS reverse proxy or private VPN, with the proxy enforcing the approved IP/CIDR allowlist. Set `IP_ALLOWLIST` as a second control when the API can be reached outside that proxy. Do not trust arbitrary forwarded headers from public clients.
+
 ## Build and deploy
 
 Build the API image from the repository root so migration files are included:
 
 ```powershell
-docker build -f backend/Dockerfile -t chronofish-api:local .
+$imageBuildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$imageRevision = git rev-parse HEAD
+docker build --build-arg "BUILD_DATE=$imageBuildDate" --build-arg "VCS_REF=$imageRevision" -f backend/Dockerfile -t chronofish-api:local .
 cd frontend
 npm ci
 npm run check
 ```
 
+For a native API process, install the reviewed dependency resolution instead of resolving new transitive versions during deployment:
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -c constraints.txt .
+```
+
 Serve `frontend/dist` from a static web server with SPA fallback to `index.html`, and proxy `/api/` to the API. Keep TLS termination and the external VPN/reverse-proxy allowlist in front of the API. If the API is directly reachable, set `IP_ALLOWLIST` as an additional control.
+
+The API image is pinned to a patch-level Python base, runs as the non-root `chronofish` user, contains only the installed backend and migrations, and carries OCI build metadata. Scan the exact image that will be deployed before promotion; for example:
+
+```powershell
+trivy image --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 chronofish-api:local
+docker image inspect chronofish-api:local --format '{{.Config.User}} {{index .Config.Labels "org.opencontainers.image.revision"}}'
+```
+
+The frontend is a static artifact. The production path does not require Node or a frontend container; if hosting requires one, use a separate web-server image with SPA fallback and keep Node out of the runtime image.
 
 For the default PostgreSQL stack:
 
@@ -52,19 +74,26 @@ Schedule a daily logical backup in the database platform or job runner and retai
 PostgreSQL example:
 
 ```powershell
-docker compose -f compose.yaml exec -T postgres pg_dump -U chronofish -d chronofish --format=custom > chronofish-YYYYMMDD.dump
-createdb chronofish_restore
-pg_restore --clean --if-exists --dbname=chronofish_restore chronofish-YYYYMMDD.dump
+docker compose -f compose.yaml exec -T postgres pg_dump -U chronofish -d chronofish --format=custom --file=/tmp/chronofish.dump
+docker compose -f compose.yaml cp postgres:/tmp/chronofish.dump ./chronofish-YYYYMMDD.dump
+docker compose -f compose.yaml exec -T postgres createdb -U chronofish chronofish_restore
+docker compose -f compose.yaml cp ./chronofish-YYYYMMDD.dump postgres:/tmp/chronofish-restore.dump
+docker compose -f compose.yaml exec -T postgres pg_restore -U chronofish --clean --if-exists --dbname=chronofish_restore /tmp/chronofish-restore.dump
 ```
 
 MySQL example:
 
 ```powershell
-docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysqldump -uroot -proot --single-transaction chronofish > chronofish-YYYYMMDD.sql
-mysql -h HOST -u chronofish -p chronofish_restore < chronofish-YYYYMMDD.sql
+docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysqldump -uroot -proot --single-transaction --result-file=/tmp/chronofish.sql chronofish
+docker compose -f compose.mysql.yaml --profile mysql cp mysql:/tmp/chronofish.sql ./chronofish-YYYYMMDD.sql
+docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysql -uroot -proot --execute="CREATE DATABASE chronofish_restore"
+docker compose -f compose.mysql.yaml --profile mysql cp ./chronofish-YYYYMMDD.sql mysql:/tmp/chronofish-restore.sql
+docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysql -uroot -proot chronofish_restore --execute="source /tmp/chronofish-restore.sql"
 ```
 
 After a restore, check `/api/v1/health`, run the database constraint checks, and verify one idempotent mutation plus its audit entry before reopening traffic.
+
+The API keeps no application state on the local filesystem. PostgreSQL/MySQL is the source of truth; local filesystem volumes are not a substitute for database backup or restore.
 
 ## Upgrade and rollback
 

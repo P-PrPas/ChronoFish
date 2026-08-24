@@ -1753,7 +1753,7 @@ paths:
       summary: Change history
       operationId: listAuditLog
       parameters:
-        - { name: table, in: query, schema: { type: string } }
+        - { name: table, in: query, schema: { type: string, maxLength: 128 } }
         - { name: recordId, in: query, schema: { type: string, format: uuid } }
         - { name: operatorId, in: query, schema: { type: string, format: uuid } }
         - { name: from, in: query, schema: { type: string, format: date-time } }
@@ -1828,7 +1828,7 @@ components:
     Cursor:
       name: cursor
       in: query
-      schema: { type: string }
+      schema: { type: string, maxLength: 512 }
     AnalyticsFilters:
       name: filters
       in: query

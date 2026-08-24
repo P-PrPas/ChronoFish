@@ -169,3 +169,34 @@ def test_audit_filters_and_uses_opaque_cursor(client, write_headers):
     second = client.get(f"/api/v1/audit-log?table=sites&limit=2&cursor={first['nextCursor']}").json()
     assert len(second["items"]) == 1
     assert {item["id"] for item in first["items"]}.isdisjoint(item["id"] for item in second["items"])
+
+
+def test_audit_entries_expose_complete_change_context(client, write_headers):
+    created = client.post("/api/v1/sites", headers=write_headers, json={"code": "AUDIT", "name": "Audit lab"}).json()
+    update_headers = {**write_headers, "X-Idempotency-Key": "01900000-0000-7000-8000-000000000201"}
+    updated = client.patch(f"/api/v1/sites/{created['id']}", headers=update_headers, json={"name": "Updated lab"})
+    assert updated.status_code == 200
+
+    items = client.get(f"/api/v1/audit-log?recordId={created['id']}").json()["items"]
+    assert [item["action"] for item in items] == ["UPDATE", "INSERT"]
+    for item in items:
+        assert item["operatorId"] == write_headers["X-Operator-Id"]
+        assert item["deviceId"] == write_headers["X-Device-Id"]
+        assert item["occurredAt"].endswith("Z")
+        assert "oldValues" in item and "newValues" in item
+    assert items[0]["oldValues"]["name"] == "Audit lab"
+    assert items[0]["newValues"]["name"] == "Updated lab"
+
+
+def test_audit_rejects_malformed_cursor_without_server_error(client):
+    response = client.get("/api/v1/audit-log?cursor=not-a-valid-cursor")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_query"
+
+
+def test_audit_rejects_malformed_uuid_filters(client):
+    response = client.get("/api/v1/audit-log?recordId=not-a-uuid&operatorId=also-not-a-uuid")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_query"

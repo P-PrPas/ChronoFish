@@ -3,7 +3,7 @@ from __future__ import annotations
 import ipaddress
 import logging
 import time
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -25,6 +25,7 @@ from .store import MemoryStore, Store
 
 LOGGER = logging.getLogger("chronofish.http")
 MAX_REQUEST_BYTES = 10 * 1024 * 1024
+MAX_RATE_LIMIT_CLIENTS = 10_000
 
 
 def create_app(config: Config | None = None, store: Store | None = None) -> FastAPI:
@@ -48,7 +49,19 @@ def create_app(config: Config | None = None, store: Store | None = None) -> Fast
             allow_headers=["Content-Type", "X-Operator-Id", "X-Device-Id", "X-Idempotency-Key"],
         )
 
-    hits: defaultdict[str, deque[float]] = defaultdict(deque)
+    hits: OrderedDict[str, deque[float]] = OrderedDict()
+    app.state.rate_limit_hits = hits
+
+    def secure(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Permissions-Policy"] = "camera=(), geolocation=(), microphone=()"
+        if config.app_env == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        if response.headers.get("content-type", "").partition(";")[0].lower() == "application/json":
+            response.headers["Content-Type"] = "application/json; charset=utf-8"
+        return response
 
     @app.middleware("http")
     async def security(request: Request, call_next):
@@ -58,27 +71,55 @@ def create_app(config: Config | None = None, store: Store | None = None) -> Fast
             try:
                 address = ipaddress.ip_address(host)
             except ValueError:
-                return error_response(APIError(403, "network_denied", "เครือข่ายนี้ไม่ได้รับอนุญาต"))
+                return secure(error_response(APIError(403, "network_denied", "เครือข่ายนี้ไม่ได้รับอนุญาต")))
             if not any(address in network for network in config.ip_allowlist):
-                return error_response(APIError(403, "network_denied", "เครือข่ายนี้ไม่ได้รับอนุญาต"))
-        now, bucket = time.monotonic(), hits[host]
+                return secure(error_response(APIError(403, "network_denied", "เครือข่ายนี้ไม่ได้รับอนุญาต")))
+        now = time.monotonic()
+        bucket = hits.get(host)
+        if bucket is None:
+            # ponytail: per-process LRU cap; use a shared gateway when distributed rate limiting is required.
+            if len(hits) >= MAX_RATE_LIMIT_CLIENTS:
+                hits.popitem(last=False)
+            bucket = deque()
+            hits[host] = bucket
+        else:
+            hits.move_to_end(host)
         while bucket and now - bucket[0] >= 60:
             bucket.popleft()
         if len(bucket) >= 120:
             response = error_response(APIError(429, "rate_limited", "เรียก API ถี่เกินไป กรุณาลองใหม่ภายหลัง"))
             response.headers["Retry-After"] = "60"
-            return response
+            return secure(response)
         bucket.append(now)
         try:
             content_length = int(request.headers.get("content-length", "0") or 0)
         except ValueError:
-            return error_response(APIError(400, "invalid_request", "Content-Length is invalid"))
+            return secure(error_response(APIError(400, "invalid_request", "Content-Length is invalid")))
         if content_length > MAX_REQUEST_BYTES:
-            return error_response(APIError(413, "request_too_large", "request body is too large"))
+            return secure(error_response(APIError(413, "request_too_large", "request body is too large")))
+        received_bytes = 0
+        receive = request._receive
+
+        async def limited_receive():
+            nonlocal received_bytes
+            message = await receive()
+            if message.get("type") == "http.request":
+                received_bytes += len(message.get("body", b""))
+                if received_bytes > MAX_REQUEST_BYTES:
+                    raise APIError(413, "request_too_large", "request body is too large")
+            return message
+
+        request._receive = limited_receive
+        try:
+            await request.body()
+        except APIError as error:
+            return secure(error_response(error))
         media_type = request.headers.get("content-type", "").partition(";")[0].strip().lower()
         expected_media_type = "text/csv" if request.url.path == "/api/v1/timing-profiles/csv" else "application/json"
         if (request.method in {"POST", "PUT", "PATCH"} or content_length) and media_type != expected_media_type:
-            return error_response(APIError(400, "invalid_request", f"Content-Type must be {expected_media_type}"))
+            return secure(
+                error_response(APIError(400, "invalid_request", f"Content-Type must be {expected_media_type}"))
+            )
         try:
             response = await call_next(request)
         except APIError as error:
@@ -93,12 +134,7 @@ def create_app(config: Config | None = None, store: Store | None = None) -> Fast
             response.status_code,
             (time.monotonic() - started) * 1000,
         )
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "no-referrer"
-        if response.headers.get("content-type", "").partition(";")[0].lower() == "application/json":
-            response.headers["Content-Type"] = "application/json; charset=utf-8"
-        return response
+        return secure(response)
 
     @app.get("/api/v1/health")
     def health() -> dict[str, str]:

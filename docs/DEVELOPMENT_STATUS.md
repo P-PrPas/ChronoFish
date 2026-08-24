@@ -1,10 +1,12 @@
 # ChronoFish Development Status
 
 > อัปเดตล่าสุด: 24 สิงหาคม 2026
-> Branch: `feat/phase-8-export-reporting`
+> Branch: `feat/phase-9-hardening-uat`
 > Go baseline ก่อนย้ายภาษา: `6adc25e`
 
 ## สรุปสถานะ
+
+Phase 9 automated slice is implemented on top of the merged Phase 8 baseline. The SCR-18 audit page now applies filters on submit, exposes loading/empty/error states, supports cursor pagination, localizes its labels, and shows operator/device/timestamp plus before/after values. Audit API boundary validation and security headers have regression coverage; the production image carries OCI metadata and CI verifies its non-root runtime user. `docs/PHASE_9_UAT.md` is the deployment-owner handoff for the remaining real-environment gates.
 
 การย้าย backend จาก Go เป็น Python เสร็จแล้วใน source tree ปัจจุบัน โดยมี OpenAPI 3.1 จำนวน 71 operations ระบบใช้ Python 3.13+, FastAPI, SQLAlchemy synchronous, Uvicorn, PostgreSQL 16 เป็นฐานหลัก และ MySQL 8 เป็น compatibility target ส่วน Go runtime, Go tests และ Go CI ถูกถอดออกหลัง Python ผ่าน behavior, contract และ database integration gates
 
@@ -95,7 +97,7 @@ Phase 8 — Excel, R-ready Table และ PDF export implement ครบใน 
 
 ```powershell
 cd backend
-python -m pip install -e ".[dev]"
+python -m pip install -c constraints.txt -e ".[dev]"
 python -m ruff format --check src tests
 python -m ruff check src tests
 python -m pytest
