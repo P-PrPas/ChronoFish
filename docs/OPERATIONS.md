@@ -24,10 +24,21 @@ The API is not a TLS terminator. Production traffic must reach it through an HTT
 Build the API image from the repository root so migration files are included:
 
 ```powershell
-docker build --build-arg VCS_REF=$(git rev-parse HEAD) -f backend/Dockerfile -t chronofish-api:local .
+$imageBuildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+$imageRevision = git rev-parse HEAD
+docker build --build-arg "BUILD_DATE=$imageBuildDate" --build-arg "VCS_REF=$imageRevision" -f backend/Dockerfile -t chronofish-api:local .
 cd frontend
 npm ci
 npm run check
+```
+
+For a native API process, install the reviewed dependency resolution instead of resolving new transitive versions during deployment:
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -c constraints.txt .
 ```
 
 Serve `frontend/dist` from a static web server with SPA fallback to `index.html`, and proxy `/api/` to the API. Keep TLS termination and the external VPN/reverse-proxy allowlist in front of the API. If the API is directly reachable, set `IP_ALLOWLIST` as an additional control.
@@ -63,16 +74,21 @@ Schedule a daily logical backup in the database platform or job runner and retai
 PostgreSQL example:
 
 ```powershell
-docker compose -f compose.yaml exec -T postgres pg_dump -U chronofish -d chronofish --format=custom > chronofish-YYYYMMDD.dump
-createdb chronofish_restore
-pg_restore --clean --if-exists --dbname=chronofish_restore chronofish-YYYYMMDD.dump
+docker compose -f compose.yaml exec -T postgres pg_dump -U chronofish -d chronofish --format=custom --file=/tmp/chronofish.dump
+docker compose -f compose.yaml cp postgres:/tmp/chronofish.dump ./chronofish-YYYYMMDD.dump
+docker compose -f compose.yaml exec -T postgres createdb -U chronofish chronofish_restore
+docker compose -f compose.yaml cp ./chronofish-YYYYMMDD.dump postgres:/tmp/chronofish-restore.dump
+docker compose -f compose.yaml exec -T postgres pg_restore -U chronofish --clean --if-exists --dbname=chronofish_restore /tmp/chronofish-restore.dump
 ```
 
 MySQL example:
 
 ```powershell
-docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysqldump -uroot -proot --single-transaction chronofish > chronofish-YYYYMMDD.sql
-mysql -h HOST -u chronofish -p chronofish_restore < chronofish-YYYYMMDD.sql
+docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysqldump -uroot -proot --single-transaction --result-file=/tmp/chronofish.sql chronofish
+docker compose -f compose.mysql.yaml --profile mysql cp mysql:/tmp/chronofish.sql ./chronofish-YYYYMMDD.sql
+docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysql -uroot -proot --execute="CREATE DATABASE chronofish_restore"
+docker compose -f compose.mysql.yaml --profile mysql cp ./chronofish-YYYYMMDD.sql mysql:/tmp/chronofish-restore.sql
+docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysql -uroot -proot chronofish_restore --execute="source /tmp/chronofish-restore.sql"
 ```
 
 After a restore, check `/api/v1/health`, run the database constraint checks, and verify one idempotent mutation plus its audit entry before reopening traffic.

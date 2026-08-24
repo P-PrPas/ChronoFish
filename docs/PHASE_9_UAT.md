@@ -6,8 +6,10 @@ This is the handoff sheet for the deployment owner. Automated checks belong in C
 
 | Field | Value |
 |---|---|
-| API image / commit | |
+| API image digest | |
+| Source commit | |
 | Frontend artifact checksum | |
+| Vulnerability scan report/reference | |
 | Environment | |
 | Database engine/version | |
 | UAT owner | |
@@ -49,6 +51,8 @@ Use the test definitions and expected results in `docs/SRS_Cloning_Tracking_Syst
 - [ ] Fresh migration/seed verified on the selected database engine.
 - [ ] Daily backup retention is configured for at least 30 days.
 - [ ] Restore drill completed in a disposable database; health, constraints, one idempotent write, and its audit entry verified.
+- [ ] The exact API image digest above has no unaccepted HIGH or CRITICAL vulnerability; scan evidence is retained.
+- [ ] NFR-101 through NFR-106 are measured with production-like five-year data and meet their documented response/export targets.
 - [ ] WCAG 2.1 AA automated and manual checks completed for the critical flows.
 - [ ] No unresolved MUST requirement or UAT blocker remains.
 

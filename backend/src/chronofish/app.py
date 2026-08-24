@@ -3,7 +3,7 @@ from __future__ import annotations
 import ipaddress
 import logging
 import time
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -25,6 +25,7 @@ from .store import MemoryStore, Store
 
 LOGGER = logging.getLogger("chronofish.http")
 MAX_REQUEST_BYTES = 10 * 1024 * 1024
+MAX_RATE_LIMIT_CLIENTS = 10_000
 
 
 def create_app(config: Config | None = None, store: Store | None = None) -> FastAPI:
@@ -48,7 +49,8 @@ def create_app(config: Config | None = None, store: Store | None = None) -> Fast
             allow_headers=["Content-Type", "X-Operator-Id", "X-Device-Id", "X-Idempotency-Key"],
         )
 
-    hits: defaultdict[str, deque[float]] = defaultdict(deque)
+    hits: OrderedDict[str, deque[float]] = OrderedDict()
+    app.state.rate_limit_hits = hits
 
     def secure(response):
         response.headers["X-Content-Type-Options"] = "nosniff"
@@ -73,12 +75,15 @@ def create_app(config: Config | None = None, store: Store | None = None) -> Fast
             if not any(address in network for network in config.ip_allowlist):
                 return secure(error_response(APIError(403, "network_denied", "เครือข่ายนี้ไม่ได้รับอนุญาต")))
         now = time.monotonic()
-        # ponytail: cap per-process rate-limit memory; use a shared gateway for distributed limits.
-        if len(hits) >= 10_000:
-            for address, address_hits in list(hits.items()):
-                if not address_hits or now - address_hits[-1] >= 60:
-                    del hits[address]
-        bucket = hits[host]
+        bucket = hits.get(host)
+        if bucket is None:
+            # ponytail: per-process LRU cap; use a shared gateway when distributed rate limiting is required.
+            if len(hits) >= MAX_RATE_LIMIT_CLIENTS:
+                hits.popitem(last=False)
+            bucket = deque()
+            hits[host] = bucket
+        else:
+            hits.move_to_end(host)
         while bucket and now - bucket[0] >= 60:
             bucket.popleft()
         if len(bucket) >= 120:
@@ -105,10 +110,16 @@ def create_app(config: Config | None = None, store: Store | None = None) -> Fast
             return message
 
         request._receive = limited_receive
+        try:
+            await request.body()
+        except APIError as error:
+            return secure(error_response(error))
         media_type = request.headers.get("content-type", "").partition(";")[0].strip().lower()
         expected_media_type = "text/csv" if request.url.path == "/api/v1/timing-profiles/csv" else "application/json"
         if (request.method in {"POST", "PUT", "PATCH"} or content_length) and media_type != expected_media_type:
-            return error_response(APIError(400, "invalid_request", f"Content-Type must be {expected_media_type}"))
+            return secure(
+                error_response(APIError(400, "invalid_request", f"Content-Type must be {expected_media_type}"))
+            )
         try:
             response = await call_next(request)
         except APIError as error:

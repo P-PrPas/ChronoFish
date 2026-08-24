@@ -193,3 +193,10 @@ def test_audit_rejects_malformed_cursor_without_server_error(client):
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "invalid_query"
+
+
+def test_audit_rejects_malformed_uuid_filters(client):
+    response = client.get("/api/v1/audit-log?recordId=not-a-uuid&operatorId=also-not-a-uuid")
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "invalid_query"

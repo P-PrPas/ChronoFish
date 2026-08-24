@@ -29,7 +29,7 @@ Requirements: Python 3.13+, Node.js 22+, npm.
 cd backend
 $env:APP_ENV="development"
 $env:DB_DRIVER="memory"
-python -m pip install -e ".[dev]"
+python -m pip install -c constraints.txt -e ".[dev]"
 python -m chronofish
 
 # terminal 2

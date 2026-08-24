@@ -1,6 +1,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { type ApiItem, get } from "../api/client";
 import { Empty, ErrorMessage } from "../components";
+import { formatBangkokDateTime } from "../time";
 import { type AppText, text } from "../types";
 
 type AuditFilters = {
@@ -79,7 +80,7 @@ export function Audit({ t = text.en }: { t?: AppText } = {}) {
     setItems([]);
     setNextCursor(undefined);
     setLoaded(false);
-    setFilters(emptyFilters);
+    setFilters({ ...emptyFilters });
   };
 
   return (
@@ -105,7 +106,7 @@ export function Audit({ t = text.en }: { t?: AppText } = {}) {
           <legend>{t.historyFilters}</legend>
           <label>
             {t.table}
-            <input value={draft.table} onChange={(event) => update("table", event.target.value)} placeholder="batches" />
+            <input value={draft.table} onChange={(event) => update("table", event.target.value)} placeholder="experiment_batch" />
           </label>
           <label>
             {t.recordId}
@@ -145,13 +146,14 @@ export function Audit({ t = text.en }: { t?: AppText } = {}) {
             const recordId = String(item.recordId ?? "—");
             const operator = String(item.operatorName ?? item.operatorId ?? "—");
             const occurredAt = String(item.occurredAt ?? "");
+            const displayedAt = formatBangkokDateTime(occurredAt) || "—";
             return (
               <details className="list-row audit-row" key={String(item.id)}>
                 <summary>
                   <span>
                     <strong>{action} · {table}</strong>
                     <small>
-                      {t.record}: {recordId} · <time dateTime={occurredAt}>{occurredAt || "—"}</time>
+                      {t.record}: {recordId} · <time dateTime={occurredAt}>{displayedAt}</time>
                     </small>
                   </span>
                   <span className="pill">{operator}</span>
@@ -162,7 +164,7 @@ export function Audit({ t = text.en }: { t?: AppText } = {}) {
                     <div><dt>{t.record}</dt><dd>{recordId}</dd></div>
                     <div><dt>{t.operator}</dt><dd>{operator}</dd></div>
                     <div><dt>{t.device}</dt><dd>{String(item.deviceId ?? "—")}</dd></div>
-                    <div><dt>{t.timestamp}</dt><dd>{occurredAt || "—"}</dd></div>
+                    <div><dt>{t.timestamp}</dt><dd>{displayedAt}</dd></div>
                   </dl>
                   <div className="audit-values">
                     <div><h2>{t.before}</h2><pre>{jsonValue(item.oldValues)}</pre></div>

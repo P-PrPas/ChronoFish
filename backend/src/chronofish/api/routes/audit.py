@@ -5,6 +5,7 @@ import binascii
 import json
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Request
@@ -25,6 +26,16 @@ def _filter(value: str | None, name: str) -> str | None:
     if len(value) > MAX_FILTER_LENGTH or any(ord(character) < 32 for character in value):
         raise APIError(400, "invalid_query", f"{name} is invalid")
     return value
+
+
+def _uuid_filter(value: str | None, name: str) -> str | None:
+    value = _filter(value, name)
+    if value is None:
+        return None
+    try:
+        return str(UUID(value))
+    except ValueError as error:
+        raise APIError(400, "invalid_query", f"{name} must be a UUID") from error
 
 
 def _time(value: str | None) -> datetime | None:
@@ -73,8 +84,8 @@ def build_audit_router(store: Store) -> APIRouter:
         except ValueError as error:
             raise APIError(400, "invalid_query", "limit must be an integer") from error
         table = _filter(query.get("table"), "table")
-        record_id = _filter(query.get("recordId"), "recordId")
-        operator_id = _filter(query.get("operatorId"), "operatorId")
+        record_id = _uuid_filter(query.get("recordId"), "recordId")
+        operator_id = _uuid_filter(query.get("operatorId"), "operatorId")
         from_time, to_time, cursor = _time(query.get("from")), _time(query.get("to")), _cursor(query.get("cursor"))
         if from_time and to_time and from_time > to_time:
             raise APIError(400, "invalid_query", "from must not be after to")

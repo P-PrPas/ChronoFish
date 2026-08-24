@@ -40,23 +40,35 @@ describe("audit history", () => {
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
     expect(fetchMock).toHaveBeenCalledOnce();
+    expect(document.body.textContent).toContain("24/08/2026 10:00");
+    expect(document.body.textContent).not.toContain("2026-08-24T03:00:00Z");
 
-    const table = document.querySelector("input[placeholder=batches]") as HTMLInputElement;
+    const clearButton = Array.from(document.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Clear filters"),
+    );
+    await act(async () => {
+      clearButton?.click();
+      await Promise.resolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const table = document.querySelector("form input") as HTMLInputElement;
     await act(async () => {
       const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
       setValue?.call(table, "sites");
       table.dispatchEvent(new Event("input", { bubbles: true }));
       table.dispatchEvent(new Event("change", { bubbles: true }));
     });
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
 
     await act(async () => {
       document.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
       await Promise.resolve();
       await new Promise((resolve) => setTimeout(resolve, 0));
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(String(fetchMock.mock.calls[1][0])).toContain("table=sites");
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[2][0])).toContain("table=sites");
     expect(document.body.textContent).toContain("ipad-01");
     expect(document.body.textContent).toContain('"Before"');
     expect(document.body.textContent).toContain('"After"');

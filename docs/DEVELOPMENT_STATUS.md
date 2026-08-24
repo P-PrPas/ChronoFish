@@ -97,7 +97,7 @@ Phase 8 — Excel, R-ready Table และ PDF export implement ครบใน 
 
 ```powershell
 cd backend
-python -m pip install -e ".[dev]"
+python -m pip install -c constraints.txt -e ".[dev]"
 python -m ruff format --check src tests
 python -m ruff check src tests
 python -m pytest

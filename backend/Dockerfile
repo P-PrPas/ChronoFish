@@ -1,4 +1,4 @@
-FROM python:3.13.7-slim-bookworm
+FROM python:3.13.7-slim-bookworm@sha256:adafcc17694d715c905b4c7bebd96907a1fd5cf183395f0ebc4d3428bd22d92d
 
 ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
@@ -16,8 +16,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 COPY backend/pyproject.toml ./
+COPY backend/constraints.txt ./
 COPY backend/src ./src
-RUN python -m pip install --no-cache-dir . \
+RUN python -m pip install --no-cache-dir -c constraints.txt . \
     && addgroup --system chronofish \
     && adduser --system --ingroup chronofish --no-create-home chronofish
 COPY backend/db/migrations /migrations

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import ipaddress
+import time
+from collections import deque
 from pathlib import Path
 from uuid import UUID
 
@@ -135,6 +137,8 @@ def test_writes_require_json_and_use_the_common_error_envelope(client, write_hea
     )
     assert response.status_code == 400
     assert response.headers["Content-Type"] == "application/json; charset=utf-8"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Permissions-Policy"] == "camera=(), geolocation=(), microphone=()"
     assert response.json() == {
         "error": {
             "code": "invalid_request",
@@ -188,6 +192,28 @@ def test_oversized_declared_body_is_rejected(client, write_headers):
     assert response.status_code == 413
     assert response.json()["error"]["code"] == "request_too_large"
     assert response.headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_oversized_chunked_body_is_rejected_with_common_envelope(client, write_headers):
+    response = client.post(
+        "/api/v1/sites",
+        headers={**write_headers, "Content-Type": "application/json"},
+        content=(b"x" * 1024 * 1024 for _ in range(11)),
+    )
+
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "request_too_large"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_rate_limit_client_bookkeeping_is_bounded(client):
+    hits = client.app.state.rate_limit_hits
+    now = time.monotonic()
+    hits.update((str(index), deque([now])) for index in range(10_000))
+
+    assert client.get("/api/v1/health").status_code == 200
+    assert len(hits) == 10_000
+    assert "testclient" in hits
 
 
 def test_write_context_headers_are_required(client):
