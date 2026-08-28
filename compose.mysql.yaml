@@ -24,11 +24,13 @@ services:
     environment:
       PORT: 8080
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      IP_ALLOWLIST: ${IP_ALLOWLIST:-}
+      FORWARDED_ALLOW_IPS: "*"
       DB_DRIVER: mysql
       DATABASE_URL: mysql+pymysql://chronofish:chronofish@mysql:3306/chronofish
       MIGRATIONS_DIR: /migrations/mysql
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
     healthcheck:
       test: ["CMD", "python", "-m", "chronofish", "healthcheck"]
       interval: 30s
@@ -41,17 +43,18 @@ services:
     profiles: [mysql]
     build:
       context: ./frontend
-      dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
         VCS_REF: ${VCS_REF:-unknown}
+    environment:
+      API_UPSTREAM: api-mysql
     ports:
       - "${FRONTEND_PORT:-5173}:8080"
     depends_on:
       api-mysql:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/health"]
       interval: 30s
       timeout: 3s
       retries: 3

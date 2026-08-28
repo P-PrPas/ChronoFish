@@ -40,7 +40,6 @@ jobs:
           npm ci
           npm run generate:api
           git diff --exit-code -- src/api/schema.d.ts
-          npm run check
           npm test -- --run
       - name: Validate Compose files
         run: |
@@ -65,6 +64,16 @@ jobs:
           test "$(docker image inspect chronofish-frontend:ci --format '{{.Config.User}}')" = "nginx"
           test "$(docker image inspect chronofish-frontend:ci --format '{{index .Config.Labels "org.opencontainers.image.title"}}')" = "ChronoFish frontend"
           test "$(docker image inspect chronofish-frontend:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+      - name: Smoke test Compose frontend proxies
+        run: |
+          trap 'docker compose -f compose.yaml down -v; docker compose -f compose.mysql.yaml --profile mysql down -v' EXIT
+          docker compose -f compose.yaml up --build --wait --wait-timeout 120
+          curl --fail --silent --show-error --output /dev/null http://127.0.0.1:5173/
+          curl --fail --silent --show-error --output /dev/null http://127.0.0.1:5173/api/v1/health
+          docker compose -f compose.yaml down -v
+          docker compose -f compose.mysql.yaml --profile mysql up --build --wait --wait-timeout 120
+          curl --fail --silent --show-error --output /dev/null http://127.0.0.1:5173/
+          curl --fail --silent --show-error --output /dev/null http://127.0.0.1:5173/api/v1/health
 
   contract:
     runs-on: ubuntu-latest

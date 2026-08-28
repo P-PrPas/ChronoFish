@@ -8,7 +8,7 @@
     "generate:api": "openapi-typescript ../api/openapi.yaml -o src/api/schema.d.ts",
     "build": "tsc --noEmit && vite build",
     "check": "npm run build",
-    "test": "vitest run"
+    "test": "npm run build && vitest run"
   },
   "dependencies": {
     "react": "^19.1.1",

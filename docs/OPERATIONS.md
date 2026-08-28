@@ -61,6 +61,10 @@ curl http://localhost:5173/
 curl http://localhost:5173/api/v1/health
 ```
 
+Compose binds the direct API ports (`8080` for PostgreSQL and `8081` for MySQL)
+to `127.0.0.1`. Network clients use the frontend proxy, which normalizes the
+forwarded client address before the API applies `IP_ALLOWLIST` and rate limits.
+
 The MySQL compatibility stack is isolated in its own file and does not start PostgreSQL:
 
 ```powershell

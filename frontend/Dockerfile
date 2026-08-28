@@ -1,7 +1,6 @@
 FROM node:22.14.0-alpine3.21 AS build
 
 ARG VITE_API_BASE_URL=/api/v1
-ARG VCS_REF=unknown
 
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
 
@@ -15,6 +14,10 @@ FROM nginx:1.27.5-alpine3.21
 
 ARG VCS_REF=unknown
 
+ENV API_UPSTREAM=api \
+    NGINX_ENVSUBST_FILTER=API_UPSTREAM \
+    NGINX_ENVSUBST_OUTPUT_DIR=/tmp/nginx/conf.d
+
 LABEL org.opencontainers.image.title="ChronoFish frontend" \
       org.opencontainers.image.description="ChronoFish static React application" \
       org.opencontainers.image.source="https://github.com/P-PrPas/ChronoFish" \
@@ -22,9 +25,9 @@ LABEL org.opencontainers.image.title="ChronoFish frontend" \
 
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
-COPY default.conf /etc/nginx/conf.d/default.conf
+COPY default.conf /etc/nginx/templates/default.conf.template
 
-RUN mkdir -p /tmp/nginx/client_temp /tmp/nginx/proxy_temp /tmp/nginx/fastcgi_temp /tmp/nginx/uwsgi_temp /tmp/nginx/scgi_temp \
+RUN mkdir -p /tmp/nginx/conf.d /tmp/nginx/client_temp /tmp/nginx/proxy_temp /tmp/nginx/fastcgi_temp /tmp/nginx/uwsgi_temp /tmp/nginx/scgi_temp \
     && rm -f /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh \
     && chown -R nginx:nginx /tmp/nginx /usr/share/nginx/html
 
