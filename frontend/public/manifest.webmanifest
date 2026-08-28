@@ -3,7 +3,7 @@
   "short_name": "ChronoFish",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f7f9fb",
-  "theme_color": "#11233b",
+  "background_color": "#f4f7f5",
+  "theme_color": "#101c24",
   "icons": []
 }
