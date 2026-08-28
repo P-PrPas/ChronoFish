@@ -50,21 +50,27 @@ trivy image --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 chronofish-a
 docker image inspect chronofish-api:local --format '{{.Config.User}} {{index .Config.Labels "org.opencontainers.image.revision"}}'
 ```
 
-The frontend is a static artifact. The production path does not require Node or a frontend container; if hosting requires one, use a separate web-server image with SPA fallback and keep Node out of the runtime image.
+The frontend is a static artifact. The repository also provides an optional nginx image for environments that want one Compose stack: it builds with Node, runs the static files with unprivileged nginx, proxies `/api/` to the API service, and has SPA fallback. Node is not present in the runtime image. For static hosting, deploy `frontend/dist` directly instead.
 
 For the default PostgreSQL stack:
 
 ```powershell
 docker compose -f compose.yaml up --build -d
 docker compose -f compose.yaml ps
-curl http://localhost:8080/api/v1/health
+curl http://localhost:5173/
+curl http://localhost:5173/api/v1/health
 ```
+
+Compose binds the direct API ports (`8080` for PostgreSQL and `8081` for MySQL)
+to `127.0.0.1`. Network clients use the frontend proxy, which normalizes the
+forwarded client address before the API applies `IP_ALLOWLIST` and rate limits.
 
 The MySQL compatibility stack is isolated in its own file and does not start PostgreSQL:
 
 ```powershell
 docker compose -f compose.mysql.yaml --profile mysql up --build -d
-curl http://localhost:8081/api/v1/health
+curl http://localhost:5173/
+curl http://localhost:5173/api/v1/health
 ```
 
 ## Backup and restore

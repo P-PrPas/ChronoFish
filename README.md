@@ -56,9 +56,13 @@ npm run generate:api
 npm run check
 ```
 
-For a local stack with PostgreSQL, use `docker compose up --build`; Compose
-uses PostgreSQL 16 and the API applies migrations before serving traffic. The
-isolated MySQL 8 stack is in `compose.mysql.yaml`; start it with
+For a local stack with PostgreSQL, copy `.env.example` to `.env` (PowerShell:
+`Copy-Item .env.example .env`) and use
+`docker compose up --build`; Compose starts the frontend image, API and
+PostgreSQL. Open `http://localhost:5173`; the frontend nginx proxy forwards
+`/api/` to the API service. The direct API port is bound to `127.0.0.1` for
+local diagnostics; remote clients must use the frontend proxy. The isolated
+MySQL 8 stack is in `compose.mysql.yaml`; start it with
 `docker compose -f compose.mysql.yaml --profile mysql up --build` so the
 PostgreSQL services are not started alongside it.
 Production configuration defaults to PostgreSQL and requires `DATABASE_URL`.

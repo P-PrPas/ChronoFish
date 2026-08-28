@@ -12,7 +12,7 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD", "mysql", "-h", "127.0.0.1", "-uchronofish", "-pchronofish", "-D", "chronofish", "-e", "SELECT 1"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -23,12 +23,14 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       PORT: 8080
-      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      IP_ALLOWLIST: ${IP_ALLOWLIST:-}
+      FORWARDED_ALLOW_IPS: "*"
       DB_DRIVER: mysql
       DATABASE_URL: mysql+pymysql://chronofish:chronofish@mysql:3306/chronofish
       MIGRATIONS_DIR: /migrations/mysql
     ports:
-      - "8081:8080"
+      - "127.0.0.1:8081:8080"
     healthcheck:
       test: ["CMD", "python", "-m", "chronofish", "healthcheck"]
       interval: 30s
@@ -37,6 +39,25 @@ services:
     depends_on:
       mysql:
         condition: service_healthy
+  frontend:
+    profiles: [mysql]
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        VCS_REF: ${VCS_REF:-unknown}
+    environment:
+      API_UPSTREAM: api-mysql
+    ports:
+      - "${FRONTEND_PORT:-5173}:8080"
+    depends_on:
+      api-mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
 
 volumes:
   mysql-data:

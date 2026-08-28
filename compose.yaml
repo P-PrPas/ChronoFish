@@ -5,17 +5,35 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       PORT: 8080
-      CORS_ALLOWED_ORIGINS: http://localhost:5173
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      IP_ALLOWLIST: ${IP_ALLOWLIST:-}
+      FORWARDED_ALLOW_IPS: "*"
       DB_DRIVER: postgres
       DATABASE_URL: postgresql+psycopg://chronofish:chronofish@postgres:5432/chronofish
       MIGRATIONS_DIR: /migrations/postgres
     ports:
-      - "8080:8080"
+      - "127.0.0.1:${API_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-m", "chronofish", "healthcheck"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        VCS_REF: ${VCS_REF:-unknown}
+    ports:
+      - "${FRONTEND_PORT:-5173}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/health"]
       interval: 30s
       timeout: 3s
       retries: 3
