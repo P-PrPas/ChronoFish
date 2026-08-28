@@ -66,6 +66,7 @@ jobs:
           test "$(docker image inspect chronofish-frontend:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
       - name: Smoke test Compose frontend proxies
         run: |
+          trap 'docker compose -f compose.yaml logs --no-color || true; docker compose -f compose.mysql.yaml --profile mysql logs --no-color || true' ERR
           trap 'docker compose -f compose.yaml down -v; docker compose -f compose.mysql.yaml --profile mysql down -v' EXIT
           docker compose -f compose.yaml up --build --wait --wait-timeout 120
           curl --fail --silent --show-error --output /dev/null http://127.0.0.1:5173/

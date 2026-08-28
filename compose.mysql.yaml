@@ -12,7 +12,7 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      test: ["CMD", "mysql", "-h", "127.0.0.1", "-uchronofish", "-pchronofish", "-D", "chronofish", "-e", "SELECT 1"]
       interval: 5s
       timeout: 3s
       retries: 10
