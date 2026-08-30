@@ -91,7 +91,7 @@ export function Due({ t }: { t: AppText }) {
       </fieldset>
     </details>
     {error && <ErrorMessage message={error} />}
-    {items.length === 0 ? <Empty message={t.empty} /> : <div className="list">{items.map((item: ApiItem) => {
+    {items.length === 0 ? <Empty message={t.empty} actionLabel={thai ? 'เปิดรายการทดลอง' : 'Open experiments'} onAction={() => { location.hash = 'batches' }} /> : <div className="list">{items.map((item: ApiItem) => {
       const late = item.minutesLate ?? 0
       const pendingStages = Number(item.pendingStages ?? 0)
       return <button key={`${item.injectionLotId}-${item.stageCode}`} className="list-row" onClick={() => setSelected(item)}><span><strong>{String(item.batchCode)} · Lot {String(item.lotNo)}</strong><small>{String(item.stageLabel)} · {thai ? `เหลือ ${String(item.embryosRemaining ?? '—')} ตัว${pendingStages > 1 ? ` · ค้าง ${pendingStages} จุดตรวจ` : ''}` : `${String(item.embryosRemaining ?? '—')} embryos remaining${pendingStages > 1 ? ` · ${pendingStages} checkpoints overdue` : ''}`}</small></span><span className={late > 0 ? 'pill pill--late' : 'pill'}>{late > 0 ? (thai ? `เกิน ${late} นาที` : `Late ${late} min`) : (thai ? `อีก ${Math.abs(Number(late))} นาที` : `Due in ${Math.abs(Number(late))} min`)}</span></button>

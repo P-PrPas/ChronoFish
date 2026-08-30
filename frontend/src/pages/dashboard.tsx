@@ -581,6 +581,7 @@ export function Dashboard({
             />
             <QualityNote meta={data.abnormalityMeta} thai={thai} />
           </ReportPanel>
+          <details className="secondary-analysis"><summary>{thai ? "ดูการวิเคราะห์เวลาและกลุ่มควบคุมเพิ่มเติม" : "View timing and control analysis"}</summary>
           <ReportPanel title={thai ? "เวลาเร็ว–ช้าเมื่อเทียบค่ามาตรฐาน" : "Timing deviation / group comparison"} loading={loading} empty={data.deviation.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลเวลาเบี่ยงเบนที่ตรงกับตัวกรอง" : "No timing deviations match these filters."} sampleSize={data.deviationMeta?.sampleSize} quality={<QualityNote meta={data.deviationMeta} thai={thai} />}>
             <DeviationChart points={data.deviation} thai={thai} />
             <p className="insight-strip">{thai ? "ค่าใกล้ศูนย์หมายถึงเวลาใกล้มาตรฐาน ค่าบวกคือช้ากว่า และค่าลบคือเร็วกว่ามาตรฐาน" : "Values near zero match the timing standard; positive values are later and negative values are earlier."}</p>
@@ -624,6 +625,7 @@ export function Dashboard({
               ])}
             />
           </ReportPanel>
+          </details>
         </>
       )}
       {tab === "stage2" && (

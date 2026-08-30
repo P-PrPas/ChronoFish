@@ -18,10 +18,10 @@ export function ReportTable({ headers, rows, caption, emptyMessage = 'No data', 
   return collapsed ? <details className="data-disclosure"><summary>{summary}</summary>{table}</details> : table
 }
 
-export function Empty({ message }: { message: string }) {
-  return <div className="empty"><span aria-hidden="true"><svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 7h16v12H4zM8 7V4h8v3M9 12h6" /></svg></span><p>{message}</p></div>
+export function Empty({ message, actionLabel, onAction }: { message: string; actionLabel?: string; onAction?: () => void }) {
+  return <div className="empty"><span aria-hidden="true"><svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M4 7h16v12H4zM8 7V4h8v3M9 12h6" /></svg></span><p>{message}</p>{actionLabel && onAction && <button type="button" className="button button--secondary" onClick={onAction}>{actionLabel}</button>}</div>
 }
 
 export function ErrorMessage({ message }: { message: string }) {
-  return <p className="error" role="alert">{message}</p>
+  return <p className="error" role="alert" tabIndex={-1} autoFocus>{message}</p>
 }

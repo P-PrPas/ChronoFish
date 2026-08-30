@@ -10,6 +10,7 @@ import { putQueue, type QueuedWrite } from "../offline";
 import { Empty, ErrorMessage } from "../components";
 import { uuidv7 } from "../uuidv7";
 import { type AppText, text } from "../types";
+import { formatBangkokDateTime } from "../time";
 
 const seedProtocolId = "01900000-0000-7000-8000-000000000001";
 
@@ -102,8 +103,7 @@ function apiError(error: unknown): string {
 
 function createdAt(profile: ApiItem): string {
   const value = String(profile.createdAt ?? "");
-  const date = new Date(value);
-  return value && !Number.isNaN(date.valueOf()) ? date.toLocaleString() : "Unknown time";
+  return formatBangkokDateTime(value) || "—";
 }
 
 function changedStages(profile: ApiItem, previous?: ApiItem, thai = false): string {
@@ -577,7 +577,7 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
       </div>
       {message && <ErrorMessage message={message} />}
       {items.length === 0 ? (
-        <Empty message={t.noEligiblePromotions} />
+        <Empty message={t.noEligiblePromotions} actionLabel={t.due} onAction={() => { location.hash = 'due' }} />
       ) : (
         <div className="list">
           {items.map((item) => {
