@@ -117,6 +117,35 @@ def test_checkpoint_and_bulk_observation_snapshot_timing(client, write_headers):
     assert result["isBackdated"] is True
 
 
+def test_checkpoint_entry_supports_independent_embryo_stages(client, write_headers):
+    _batch, lot, embryo, activated = setup_embryo(client, write_headers)
+    observed = (datetime.fromisoformat(activated.replace("Z", "+00:00")) + timedelta(hours=2)).isoformat()
+    response = client.post(
+        "/api/v1/observations/embryo",
+        headers=headers(write_headers, 352),
+        json={
+            "observations": [
+                {
+                    "clientUuid": "01900000-0000-7000-8000-000000000352",
+                    "embryoId": embryo["id"],
+                    "stageCode": "stage_05_16C",
+                    "observedAt": observed,
+                    "outcome": "ALIVE",
+                    "condition": "ABNORMAL",
+                }
+            ]
+        },
+    )
+    assert response.status_code == 200
+
+    entry = client.get(f"/api/v1/injection-lots/{lot['id']}/checkpoints/stage_03_4C").json()
+
+    assert len(entry["stages"]) == 26
+    assert entry["stages"][0]["stageCode"] == "stage_01_1C"
+    assert entry["embryos"][0]["priorStageCode"] == "stage_05_16C"
+    assert entry["embryos"][0]["defaultCondition"] == "ABNORMAL"
+
+
 def test_uat_t02_saves_all_fifteen_alive_observations(client, write_headers):
     _batch, lot, _embryo, activated = setup_embryo(client, write_headers, count=15)
     response = client.post(

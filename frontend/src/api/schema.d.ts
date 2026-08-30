@@ -1574,6 +1574,13 @@ export interface components {
             batchCode: string;
             lotNo: string;
             stage: components["schemas"]["StageDefinition"];
+            /** @description Stage 1 choices available independently for each embryo in this observation round. */
+            stages: {
+                stageCode: string;
+                stageLabel: string;
+                stageOrder: number;
+                expectedHpa: number;
+            }[];
             /** Format: date-time */
             activatedAt: string;
             /** @example 2.5 */

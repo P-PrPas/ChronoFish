@@ -2338,12 +2338,23 @@ components:
 
     CheckpointEntry:
       type: object
-      required: [injectionLotId, batchCode, lotNo, stage, activatedAt, expectedHpa, totalEmbryos, embryosRemaining, embryos]
+      required: [injectionLotId, batchCode, lotNo, stage, stages, activatedAt, expectedHpa, totalEmbryos, embryosRemaining, embryos]
       properties:
         injectionLotId: { type: string, format: uuid }
         batchCode: { type: string }
         lotNo: { type: string }
         stage: { $ref: '#/components/schemas/StageDefinition' }
+        stages:
+          type: array
+          description: Stage 1 choices available independently for each embryo in this observation round.
+          items:
+            type: object
+            required: [stageCode, stageLabel, stageOrder, expectedHpa]
+            properties:
+              stageCode: { type: string }
+              stageLabel: { type: string }
+              stageOrder: { type: integer }
+              expectedHpa: { type: number }
         activatedAt: { type: string, format: date-time }
         expectedHpa: { type: number, examples: [2.5] }
         dueAt: { type: string, format: date-time }

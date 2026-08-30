@@ -281,68 +281,6 @@ export function FunnelChart({ points, thai = false }: { points: ApiItem[]; thai?
   );
 }
 
-export function DeviationChart({ points, thai = false }: { points: ApiItem[]; thai?: boolean }) {
-  const stages = Array.from(new Map(points.map((point) => [String(point.stageOrder ?? point.stageLabel), point])).entries());
-  const [selectedStage, setSelectedStage] = useState('');
-  if (points.length === 0) return null;
-  const stageKey = stages.some(([key]) => key === selectedStage) ? selectedStage : stages[0][0];
-  const shown = points.filter((point) => String(point.stageOrder ?? point.stageLabel) === stageKey);
-  const width = 560;
-  const height = 180;
-  const values = shown.flatMap((point) => [Number(point.minDeviationH ?? 0), Number(point.maxDeviationH ?? 0)]);
-  const min = Math.min(0, ...values);
-  const max = Math.max(0, ...values);
-  const span = Math.max(0.5, max - min);
-  const y = (value: number) => 14 + ((max - value) / span) * (height - 34);
-  const slotWidth = (width - 70) / shown.length;
-  const axis = y(0);
-  return (
-    <div className="chart-block">
-      <label className="chart-select">{thai ? "ระยะที่ต้องการเปรียบเทียบ" : "Checkpoint to compare"}<select value={stageKey} onChange={(event) => setSelectedStage(event.target.value)}>{stages.map(([key, point]) => <option key={key} value={key}>{String(point.stageLabel ?? point.stageOrder)}</option>)}</select></label>
-    <svg
-      className="chart"
-      role="img"
-      aria-label={thai ? "การเบี่ยงเบนเวลาเทียบมาตรฐาน หน่วยชั่วโมง" : "Timing deviation from standard in hours"}
-      viewBox={`0 0 ${width} ${height}`}
-    >
-      <line
-        x1="12"
-        y1={axis}
-        x2={width - 12}
-        y2={axis}
-        stroke="currentColor"
-        opacity=".35"
-      />
-      {shown.map((point, index) => {
-        const minimum = Number(point.minDeviationH ?? 0);
-        const q1 = Number(point.q1DeviationH ?? point.medianDeviationH ?? 0);
-        const median = Number(point.medianDeviationH ?? 0);
-        const q3 = Number(point.q3DeviationH ?? point.medianDeviationH ?? 0);
-        const maximum = Number(point.maxDeviationH ?? 0);
-        const mean = Number(point.meanDeviationH ?? 0);
-        const x = 58 + slotWidth * (index + 0.5);
-        const boxWidth = Math.max(4, Math.min(18, slotWidth * 0.65));
-        return (
-          <g key={`${String(point.stageOrder)}-${String(point.treatmentGroup ?? "")}-${index}`}>
-            <line x1={x} y1={y(maximum)} x2={x} y2={y(minimum)} stroke="currentColor" />
-            <line x1={x - boxWidth / 3} y1={y(maximum)} x2={x + boxWidth / 3} y2={y(maximum)} stroke="currentColor" />
-            <line x1={x - boxWidth / 3} y1={y(minimum)} x2={x + boxWidth / 3} y2={y(minimum)} stroke="currentColor" />
-            <rect x={x - boxWidth / 2} y={y(q3)} width={boxWidth} height={Math.max(1, y(q1) - y(q3))} fill="#f2a65a" fillOpacity=".35" stroke="currentColor" />
-            <line x1={x - boxWidth / 2} y1={y(median)} x2={x + boxWidth / 2} y2={y(median)} stroke="currentColor" strokeWidth="2" />
-            <circle cx={x} cy={y(mean)} r="2" fill="#6dc5b0">
-              <title>{`${String(point.treatmentGroup ?? point.strain ?? "All")} · ${String(point.stageLabel ?? point.stageOrder)}: ${thai ? "มัธยฐาน" : "median"} ${median.toFixed(2)} h`}</title>
-            </circle>
-            <text x={x} y={height - 4} textAnchor="middle">{String(point.treatmentGroup ?? point.strain ?? (thai ? "ทั้งหมด" : "All"))}</text>
-          </g>
-        );
-      })}
-      <text x="4" y="14">{thai ? "+ ช้า (ชม.)" : "+ late (h)"}</text>
-      <text x="4" y={height - 20}>{thai ? "− เร็ว" : "− early"}</text>
-    </svg>
-    </div>
-  );
-}
-
 export function FishSurvivalChart({ points, thai = false }: { points: ApiItem[]; thai?: boolean }) {
   const [hidden, setHidden] = useState<Set<string>>(new Set())
   if (points.length === 0) return null
@@ -563,7 +501,7 @@ export function Dashboard({
                 thai ? "อัตรารอด" : "Survival",
               ]}
               rows={data.survival.map((point) => [
-                String(point.siteId ?? "All"),
+                String(point.site ?? "All"),
                 String(point.strain ?? "All"),
                 String(point.treatmentGroup ?? "All"),
                 String(point.stageLabel ?? point.stageOrder),
@@ -603,7 +541,6 @@ export function Dashboard({
           </ReportPanel>
           <details className="secondary-analysis"><summary>{thai ? "ดูการวิเคราะห์เวลาและกลุ่มควบคุมเพิ่มเติม" : "View timing and control analysis"}</summary>
           <ReportPanel title={thai ? "เวลาเร็ว–ช้าเมื่อเทียบค่ามาตรฐาน" : "Timing deviation / group comparison"} loading={loading} empty={data.deviation.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลเวลาเบี่ยงเบนที่ตรงกับตัวกรอง" : "No timing deviations match these filters."} sampleSize={data.deviationMeta?.sampleSize} quality={<QualityNote meta={data.deviationMeta} thai={thai} />}>
-            <DeviationChart points={data.deviation} thai={thai} />
             <p className="insight-strip">{thai ? "ค่าใกล้ศูนย์หมายถึงเวลาใกล้มาตรฐาน ค่าบวกคือช้ากว่า และค่าลบคือเร็วกว่ามาตรฐาน" : "Values near zero match the timing standard; positive values are later and negative values are earlier."}</p>
             <ReportTable
               collapsed summary={thai ? "ดูค่ารายกลุ่ม" : "View group values"}
@@ -707,7 +644,6 @@ export function Dashboard({
             <p className="table-note">{thai ? "ตรวจข้อมูลต้นทาง:" : "Source records:"} <button type="button" className="inline-action" onClick={() => openSource("batches")}>{thai ? "เปิดการทดลอง" : "Open batches"}</button><button type="button" className="inline-action" onClick={() => openSource("fish")}>{thai ? "เปิดทะเบียนปลา" : "Open fish registry"}</button></p>
           </ReportPanel>
           <ReportPanel title={thai ? "หลักฐานเวลาเบี่ยงเบน" : "Timing deviation evidence"} loading={loading} empty={data.deviation.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลเวลาเบี่ยงเบนที่ตรงกับตัวกรอง" : "No timing deviations match these filters."} sampleSize={data.deviationMeta?.sampleSize} quality={<QualityNote meta={data.deviationMeta} thai={thai} />}>
-            <DeviationChart points={data.deviation} thai={thai} />
             <ReportTable
               collapsed summary={thai ? "ดูหลักฐานเวลาเบี่ยงเบน" : "View timing evidence"}
               caption="Timing deviation evidence"

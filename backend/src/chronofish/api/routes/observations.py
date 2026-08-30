@@ -297,18 +297,7 @@ def build_observations_router(store: Store) -> APIRouter:
         for embryo in all_embryos:
             if embryo.get("exitReason"):
                 continue
-            earlier = [
-                item
-                for item in state.observations.values()
-                if item.get("embryoId") == embryo["id"]
-                and item.get("deletedAt") is None
-                and 0 < stage_number(str(item.get("stageCode", ""))) < order
-            ]
-            prior = max(
-                earlier,
-                key=lambda item: (stage_number(str(item.get("stageCode", ""))), str(item.get("observedAt", ""))),
-                default=None,
-            )
+            prior = _latest_embryo_observation(state, str(embryo["id"]))
             embryos.append(
                 {
                     "embryoId": embryo["id"],
@@ -324,6 +313,15 @@ def build_observations_router(store: Store) -> APIRouter:
             )
         activated = parse_datetime(str(lot["activatedAt"]))
         expected = _expected_hpa(state, lot, code)
+        stages = [
+            {
+                "stageCode": stage_code(item_order),
+                "stageLabel": stage_label(item_order),
+                "stageOrder": item_order,
+                "expectedHpa": _expected_hpa(state, lot, stage_code(item_order)),
+            }
+            for item_order in range(1, 27)
+        ]
         return {
             "injectionLotId": lot_id,
             "batchCode": batch.get("batchCode"),
@@ -331,6 +329,7 @@ def build_observations_router(store: Store) -> APIRouter:
             "stage": {"code": code, "label": stage_label(order), "stageOrder": order},
             "activatedAt": lot["activatedAt"],
             "expectedHpa": expected,
+            "stages": stages,
             "dueAt": (activated + timedelta(hours=expected)).isoformat().replace("+00:00", "Z"),
             "totalEmbryos": len(all_embryos),
             "embryosRemaining": len(embryos),

@@ -220,8 +220,8 @@ tbody tr:hover td { background: #f8fbf9; }
 .checkpoint-status { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin: -8px 0 18px; padding: 12px 15px; border-radius: 10px; background: var(--surface-soft); color: var(--ink-soft); font-size: .85rem; }
 .timing-preview { margin: 18px 0; padding: 15px 18px; border-left: 4px solid var(--accent); border-radius: 0 10px 10px 0; background: var(--surface-warm); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .checkpoint-shortcuts { margin: 18px 0; }
-.checkpoint-grid, .well-grid--plate { display: grid; grid-template-columns: repeat(12, minmax(88px, 1fr)); gap: 7px; min-width: 1140px; }
-.checkpoint-grid { overflow-x: auto; padding: 4px 4px 14px; }
+.well-grid--plate { display: grid; grid-template-columns: repeat(12, minmax(88px, 1fr)); gap: 7px; min-width: 1140px; }
+.checkpoint-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; padding: 14px 0 4px; }
 .well-grid { display: grid; gap: 7px; overflow-x: auto; }
 .well { min-width: 0; padding: 9px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
 .well > strong, .well > small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -234,7 +234,6 @@ tbody tr:hover td { background: #f8fbf9; }
 .outcome { min-height: 44px; border: 0; border-radius: 7px; background: var(--primary-soft); color: var(--primary-hover); font-size: .72rem; font-weight: 600; }
 .outcome--dead, .outcome--degenerated { background: var(--danger-soft); color: var(--danger); }
 .checkpoint-unassigned { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-top: 14px; }
-.well-list--mobile { display: none; }
 
 .workflow-disclosure { margin: 18px 0 26px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-sm); }
 .workflow-disclosure > summary { position: relative; min-height: 54px; padding: 15px 48px 15px 18px; color: var(--ink); font-weight: 600; list-style: none; }
@@ -382,8 +381,8 @@ tbody tr:hover td { background: #f8fbf9; }
   .fish-actions > summary { width: 100%; text-align: center; }
   .fish-actions[open] > .button-row { position: static; width: 100%; margin-top: 8px; box-shadow: none; }
   .fish-actions[open] > .button-row .button { flex: 1 1 calc(50% - 8px); }
-  .checkpoint-grid, .well-grid--plate { display: none; }
-  .well-list--mobile { display: grid; gap: 8px; }
+  .well-grid--plate { display: none; }
+  .checkpoint-grid { grid-template-columns: 1fr; }
   .checkpoint-unassigned { grid-template-columns: 1fr; }
   .audit-values { grid-template-columns: 1fr; }
   .record-row { grid-template-columns: 1fr; gap: 10px; }

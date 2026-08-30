@@ -393,6 +393,7 @@ class Analytics:
             batch = self.batches[str(lot["batchId"])]
             donor = self.state.entities["donor-cell-lines"].get(str(lot.get("donorCellLineId")), {})
             treatment = self.state.entities["treatment-groups"].get(str(batch.get("treatmentGroupId")), {})
+            site = self.state.entities["sites"].get(str(batch.get("siteId")), {})
             values = {
                 "site": str(batch.get("siteId", "")),
                 "strain": str(donor.get("strain", "")),
@@ -401,7 +402,7 @@ class Analytics:
             }
             key = tuple(values[item] for item in dimensions)
             groups[key].append(embryo)
-            metadata[key] = {**values, "treatmentGroupName": treatment.get("code")}
+            metadata[key] = {**values, "siteCode": site.get("code"), "treatmentGroupName": treatment.get("code")}
         items = []
         for key, group in groups.items():
             for point in self._stage_survival(group):
@@ -409,6 +410,7 @@ class Analytics:
                 point.update(
                     {
                         "siteId": meta["site"] if "site" in dimensions else None,
+                        "site": meta["siteCode"] if "site" in dimensions else None,
                         "strain": meta["strain"] if "strain" in dimensions else None,
                         "treatmentGroupId": meta["treatmentGroup"] if "treatmentGroup" in dimensions else None,
                         "treatmentGroup": meta["treatmentGroupName"] if "treatmentGroup" in dimensions else None,

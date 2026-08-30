@@ -10,7 +10,6 @@ import {
 import { ErrorMessage, Metric, ReportPanel, ReportTable } from "../components";
 import { type AppText, text } from "../types";
 import {
-  DeviationChart,
   FilterBar,
   FunnelChart,
   SurvivalChart,
@@ -275,7 +274,7 @@ export function PrintableDashboard({
                 "Survival",
               ]}
               rows={report.survival.map((point) => [
-                String(point.siteId ?? "All"),
+                String(point.site ?? "All"),
                 String(point.strain ?? "All"),
                 String(point.stageLabel ?? point.stageOrder ?? "—"),
                 Number(point.riskSet ?? 0),
@@ -295,7 +294,6 @@ export function PrintableDashboard({
             />
           </ReportPanel>
           <ReportPanel title="Timing deviation / group comparison">
-            <DeviationChart points={report.deviation} />
             <ReportTable
               headers={["Group", "Stage", "n", "Mean H", "Median H", "SD H"]}
               rows={report.deviation.map((point) => [

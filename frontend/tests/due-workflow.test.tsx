@@ -19,8 +19,13 @@ const checkpoint = {
   injectionLotId: 'lot-1', batchCode: 'B-1', lotNo: '1',
   stage: { code: 'stage_03_4C', label: '4-cell', stageOrder: 3 },
   activatedAt: '2026-08-23T00:00:00Z', expectedHpa: 1, totalEmbryos: 3, embryosRemaining: 2,
+  stages: [
+    { stageCode: 'stage_02_2C', stageLabel: '2-cell', stageOrder: 2, expectedHpa: 0.75 },
+    { stageCode: 'stage_03_4C', stageLabel: '4-cell', stageOrder: 3, expectedHpa: 1 },
+    { stageCode: 'stage_04_8C', stageLabel: '8-cell', stageOrder: 4, expectedHpa: 1.25 },
+  ],
   embryos: [
-    { embryoId: 'embryo-1', embryoCode: 'B-1_1_1', wellPosition: 'A1', defaultCondition: 'NORMAL', priorOutcome: 'ALIVE' },
+    { embryoId: 'embryo-1', embryoCode: 'B-1_1_1', wellPosition: 'A1', defaultCondition: 'NORMAL', priorOutcome: 'ALIVE', priorStageCode: 'stage_02_2C' },
     { embryoId: 'embryo-2', embryoCode: 'B-1_1_2', wellPosition: 'A2', defaultCondition: 'ABNORMAL', priorOutcome: 'ALIVE' },
   ],
 }
@@ -68,7 +73,7 @@ describe('due and checkpoint workflows', () => {
     root.unmount()
   })
 
-  it('renders a 96-well checkpoint and only marks remaining alive embryos dead', async () => {
+  it('renders every active embryo with its well and independent stage, outcome and condition controls', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input)
       if (path.includes('/due-checkpoints')) return json({ overdue: [dueItem], upcoming: [], pendingPromotionCount: 0 })
@@ -79,8 +84,10 @@ describe('due and checkpoint workflows', () => {
     await act(async () => { root.render(<Due t={text.en} />); await Promise.resolve() })
     await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement).click(); await Promise.resolve() })
 
-    expect(document.body.textContent).toContain('Survivors 2 / 3')
-    expect(document.querySelectorAll('.checkpoint-grid [data-well]')).toHaveLength(96)
+    expect(document.body.textContent).toContain('Individual embryos · 2')
+    expect(document.body.textContent).toContain('Previous: 2-cell')
+    expect(document.body.textContent).not.toContain('stage_02_2C')
+    expect(document.querySelectorAll('.checkpoint-grid [data-well]')).toHaveLength(2)
     await act(async () => {
       window.dispatchEvent(new CustomEvent('chronofish:queue-drained', { detail: {
         path: '/observations/embryo', body: { observations: [{ embryoId: 'another-lot', stageCode: 'stage_03_4C' }] },
@@ -88,17 +95,14 @@ describe('due and checkpoint workflows', () => {
       } }))
       await Promise.resolve()
     })
-    expect(document.body.textContent).not.toContain('Official deviation +99.0000 h')
-    const first = document.querySelector('button[aria-label="Cycle outcome for B-1_1_1"]') as HTMLButtonElement
-    await act(async () => { first.click(); first.click(); await Promise.resolve() })
-    const remainingDead = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'All remaining dead')
-    await act(async () => { remainingDead?.click(); await Promise.resolve() })
-    expect((document.querySelector('button[aria-label="Cycle outcome for B-1_1_1"]') as HTMLButtonElement).textContent).toBe('DEGENERATED')
-    expect((document.querySelector('button[aria-label="Cycle outcome for B-1_1_2"]') as HTMLButtonElement).textContent).toBe('DEAD')
+    expect(document.body.textContent).not.toContain('Saved by')
+    expect(document.querySelectorAll('.checkpoint-grid [aria-label^="Stage for"]')).toHaveLength(2)
+    expect(document.querySelectorAll('.checkpoint-grid [aria-label^="Outcome for"]')).toHaveLength(2)
+    expect(Array.from(document.querySelectorAll('.checkpoint-grid [aria-label^="Outcome for"] option')).map((option) => option.textContent)).toContain('NOT_OBSERVED')
     root.unmount()
   })
 
-  it('completes the fifteen-embryo all-alive workflow in three taps within the response budgets', async () => {
+  it('applies one stage to a same-stage round before confirming all embryos', async () => {
     const embryos = Array.from({ length: 15 }, (_, index) => ({
       embryoId: `embryo-${index + 1}`, embryoCode: `B-1_1_${index + 1}`,
       wellPosition: `A${index + 1}`, defaultCondition: 'NORMAL', priorOutcome: 'ALIVE',
@@ -123,14 +127,50 @@ describe('due and checkpoint workflows', () => {
     await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement).click(); await Promise.resolve() })
     expect(performance.now() - openedAt).toBeLessThan(1_000)
 
-    const allAlive = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'All alive')
-    const responseStartedAt = performance.now()
-    await act(async () => { allAlive?.click(); await Promise.resolve() })
-    expect(performance.now() - responseStartedAt).toBeLessThan(100)
-    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Save checkpoint')?.click(); await Promise.resolve() })
+    const bulkStage = Array.from(document.querySelectorAll('label')).find((label) => label.textContent?.startsWith('Stage for blank rows'))?.querySelector('select') as HTMLSelectElement
+    const setSelect = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
+    await act(async () => { setSelect?.call(bulkStage, 'stage_03_4C'); bulkStage.dispatchEvent(new Event('change', { bubbles: true })); await Promise.resolve() })
+    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Apply to blank embryos')?.click(); await Promise.resolve() })
+    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Confirm 15 observations')?.click(); await Promise.resolve() })
 
     expect((saved as { observations: unknown[] }).observations).toHaveLength(15)
     root.unmount()
+  })
+
+  it('records only selected embryos with independent stages and timestamps the confirmation', async () => {
+    let saved: { observations: Array<{ embryoId: string; stageCode: string; observedAt: string }> } | undefined
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-23T02:00:00Z'))
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = String(input)
+      if (path.includes('/due-checkpoints')) return json({ overdue: [dueItem], upcoming: [], pendingPromotionCount: 0 })
+      if (path.includes('/checkpoints/')) return json(checkpoint)
+      if (init?.method === 'POST') {
+        saved = JSON.parse(String(init.body))
+        return json({ results: [{ id: 'obs-1', status: 'created' }] })
+      }
+      return json({ items: [] })
+    }))
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Due t={text.en} />); await Promise.resolve() })
+    await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement).click(); await Promise.resolve() })
+
+    const stageSelects = document.querySelectorAll<HTMLSelectElement>('.checkpoint-grid [aria-label^="Stage for"]')
+    expect(stageSelects).toHaveLength(2)
+    const setSelect = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
+    await act(async () => {
+      setSelect?.call(stageSelects[0], 'stage_04_8C')
+      stageSelects[0].dispatchEvent(new Event('change', { bubbles: true }))
+      await Promise.resolve()
+    })
+    vi.setSystemTime(new Date('2026-08-23T02:05:00Z'))
+    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Confirm 1'))?.click(); await Promise.resolve() })
+
+    expect(saved?.observations).toEqual([
+      expect.objectContaining({ embryoId: 'embryo-1', stageCode: 'stage_04_8C', observedAt: '2026-08-23T02:05:00.000Z' }),
+    ])
+    root.unmount()
+    vi.useRealTimers()
   })
 
   it('keeps the checkpoint open and reports every rejected save row', async () => {
@@ -147,15 +187,18 @@ describe('due and checkpoint workflows', () => {
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
     await act(async () => { root.render(<Due t={text.en} />); await Promise.resolve() })
     await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement).click(); await Promise.resolve() })
-    const save = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Save checkpoint')
-    await act(async () => { save?.click(); await Promise.resolve() })
+    const bulkStage = Array.from(document.querySelectorAll('label')).find((label) => label.textContent?.startsWith('Stage for blank rows'))?.querySelector('select') as HTMLSelectElement
+    const setSelect = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
+    await act(async () => { setSelect?.call(bulkStage, 'stage_03_4C'); bulkStage.dispatchEvent(new Event('change', { bubbles: true })); await Promise.resolve() })
+    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Apply to blank embryos')?.click(); await Promise.resolve() })
+    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Confirm 2 observations')?.click(); await Promise.resolve() })
 
     expect(document.body.textContent).toContain('observedAt is too far in the future')
     expect(document.body.textContent).toContain('4-cell')
     root.unmount()
   })
 
-  it('uses official save metrics and supports confirmed correction and ten-second undo', async () => {
+  it('captures confirm time and supports confirmed correction and ten-second undo', async () => {
     sessionStorage.setItem('chronofish.operator_id', 'operator-1')
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input)
@@ -173,11 +216,13 @@ describe('due and checkpoint workflows', () => {
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
     await act(async () => { root.render(<Due t={text.en} />); await Promise.resolve() })
     await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement).click(); await Promise.resolve() })
-    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Save checkpoint')?.click(); await Promise.resolve() })
+    const stage = document.querySelector('.checkpoint-grid [aria-label^="Stage for"]') as HTMLSelectElement
+    const setSelect = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
+    await act(async () => { setSelect?.call(stage, 'stage_03_4C'); stage.dispatchEvent(new Event('change', { bubbles: true })); await Promise.resolve() })
+    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Confirm 1 observations')?.click(); await Promise.resolve() })
 
-    expect(document.body.textContent).toContain('Official deviation +0.1333 h')
-    expect(document.body.textContent).toContain('Saved by operator-1')
-    expect(document.body.textContent).toContain('Backdated')
+    expect(document.body.textContent).toContain('Saved by Operator unavailable')
+    expect(document.body.textContent).toContain('Observation time is captured automatically')
     const correctionReason = document.querySelector('[aria-label="Correction reason"]') as HTMLInputElement
     const setInput = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
     await act(async () => { setInput?.call(correctionReason, 'wrong status'); correctionReason.dispatchEvent(new Event('input', { bubbles: true })); await Promise.resolve() })

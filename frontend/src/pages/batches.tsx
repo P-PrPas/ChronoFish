@@ -38,7 +38,6 @@ const masterName = (items: ApiItem[] | undefined, id: unknown) => {
       item?.label ??
       item?.lotCode ??
       item?.code ??
-      id ??
       "",
   );
 };
@@ -729,6 +728,8 @@ function BatchDetail({
     setLotValue("wellPositions", next.join(", "));
   };
   const thai = t === text.th;
+  const displayMaster = (items: ApiItem[] | undefined, id: unknown) =>
+    masterName(items, id) || (items ? "—" : (thai ? "กำลังโหลด…" : "Loading…"));
   return (
     <section>
       <button className="back" onClick={onBack}>
@@ -740,9 +741,9 @@ function BatchDetail({
           <h1>{String(detail?.batchCode ?? batch.batchCode)}</h1>
           <p className="muted">
             {String(detail?.experimentDate ?? batch.experimentDate)} ·{" "}
-            {masterName(masters.sites, detail?.siteId ?? batch.siteId)} ·{" "}
-            {masterName(masters.operators, detail?.operatorId ?? batch.operatorId)} ·{" "}
-            {masterName(
+            {displayMaster(masters.sites, detail?.siteId ?? batch.siteId)} ·{" "}
+            {displayMaster(masters.operators, detail?.operatorId ?? batch.operatorId)} ·{" "}
+            {displayMaster(
               masters["treatment-groups"],
               detail?.treatmentGroupId ?? batch.treatmentGroupId,
             )}
@@ -768,9 +769,9 @@ function BatchDetail({
       </div>
       <div className="record-facts">
         <div className="record-fact"><span>{thai ? "วันที่ทดลอง" : "Experiment date"}</span><strong>{String(detail?.experimentDate ?? batch.experimentDate ?? "—")}</strong></div>
-        <div className="record-fact"><span>{thai ? "สถานที่" : "Site"}</span><strong>{masterName(masters.sites, detail?.siteId ?? batch.siteId) || "—"}</strong></div>
-        <div className="record-fact"><span>{thai ? "ผู้ปฏิบัติงาน" : "Operator"}</span><strong>{masterName(masters.operators, detail?.operatorId ?? batch.operatorId) || "—"}</strong></div>
-        <div className="record-fact"><span>{thai ? "กลุ่มเปรียบเทียบ" : "Comparison group"}</span><strong>{masterName(masters["treatment-groups"], detail?.treatmentGroupId ?? batch.treatmentGroupId) || "—"}</strong></div>
+        <div className="record-fact"><span>{thai ? "สถานที่" : "Site"}</span><strong>{displayMaster(masters.sites, detail?.siteId ?? batch.siteId)}</strong></div>
+        <div className="record-fact"><span>{thai ? "ผู้ปฏิบัติงาน" : "Operator"}</span><strong>{displayMaster(masters.operators, detail?.operatorId ?? batch.operatorId)}</strong></div>
+        <div className="record-fact"><span>{thai ? "กลุ่มเปรียบเทียบ" : "Comparison group"}</span><strong>{displayMaster(masters["treatment-groups"], detail?.treatmentGroupId ?? batch.treatmentGroupId)}</strong></div>
         <div className="record-fact"><span>{thai ? "ชุดตัวอ่อน" : "Injection lots"}</span><strong>{String((detail?.injectionLots ?? []).length)}</strong></div>
       </div>
       {message && <ErrorMessage message={message} />}

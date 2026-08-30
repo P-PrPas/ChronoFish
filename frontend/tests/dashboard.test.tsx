@@ -40,6 +40,7 @@ describe('analytics dashboard', () => {
     expect(document.body.textContent).toContain('Source records')
     expect(document.body.textContent).toContain('Attrition ranking by checkpoint')
     expect(document.querySelector('table caption')).not.toBeNull()
+    expect(document.querySelector('[aria-label="Timing deviation from standard in hours"]')).toBeNull()
 
     const stage1Tab = document.getElementById('dashboard-tab-stage1') as HTMLButtonElement
     await act(async () => { stage1Tab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); await Promise.resolve() })
