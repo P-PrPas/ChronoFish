@@ -56,11 +56,11 @@ export function Audit({ t = text.en }: { t?: AppText } = {}) {
           setLoaded(true);
         })
         .catch((reason: unknown) => {
-          setError(reason instanceof Error ? reason.message : "Unable to load audit history");
+          setError(reason instanceof Error ? reason.message : (thai ? "โหลดประวัติการแก้ไขไม่สำเร็จ" : "Unable to load audit history"));
         })
         .finally(() => setLoading(false));
     },
-    [filters],
+    [filters, thai],
   );
 
   useEffect(() => {
@@ -158,12 +158,12 @@ export function Audit({ t = text.en }: { t?: AppText } = {}) {
             const readableAction = actionLabel(action, thai);
             const readableTable = tableLabel(table, thai);
             return (
-              <details className="list-row audit-row" key={String(item.id)}>
+              <details className="list-row audit-row" data-action={action} key={String(item.id)}>
                 <summary>
                   <span>
                     <strong>{readableAction} · {readableTable}</strong>
                     <small>
-                      <time dateTime={occurredAt}>{displayedAt}</time>
+                      <time dateTime={occurredAt}>{displayedAt}</time> · <span className="mono">{recordId}</span>
                     </small>
                   </span>
                   <span className="pill">{operator}</span>

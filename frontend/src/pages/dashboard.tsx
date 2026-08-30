@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { type KeyboardEvent, useCallback, useEffect, useState } from "react";
 import { type ApiItem, get } from "../api/client";
 import {
   type DashboardFilters,
@@ -454,6 +454,14 @@ export function Dashboard({
   const stage2 = data.kpi?.stage2 as ApiItem | undefined;
   const comparison = (stage1?.controlComparison as ApiItem[] | undefined) ?? [];
   const thai = t === text.th;
+  const moveTab = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    const tabs: DashboardTab[] = ['stage1', 'stage2', 'overall']
+    const index = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (tabs.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+    setTab(tabs[index])
+    requestAnimationFrame(() => document.getElementById(`dashboard-tab-${tabs[index]}`)?.focus())
+  }
   return (
     <section>
       <div className="page-heading">
@@ -499,34 +507,46 @@ export function Dashboard({
           </details>
         </>
       )}
-      <div className="tabs" role="tablist" aria-label="Dashboard stage">
+      <div className="tabs" role="tablist" aria-label={thai ? "ช่วงของผลการทดลอง" : "Dashboard stage"}>
         <button
+          id="dashboard-tab-stage1"
           role="tab"
+          aria-controls="dashboard-panel-stage1"
           aria-selected={tab === "stage1"}
+          tabIndex={tab === 'stage1' ? 0 : -1}
           className={tab === "stage1" ? "tab tab--active" : "tab"}
           onClick={() => setTab("stage1")}
+          onKeyDown={moveTab}
         >
           {thai ? "ระยะตัวอ่อน" : "Stage 1"}
         </button>
         <button
+          id="dashboard-tab-stage2"
           role="tab"
+          aria-controls="dashboard-panel-stage2"
           aria-selected={tab === "stage2"}
+          tabIndex={tab === 'stage2' ? 0 : -1}
           className={tab === "stage2" ? "tab tab--active" : "tab"}
           onClick={() => setTab("stage2")}
+          onKeyDown={moveTab}
         >
           {thai ? "ระยะปลา" : "Stage 2"}
         </button>
         <button
+          id="dashboard-tab-overall"
           role="tab"
+          aria-controls="dashboard-panel-overall"
           aria-selected={tab === "overall"}
+          tabIndex={tab === 'overall' ? 0 : -1}
           className={tab === "overall" ? "tab tab--active" : "tab"}
           onClick={() => setTab("overall")}
+          onKeyDown={moveTab}
         >
           {thai ? "ภาพรวมกระบวนการ" : "Overview"}
         </button>
       </div>
       {tab === "stage1" && (
-        <>
+        <div id="dashboard-panel-stage1" role="tabpanel" aria-labelledby="dashboard-tab-stage1">
           <ReportPanel title={thai ? "การรอดของตัวอ่อนตามระยะ" : "Stage 1 survival curve"} loading={loading} empty={data.survival.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลการรอดที่ตรงกับตัวกรอง" : "No survival observations match these filters."} sampleSize={data.survivalMeta?.sampleSize} quality={<QualityNote meta={data.survivalMeta} thai={thai} />}>
             <SurvivalChart points={data.survival} thai={thai} />
             <p className="insight-strip">{thai ? "เส้นที่ลดลงแสดงช่วงที่ตัวอ่อนสูญเสียมากขึ้น ใช้ระบุระยะที่ควรตรวจเงื่อนไขการทดลองเพิ่มเติม" : "A steeper drop marks the checkpoint where embryo loss increases and the protocol may need closer review."}</p>
@@ -626,10 +646,10 @@ export function Dashboard({
             />
           </ReportPanel>
           </details>
-        </>
+        </div>
       )}
       {tab === "stage2" && (
-        <>
+        <div id="dashboard-panel-stage2" role="tabpanel" aria-labelledby="dashboard-tab-stage2">
           <ReportPanel title={thai ? "การรอดของปลาตามอายุ" : "Fish survival by age"} loading={loading} empty={data.fishSurvival.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลการรอดของปลาที่ตรงกับตัวกรอง" : "No fish survival observations match these filters."} sampleSize={data.fishSurvivalMeta?.sampleSize} quality={<QualityNote meta={data.fishSurvivalMeta} thai={thai} />}>
             <FishSurvivalChart points={data.fishSurvival} thai={thai} />
             <p className="insight-strip">{thai ? "เปรียบเทียบเส้นตามอายุเพื่อดูว่ากลุ่มใดเริ่มมีการรอดลดลงเร็วกว่ากลุ่มอื่น" : "Compare age curves to see which group begins losing survival earlier than the others."}</p>
@@ -667,10 +687,10 @@ export function Dashboard({
             />
             <p className="table-note">{thai ? "ตรวจข้อมูลต้นทาง:" : "Source records:"} <button type="button" className="inline-action" onClick={() => openSource("fish")}>{thai ? "เปิดทะเบียนปลา" : "Open fish records"}</button></p>
           </ReportPanel>
-        </>
+        </div>
       )}
       {tab === "overall" && (
-        <>
+        <div id="dashboard-panel-overall" role="tabpanel" aria-labelledby="dashboard-tab-overall">
           <ReportPanel title={thai ? "ผลลัพธ์ตลอดกระบวนการ" : "Pipeline conversion"} loading={loading} empty={data.pipelineMeta?.sampleSize === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลกระบวนการที่ตรงกับตัวกรอง" : "No pipeline records match these filters."} sampleSize={data.pipelineMeta?.sampleSize} quality={<QualityNote meta={data.pipelineMeta} thai={thai} />}>
             <BarSummary points={data.pipeline} label={(point) => String(point.step)} value={(point) => Number(point.count ?? 0)} />
             <ReportTable
@@ -702,7 +722,7 @@ export function Dashboard({
               ])}
             />
           </ReportPanel>
-        </>
+        </div>
       )}
       {data.kpi == null && !loading && (
         <NoData message="Dashboard is empty. Create a batch and record observations to see panels." />

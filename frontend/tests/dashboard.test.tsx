@@ -41,6 +41,12 @@ describe('analytics dashboard', () => {
     expect(document.body.textContent).toContain('Attrition ranking by checkpoint')
     expect(document.querySelector('table caption')).not.toBeNull()
 
+    const stage1Tab = document.getElementById('dashboard-tab-stage1') as HTMLButtonElement
+    await act(async () => { stage1Tab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); await Promise.resolve() })
+    expect(document.getElementById('dashboard-tab-stage2')?.getAttribute('aria-selected')).toBe('true')
+    expect(document.getElementById('dashboard-panel-stage2')).not.toBeNull()
+    await act(async () => { document.getElementById('dashboard-tab-stage2')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })); await Promise.resolve() })
+
     const openBatches = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Open filtered batches')
     await act(async () => { openBatches?.click(); await Promise.resolve() })
     expect(navigate).toHaveBeenCalledWith('batches')

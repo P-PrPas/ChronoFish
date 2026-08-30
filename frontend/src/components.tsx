@@ -14,7 +14,7 @@ export function ReportPanel({ title, children, loading = false, loadingMessage, 
 
 export function ReportTable({ headers, rows, caption, emptyMessage = 'No data', collapsed = false, summary = 'View supporting data' }: { headers: string[]; rows: (string | number)[][]; caption?: string; emptyMessage?: string; collapsed?: boolean; summary?: string }) {
   const localizedEmpty = emptyMessage === 'No data' && headers.some((header) => /[฀-๿]/.test(header)) ? 'ไม่มีข้อมูล' : emptyMessage
-  const table = <div className="table-wrap"><table aria-label={caption ?? summary}>{caption && <caption className="sr-only">{caption}</caption>}<thead><tr>{headers.map((header) => <th key={header} scope="col">{header}</th>)}</tr></thead><tbody>{rows.length === 0 ? <tr><td colSpan={headers.length}>{localizedEmpty}</td></tr> : rows.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{String(value)}</td>)}</tr>)}</tbody></table></div>
+  const table = <div className="table-wrap" role="region" tabIndex={0} aria-label={caption ?? summary}><table>{caption && <caption className="sr-only">{caption}</caption>}<thead><tr>{headers.map((header) => <th key={header} scope="col">{header}</th>)}</tr></thead><tbody>{rows.length === 0 ? <tr><td colSpan={headers.length}>{localizedEmpty}</td></tr> : rows.map((row, index) => <tr key={index}>{row.map((value, cell) => <td key={cell}>{String(value)}</td>)}</tr>)}</tbody></table></div>
   return collapsed ? <details className="data-disclosure"><summary>{summary}</summary>{table}</details> : table
 }
 
