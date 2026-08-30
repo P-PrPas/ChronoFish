@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { indexedDB as fakeIndexedDB } from 'fake-indexeddb'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Batches } from '../src/pages/batches'
 import { Fish } from '../src/pages/fish'
 import { Controls, Promotions, Timing } from '../src/pages/settings'
@@ -11,6 +11,7 @@ import { text } from '../src/types'
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
 
 describe('lab workflow forms', () => {
+  beforeEach(() => sessionStorage.setItem('chronofish.operator_id', 'operator-1'))
   afterEach(() => { if (typeof indexedDB !== 'undefined') indexedDB.deleteDatabase('chronofish'); document.body.innerHTML = ''; vi.restoreAllMocks(); vi.unstubAllGlobals() })
 
   it('exposes required batch fields and foreign-key selectors', async () => {
@@ -67,6 +68,7 @@ describe('lab workflow forms', () => {
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
     await act(async () => { root.render(<Batches t={text.en} />); await Promise.resolve() })
     await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement)?.click(); await new Promise((resolve) => setTimeout(resolve, 0)) })
+    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Add injection lot'))?.click(); await Promise.resolve() })
 
     expect(document.querySelectorAll('.well-grid--plate .well')).toHaveLength(96)
     expect(document.querySelector('.well-list--mobile')).not.toBeNull()
@@ -182,7 +184,7 @@ describe('lab workflow forms', () => {
     root.unmount()
   })
 
-  it('sends all alive roll-call entries in one request', async () => {
+  it('sends the daily roll-call draft in one request', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input)
       if (path.includes('/fish/roll-call')) return json({ items: [
@@ -195,8 +197,8 @@ describe('lab workflow forms', () => {
     vi.stubGlobal('fetch', fetchMock)
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
     await act(async () => { root.render(<Fish t={text.en} />); await Promise.resolve() })
-    const allAlive = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'All alive')
-    await act(async () => { allAlive?.click(); await Promise.resolve() })
+    const save = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Save 2 fish')
+    await act(async () => { save?.click(); await Promise.resolve() })
     await vi.waitFor(() => expect(fetchMock.mock.calls.filter(([input, init]) => String(input).includes('/observations/fish') && init?.method === 'POST')).toHaveLength(1))
 
     const posts = fetchMock.mock.calls.filter(([input, init]) => String(input).includes('/observations/fish') && init?.method === 'POST')
@@ -212,12 +214,17 @@ describe('lab workflow forms', () => {
     })
     vi.stubGlobal('indexedDB', fakeIndexedDB)
     vi.stubGlobal('fetch', fetchMock)
-    vi.stubGlobal('prompt', vi.fn(() => 'corrected after review'))
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
     await act(async () => { root.render(<Fish t={text.en} />); await Promise.resolve() })
 
     const dead = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Dead')
     await act(async () => { dead?.click(); await Promise.resolve() })
+    expect(fetchMock.mock.calls.some(([input, init]) => String(input).includes('/observations/fish/observation-1') && init?.method === 'PATCH')).toBe(false)
+    const reason = document.querySelector('input[name="rollCallCorrectionReason"]') as HTMLInputElement
+    const setReason = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    await act(async () => { setReason?.call(reason, 'corrected after review'); reason.dispatchEvent(new Event('input', { bubbles: true })); await Promise.resolve() })
+    const save = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Save 1 fish')
+    await act(async () => { save?.click(); await Promise.resolve() })
     await vi.waitFor(() => expect(fetchMock.mock.calls.some(([input, init]) => String(input).includes('/observations/fish/observation-1') && init?.method === 'PATCH')).toBe(true))
 
     const patchCall = fetchMock.mock.calls.find(([input, init]) => String(input).includes('/observations/fish/observation-1') && init?.method === 'PATCH')
@@ -251,8 +258,8 @@ describe('lab workflow forms', () => {
       setInput?.call(reason, 'weekend closure'); reason.dispatchEvent(new Event('input', { bubbles: true }))
       await Promise.resolve()
     })
-    const allAlive = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'All alive')
-    await act(async () => { allAlive?.click(); await Promise.resolve() })
+    const save = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Save 1 fish')
+    await act(async () => { save?.click(); await Promise.resolve() })
     await vi.waitFor(() => expect(fetchMock.mock.calls.some(([input, init]) => String(input).includes('/observations/fish') && init?.method === 'POST')).toBe(true))
 
     const post = fetchMock.mock.calls.find(([input, init]) => String(input).includes('/observations/fish') && init?.method === 'POST')
@@ -384,7 +391,7 @@ describe('lab workflow forms', () => {
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
     await act(async () => { root.render(<Controls t={text.en} />); await new Promise((resolve) => setTimeout(resolve, 0)) })
 
-    expect(Array.from(document.querySelectorAll('.metric')).map((item) => item.textContent)).toEqual([
+    expect(Array.from(document.querySelectorAll('.record-fact')).map((item) => item.textContent)).toEqual([
       'Normal total4', 'Abnormal total2', 'Grand total6',
     ])
     expect((document.querySelector('input[type="number"]') as HTMLInputElement).value).toBe('4')

@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Due } from '../src/pages/due'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { Due, nextCheckpoints } from '../src/pages/due'
 import { text } from '../src/types'
 
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), {
@@ -26,17 +26,29 @@ const checkpoint = {
 }
 
 describe('due and checkpoint workflows', () => {
+  beforeEach(() => sessionStorage.setItem('chronofish.operator_id', 'operator-1'))
   afterEach(() => {
     document.body.innerHTML = ''
     sessionStorage.clear()
     vi.restoreAllMocks()
   })
 
+  it('shows only the next checkpoint for each injection lot', () => {
+    expect(nextCheckpoints([
+      dueItem,
+      { ...dueItem, stageCode: 'stage_04_8C', stageOrder: 4, minutesLate: 10 },
+      { ...dueItem, injectionLotId: 'lot-2', stageCode: 'stage_02_2C', minutesLate: -5 },
+    ])).toEqual([
+      expect.objectContaining({ injectionLotId: 'lot-1', stageCode: 'stage_03_4C', pendingStages: 2 }),
+      expect.objectContaining({ injectionLotId: 'lot-2', pendingStages: 0 }),
+    ])
+  })
+
   it('shows overdue/upcoming time and filters the due queue by site and operator', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input)
       if (path.includes('/due-checkpoints')) return json({
-        overdue: [dueItem], upcoming: [{ ...dueItem, stageCode: 'stage_04_8C', minutesLate: -10 }],
+        overdue: [dueItem], upcoming: [{ ...dueItem, injectionLotId: 'lot-2', stageCode: 'stage_04_8C', minutesLate: -10 }],
         pendingPromotionCount: 0,
       })
       if (path.endsWith('/sites')) return json({ items: [{ id: 'site-1', code: 'LAB' }] })

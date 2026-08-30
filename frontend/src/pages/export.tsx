@@ -46,6 +46,7 @@ export function Export({ t = text.en }: { t?: AppText } = {}) {
   const [message, setMessage] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [reportReady, setReportReady] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   useEffect(() => {
     const onPop = () => setFilters(analyticsFilters(parseFilters()));
     window.addEventListener("popstate", onPop);
@@ -80,20 +81,22 @@ export function Export({ t = text.en }: { t?: AppText } = {}) {
     );
   const downloadRTable = () =>
     download(withFilters("/exports/r-table", filters), {}, "chronofish-r-analysis.csv");
+  const thai = t === text.th;
   return (
     <>
       <section className="export-controls">
         <div className="page-heading">
           <div>
-            <p className="eyebrow">SCR-17 / 14 SHEETS</p>
-            <h1>{t.export}</h1>
+            <p className="eyebrow">{thai ? "ข้อมูลพร้อมใช้งานต่อ" : "ANALYSIS-READY DATA"}</p>
+            <h1>{thai ? "ดาวน์โหลดข้อมูลและรายงาน" : "Downloads and reports"}</h1>
             <p className="muted">
-              The workbook and printable report use the same URL filters.
+              {thai ? "เลือกข้อมูลชุดเดียวกับหน้าผลการทดลอง แล้วดาวน์โหลดในรูปแบบที่เหมาะกับงานต่อไป" : "Choose the same records used in Research results, then download the format that fits your next task."}
             </p>
           </div>
         </div>
         <FilterBar
           filters={filters}
+          t={t}
           onChange={(next) => {
             setFilters(next);
             updateFilterURL(next);
@@ -101,14 +104,12 @@ export function Export({ t = text.en }: { t?: AppText } = {}) {
         />
         <div className="action-grid">
           <button className="action-card" onClick={downloadExcel} disabled={downloading} aria-busy={downloading}>
-            <span className="action-icon">↓</span>
             <strong>{t.downloadExcel}</strong>
-            <span>14 flat sheets with raw n and R analysis shape.</span>
+            <span>{thai ? "สำหรับตรวจข้อมูลและส่งต่อในทีม · 14 ชีต" : "For review and team handoff · 14 sheets"}</span>
           </button>
           <button className="action-card" onClick={downloadRTable} disabled={downloading} aria-busy={downloading}>
-            <span className="action-icon">⌁</span>
-            <strong>Download R CSV</strong>
-            <span>UTF-8, deterministic 30-column analysis table.</span>
+            <strong>{thai ? "ดาวน์โหลด R CSV" : "Download R CSV"}</strong>
+            <span>{thai ? "สำหรับนำเข้า R โดยตรง · UTF-8 จำนวน 30 คอลัมน์" : "Ready for R · UTF-8, 30-column analysis table"}</span>
           </button>
           <button
             className="action-card"
@@ -116,28 +117,30 @@ export function Export({ t = text.en }: { t?: AppText } = {}) {
             type="button"
             disabled={!reportReady}
           >
-            <span className="action-icon">▣</span>
             <strong>{t.printPDF}</strong>
             <span>
               {reportReady
-                ? "Print all analytical panels."
-                : "Preparing analytical panels…"}
+                ? (thai ? "พิมพ์กราฟและตารางวิเคราะห์ทั้งหมด" : "Print all analytical panels.")
+                : (thai ? "กำลังเตรียมหน้ารายงาน…" : "Preparing analytical panels…")}
             </span>
           </button>
         </div>
-        {downloading && <p className="table-note" role="status">Preparing export…</p>}
+        <button className="button button--secondary" type="button" disabled={!reportReady} onClick={() => setPreviewOpen((value) => !value)}>{previewOpen ? (thai ? "ซ่อนตัวอย่างรายงาน" : "Hide report preview") : (thai ? "ดูตัวอย่างรายงานก่อนพิมพ์" : "Preview report before printing")}</button>
+        {downloading && <p className="table-note" role="status">{thai ? 'กำลังเตรียมไฟล์…' : 'Preparing export…'}</p>}
         {message && <ErrorMessage message={message} />}
       </section>
-      <PrintableDashboard filters={filters} onReadyChange={setReportReady} />
+      <div className={previewOpen ? "report-preview report-preview--open" : "report-preview"}><PrintableDashboard filters={filters} t={t} onReadyChange={setReportReady} /></div>
     </>
   );
 }
 
 export function PrintableDashboard({
   filters,
+  t = text.en,
   onReadyChange,
 }: {
   filters: DashboardFilters;
+  t?: AppText;
   onReadyChange?: (ready: boolean) => void;
 }) {
   const [report, setReport] = useState<PrintableReport>({
@@ -195,16 +198,16 @@ export function PrintableDashboard({
   const stage1 = report.kpi?.stage1 as ApiItem | undefined;
   const stage2 = report.kpi?.stage2 as ApiItem | undefined;
   const comparison = (stage1?.controlComparison as ApiItem[] | undefined) ?? [];
+  const thai = t === text.th;
   return (
     <section className="print-report" aria-labelledby="print-report-title">
       <div className="print-report__header">
-        <p className="eyebrow">CHRONOFISH / DASHBOARD SUMMARY</p>
-        <h1 id="print-report-title">Experiment dashboard report</h1>
+        <p className="eyebrow">CHRONOFISH / {thai ? "รายงานผลการทดลอง" : "RESEARCH RESULTS"}</p>
+        <h1 id="print-report-title">{thai ? "รายงานสรุปผลการทดลอง" : "Experiment results report"}</h1>
         <p className="muted">
-          Generated from the same filtered analytical dataset as the dashboard
-          and workbook.
+          {thai ? "สร้างจากชุดข้อมูลและตัวกรองเดียวกับหน้าผลการทดลองและไฟล์ Excel" : "Generated from the same filtered dataset as Research results and the Excel workbook."}
         </p>
-        <p className="muted print-report__filters">Filters: {filterSummary(filters)}</p>
+        <p className="muted print-report__filters">{thai ? "ตัวกรอง" : "Filters"}: {filterSummary(filters)}</p>
         <p className="muted">
           Timing profile versions:{" "}
           {report.timingProfileVersions.join(", ") || "none"}

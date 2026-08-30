@@ -19,7 +19,7 @@ import { Audit } from "./pages/audit";
 import { Export } from "./pages/export";
 import { type ApiItem, type Language, type Page, text } from "./types";
 
-type NavItem = { page: Page; label: string; icon: string; group: "work" | "research" | "system" };
+type NavItem = { page: Page; label: string; icon: string; group: "primary" | "research" | "system" };
 
 const iconPaths: Record<string, ReactNode> = {
   dashboard: <><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></>,
@@ -52,22 +52,23 @@ function App() {
   const [page, setPage] = useState<Page>(
     (location.hash.slice(1) as Page) || "dashboard",
   );
-  const [language, setLanguage] = useState<Language>("th");
+  const [language, setLanguage] = useState<Language>(() => localStorage.getItem("chronofish.language") === "en" ? "en" : "th");
   const [online, setOnline] = useState(navigator.onLine);
   const [pending, setPending] = useState(0);
   const [rejected, setRejected] = useState<QueuedWriteRecord[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [operators, setOperators] = useState<ApiItem[]>([]);
   const currentOperator = operatorId();
+  const writePage = !["dashboard", "audit", "export"].includes(page);
   const t = text[language];
   const navItems: NavItem[] = [
-    { page: "dashboard", label: t.dashboard, icon: "dashboard", group: "work" },
-    { page: "due", label: t.due, icon: "due", group: "work" },
-    { page: "batches", label: t.batches, icon: "batches", group: "work" },
-    { page: "fish", label: t.fish, icon: "fish", group: "work" },
-    { page: "promotions", label: t.promotions, icon: "promotions", group: "work" },
+    { page: "dashboard", label: t.dashboard, icon: "dashboard", group: "primary" },
+    { page: "due", label: t.due, icon: "due", group: "primary" },
+    { page: "batches", label: t.batches, icon: "batches", group: "primary" },
+    { page: "fish", label: t.fish, icon: "fish", group: "primary" },
+    { page: "promotions", label: t.promotions, icon: "promotions", group: "research" },
     { page: "controls", label: t.controls, icon: "controls", group: "research" },
-    { page: "timing", label: t.timing, icon: "timing", group: "research" },
+    { page: "timing", label: t.timing, icon: "timing", group: "system" },
     { page: "export", label: t.export, icon: "export", group: "research" },
     { page: "master", label: t.master, icon: "master", group: "system" },
     { page: "audit", label: t.audit, icon: "audit", group: "system" },
@@ -80,12 +81,21 @@ function App() {
       .catch(() => undefined);
   }, []);
   useEffect(() => {
-    window.history.replaceState(
-      null,
-      "",
-      `${window.location.pathname}${window.location.search}#${page}`,
-    );
-  }, [page]);
+    document.documentElement.lang = language;
+    localStorage.setItem("chronofish.language", language);
+  }, [language]);
+  useEffect(() => {
+    const followHistory = () => {
+      const next = location.hash.slice(1) as Page;
+      if (navItems.some((item) => item.page === next)) setPage(next);
+    };
+    window.addEventListener("hashchange", followHistory);
+    window.addEventListener("popstate", followHistory);
+    return () => {
+      window.removeEventListener("hashchange", followHistory);
+      window.removeEventListener("popstate", followHistory);
+    };
+  }, []);
   useEffect(() => {
     const refreshQueue = () =>
       void Promise.all([queueCount(), rejectedQueueItems()]).then(
@@ -136,37 +146,47 @@ function App() {
     };
   }, [pending, rejected.length]);
 
-  const navigate = (next: Page) => setPage(next);
+  const navigate = (next: Page) => {
+    if (next !== page) window.history.pushState(null, "", `${window.location.pathname}${window.location.search}#${next}`);
+    setPage(next);
+    window.scrollTo({ top: 0, behavior: "auto" });
+    window.requestAnimationFrame(() => document.getElementById("main-content")?.focus());
+  };
+  const renderNav = (items: NavItem[]) => items.map((item) => (
+    <button
+      key={item.page}
+      aria-current={page === item.page ? "page" : undefined}
+      className={page === item.page ? "nav-link nav-link--active" : "nav-link"}
+      onClick={() => navigate(item.page)}
+    >
+      <Icon name={item.icon} />
+      <span>{item.label}</span>
+    </button>
+  ));
   return (
     <div className="app">
-      <a className="skip-link" href="#main-content">Skip to main content</a>
+      <a className="skip-link" href="#main-content">{language === "th" ? "ข้ามไปยังเนื้อหาหลัก" : "Skip to main content"}</a>
       <aside className="sidebar">
         <div className="brand-lockup">
           <span className="brand-mark" aria-hidden="true"><Icon name="fish" /></span>
-          <span>
+          <span className="brand-copy">
             <span className="brand">ChronoFish</span>
-            <span className="tagline">SCNT Research Workspace</span>
+            <span className="tagline">{language === "th" ? "พื้นที่บันทึกงานวิจัย SCNT" : "SCNT research workspace"}</span>
           </span>
         </div>
-        <nav aria-label="Main navigation" className="sidebar-nav">
-          {(["work", "research", "system"] as const).map((group) => (
-            <div className="nav-group" key={group}>
-              <p className="nav-group__label">
-                {group === "work" ? (language === "th" ? "งานประจำวัน" : "Daily workflow") : group === "research" ? (language === "th" ? "งานวิจัย" : "Research") : (language === "th" ? "ระบบ" : "System")}
-              </p>
-              {navItems.filter((item) => item.group === group).map((item) => (
-                <button
-                  key={item.page}
-                  aria-current={page === item.page ? "page" : undefined}
-                  className={page === item.page ? "nav-link nav-link--active" : "nav-link"}
-                  onClick={() => navigate(item.page)}
-                >
-                  <Icon name={item.icon} />
-                  <span>{item.label}</span>
-                </button>
-              ))}
-            </div>
-          ))}
+        <nav aria-label={language === "th" ? "เมนูหลัก" : "Main navigation"} className="sidebar-nav">
+          <div className="nav-group nav-group--primary">
+            <p className="nav-group__label">{language === "th" ? "งานหลัก" : "Core work"}</p>
+            {renderNav(navItems.filter((item) => item.group === "primary"))}
+          </div>
+          <details className="nav-disclosure" open={navItems.some((item) => item.group === "research" && item.page === page)}>
+            <summary>{language === "th" ? "งานต่อเนื่องและรายงาน" : "Follow-up & reports"}</summary>
+            <div className="nav-group">{renderNav(navItems.filter((item) => item.group === "research"))}</div>
+          </details>
+          <details className="nav-disclosure" open={navItems.some((item) => item.group === "system" && item.page === page)}>
+            <summary>{language === "th" ? "ข้อมูลอ้างอิงและระบบ" : "Reference & system"}</summary>
+            <div className="nav-group">{renderNav(navItems.filter((item) => item.group === "system"))}</div>
+          </details>
         </nav>
         <div className="sidebar-note">
           <span className="sidebar-note__pulse" aria-hidden="true" />
@@ -175,9 +195,8 @@ function App() {
       </aside>
       <header className="topbar">
         <div className="workspace-context">
-          <span className="workspace-index">CF / {String(navItems.indexOf(currentNav) + 1).padStart(2, "0")}</span>
           <span>
-            <span className="workspace-kicker">{language === "th" ? "พื้นที่ปฏิบัติงาน" : "Current workspace"}</span>
+            <span className="workspace-kicker">{language === "th" ? "กำลังใช้งาน" : "Current view"}</span>
             <strong>{currentNav.label}</strong>
           </span>
         </div>
@@ -185,6 +204,7 @@ function App() {
           <label className="operator-select">
             <span className="sr-only">{t.chooseOperator}</span>
             <select
+              id="operator-select"
               aria-label={t.chooseOperator}
               value={currentOperator}
               onChange={(event) => {
@@ -204,7 +224,7 @@ function App() {
             </select>
           </label>
           {!currentOperator && (
-            <span className="operator-required" role="status">
+            <span className="sr-only" role="status">
               {t.operatorRequired}
             </span>
           )}
@@ -248,23 +268,26 @@ function App() {
           <button
             className="language"
             onClick={() => setLanguage(language === "th" ? "en" : "th")}
-            aria-label="Switch language"
+            aria-label={language === "th" ? "เปลี่ยนภาษาเป็นอังกฤษ" : "Switch language to Thai"}
           >
             {language === "th" ? "EN" : "ไทย"}
           </button>
         </div>
       </header>
       <main className="content" id="main-content" tabIndex={-1}>
-        {page === "dashboard" && <Dashboard onNavigate={navigate} t={t} />}
-        {page === "due" && <Due t={t} />}
-        {page === "batches" && <Batches t={t} />}
-        {page === "fish" && <Fish t={t} />}
-        {page === "master" && <Master t={t} />}
-        {page === "timing" && <Timing t={t} />}
-        {page === "promotions" && <Promotions t={t} />}
-        {page === "controls" && <Controls t={t} />}
-        {page === "audit" && <Audit t={t} />}
-        {page === "export" && <Export t={t} />}
+        {writePage && !currentOperator && <div className="operator-gate" role="alert"><strong>{t.operatorRequired}</strong><button type="button" onClick={() => document.getElementById("operator-select")?.focus()}>{t.chooseOperator}</button></div>}
+        <fieldset className="page-gate" disabled={writePage && !currentOperator} aria-describedby={writePage && !currentOperator ? "operator-select" : undefined}>
+          {page === "dashboard" && <Dashboard onNavigate={navigate} t={t} />}
+          {page === "due" && <Due t={t} />}
+          {page === "batches" && <Batches t={t} />}
+          {page === "fish" && <Fish t={t} />}
+          {page === "master" && <Master t={t} />}
+          {page === "timing" && <Timing t={t} />}
+          {page === "promotions" && <Promotions t={t} />}
+          {page === "controls" && <Controls t={t} />}
+          {page === "audit" && <Audit t={t} />}
+          {page === "export" && <Export t={t} />}
+        </fieldset>
       </main>
     </div>
   );
