@@ -1,13 +1,13 @@
 # รายงานประเมิน UX/UI และแผน Redesign ตาม WCAG 2.2
 
-**ผลิตภัณฑ์:** ChronoFish — SCNT Research Workspace
+**ผลิตภัณฑ์:** KUVTH Zebrafish LIMS — SCNT Research Workspace
 **วันที่ประเมิน:** 31 สิงหาคม 2026
 **เป้าหมาย:** WCAG 2.2 ระดับ AA และประสบการณ์ใช้งานที่เหมาะกับนักวิจัยทั้ง desktop และ mobile
 **สถานะเอกสาร:** Baseline audit ก่อน redesign
 
 ## 1. บทสรุปผู้บริหาร
 
-ChronoFish มีพื้นฐาน UI ที่ดีกว่าระบบงานภายในทั่วไปอย่างชัดเจน: visual hierarchy สม่ำเสมอ, ใช้ native HTML controls, มี skip link, รองรับ keyboard tabs, มี loading/empty/error states, มี reduced-motion, ตารางเป็น semantic HTML และ dashboard มีตารางข้อมูลสำรองให้กราฟ
+KUVTH Zebrafish LIMS มีพื้นฐาน UI ที่ดีกว่าระบบงานภายในทั่วไปอย่างชัดเจน: visual hierarchy สม่ำเสมอ, ใช้ native HTML controls, มี skip link, รองรับ keyboard tabs, มี loading/empty/error states, มี reduced-motion, ตารางเป็น semantic HTML และ dashboard มีตารางข้อมูลสำรองให้กราฟ
 
 อย่างไรก็ตาม **ยังไม่ควรประกาศว่าเว็บไซต์ผ่าน WCAG 2.2 AA** เพราะใน implementation ที่สุ่มตรวจพบ blocker ที่วัดหรือยืนยันจากโค้ดได้ ได้แก่:
 
@@ -373,7 +373,7 @@ Desktop คง sidebar เดิม แต่ mobile เปลี่ยนเป
 
 | ตำแหน่ง | เนื้อหา |
 |---|---|
-| Brand row | ChronoFish + current view |
+| Brand row | KUVTH Zebrafish LIMS + current view |
 | Primary nav | ผลการทดลอง, งานตรวจวันนี้, การทดลอง, ดูแลปลา |
 | More | ขึ้นทะเบียนปลาโคลน, ผลกลุ่มเปรียบเทียบ, ดาวน์โหลด, เวลามาตรฐาน, ตั้งค่า, Audit |
 | Global status row | Operator, saved/pending/rejected, network, language |
@@ -507,6 +507,6 @@ Regression ที่เพิ่มในรอบนี้ครอบคลุ
 
 ## 11. คำตัดสิน
 
-ChronoFish **ไม่จำเป็นต้องรื้อ UI ใหม่ทั้งหมด** โครงสร้าง desktop, visual language และ native component foundation ใช้ต่อได้ การ redesign ที่คุ้มที่สุดคือแก้ shared CSS tokens, app shell/mobile navigation, accessible naming และ feedback ของ critical workflows ก่อน
+KUVTH Zebrafish LIMS **ไม่จำเป็นต้องรื้อ UI ใหม่ทั้งหมด** โครงสร้าง desktop, visual language และ native component foundation ใช้ต่อได้ การ redesign ที่คุ้มที่สุดคือแก้ shared CSS tokens, app shell/mobile navigation, accessible naming และ feedback ของ critical workflows ก่อน
 
 หลังจบ Phase 0–2 คาดว่าคะแนน heuristic จะขึ้นจาก **73 → 88+** โดยไม่ต้องเปลี่ยน framework หรือเพิ่ม component library ส่วนการประกาศ WCAG 2.2 AA ควรทำหลัง Phase 4 และปิดทุก failure จากการทดสอบด้วย assistive technology และข้อมูลจริงแล้วเท่านั้น

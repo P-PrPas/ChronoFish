@@ -76,10 +76,10 @@ export function Export({ t = text.en }: { t?: AppText } = {}) {
     download(
       "/exports/excel",
       { method: "POST", body: JSON.stringify({ locale: "th", filters }) },
-      "chronofish-export.xlsx",
+      "kuvth-zebrafish-lims-export.xlsx",
     );
   const downloadRTable = () =>
-    download(withFilters("/exports/r-table", filters), {}, "chronofish-r-analysis.csv");
+    download(withFilters("/exports/r-table", filters), {}, "kuvth-zebrafish-lims-r-analysis.csv");
   const thai = t === text.th;
   return (
     <>
@@ -201,7 +201,7 @@ export function PrintableDashboard({
   return (
     <section className="print-report" aria-labelledby="print-report-title">
       <div className="print-report__header">
-        <p className="eyebrow">CHRONOFISH / {thai ? "รายงานผลการทดลอง" : "RESEARCH RESULTS"}</p>
+        <p className="eyebrow">KUVTH ZEBRAFISH LIMS / {thai ? "รายงานผลการทดลอง" : "RESEARCH RESULTS"}</p>
         <h1 id="print-report-title">{thai ? "รายงานสรุปผลการทดลอง" : "Experiment results report"}</h1>
         <p className="muted">
           {thai ? "สร้างจากชุดข้อมูลและตัวกรองเดียวกับหน้าผลการทดลองและไฟล์ Excel" : "Generated from the same filtered dataset as Research results and the Excel workbook."}

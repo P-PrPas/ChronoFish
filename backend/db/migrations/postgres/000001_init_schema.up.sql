@@ -1,5 +1,5 @@
 -- =============================================================================
--- SCNT Tracking System — Initial schema
+-- KUVTH Zebrafish LIMS — Initial schema
 -- Target: PostgreSQL 16 (MySQL 8 equivalent in ../mysql/)
 -- Ref: SRS v1.0 section 5
 --

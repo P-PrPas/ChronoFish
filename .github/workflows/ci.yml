@@ -50,20 +50,20 @@ jobs:
           docker build \
             --build-arg BUILD_DATE="$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             --build-arg VCS_REF="$GITHUB_SHA" \
-            -f backend/Dockerfile -t chronofish:ci .
+            -f backend/Dockerfile -t kuvth-zebrafish-lims-api:ci .
       - name: Verify production image metadata and user
         run: |
-          test "$(docker image inspect chronofish:ci --format '{{.Config.User}}')" = "chronofish"
-          test "$(docker image inspect chronofish:ci --format '{{index .Config.Labels "org.opencontainers.image.title"}}')" = "ChronoFish API"
-          test "$(docker image inspect chronofish:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
-          test "$(docker image inspect chronofish:ci --format '{{index .Config.Labels "org.opencontainers.image.created"}}')" != "unknown"
+          test "$(docker image inspect kuvth-zebrafish-lims-api:ci --format '{{.Config.User}}')" = "chronofish"
+          test "$(docker image inspect kuvth-zebrafish-lims-api:ci --format '{{index .Config.Labels "org.opencontainers.image.title"}}')" = "KUVTH Zebrafish LIMS API"
+          test "$(docker image inspect kuvth-zebrafish-lims-api:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+          test "$(docker image inspect kuvth-zebrafish-lims-api:ci --format '{{index .Config.Labels "org.opencontainers.image.created"}}')" != "unknown"
       - name: Build production frontend image
-        run: docker build --build-arg VITE_API_BASE_URL=/api/v1 --build-arg VCS_REF="$GITHUB_SHA" -f frontend/Dockerfile -t chronofish-frontend:ci frontend
+        run: docker build --build-arg VITE_API_BASE_URL=/api/v1 --build-arg VCS_REF="$GITHUB_SHA" -f frontend/Dockerfile -t kuvth-zebrafish-lims-frontend:ci frontend
       - name: Verify frontend image metadata and user
         run: |
-          test "$(docker image inspect chronofish-frontend:ci --format '{{.Config.User}}')" = "nginx"
-          test "$(docker image inspect chronofish-frontend:ci --format '{{index .Config.Labels "org.opencontainers.image.title"}}')" = "ChronoFish frontend"
-          test "$(docker image inspect chronofish-frontend:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+          test "$(docker image inspect kuvth-zebrafish-lims-frontend:ci --format '{{.Config.User}}')" = "nginx"
+          test "$(docker image inspect kuvth-zebrafish-lims-frontend:ci --format '{{index .Config.Labels "org.opencontainers.image.title"}}')" = "KUVTH Zebrafish LIMS frontend"
+          test "$(docker image inspect kuvth-zebrafish-lims-frontend:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
       - name: Smoke test Compose frontend proxies
         run: |
           trap 'docker compose -f compose.yaml logs --no-color || true; docker compose -f compose.mysql.yaml --profile mysql logs --no-color || true' ERR

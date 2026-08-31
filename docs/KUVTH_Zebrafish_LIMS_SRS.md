@@ -1,5 +1,5 @@
 # Software Requirements Specification (SRS)
-## ระบบติดตามผลการทดลอง Cloning ปลา — Zebrafish SCNT Tracking System
+## KUVTH Zebrafish LIMS — ระบบติดตามผลการทดลอง Cloning ปลา
 
 | | |
 |---|---|
@@ -35,13 +35,13 @@
 
 ## 1.1 วัตถุประสงค์ของเอกสาร
 
-เอกสารฉบับนี้ระบุข้อกำหนดของซอฟต์แวร์ทั้งหมดสำหรับ **ระบบติดตามผลการทดลอง Cloning ปลา (SCNT Tracking System)** ในระดับที่นักพัฒนาสามารถนำไปสร้างระบบได้โดยไม่ต้องตีความเพิ่ม และผู้ทดสอบสามารถนำไปเขียน test case ได้โดยตรง
+เอกสารฉบับนี้ระบุข้อกำหนดของซอฟต์แวร์ทั้งหมดสำหรับ **KUVTH Zebrafish LIMS** ในระดับที่นักพัฒนาสามารถนำไปสร้างระบบได้โดยไม่ต้องตีความเพิ่ม และผู้ทดสอบสามารถนำไปเขียน test case ได้โดยตรง
 
 ผู้อ่านเป้าหมาย: นักพัฒนา · ผู้ทดสอบ · ลูกค้า (ใช้ตรวจรับ) · นักวิเคราะห์ข้อมูลของแลป
 
 ## 1.2 ขอบเขตของผลิตภัณฑ์
 
-**ชื่อระบบ:** SCNT Tracking System (ชื่อย่อภายใน: `scnt`)
+**ชื่อระบบ:** KUVTH Zebrafish LIMS (ชื่อย่อภายใน: `scnt`)
 
 ระบบเว็บสำหรับห้องปฏิบัติการโคลนปลาม้าลาย (zebrafish) ด้วยเทคนิค Somatic Cell Nuclear Transfer เพื่อ:
 
@@ -86,7 +86,7 @@
 
 | # | เอกสาร |
 |---|---|
-| R1 | Requirement Analysis — SCNT Tracking System v0.3 |
+| R1 | Requirement Analysis — KUVTH Zebrafish LIMS v0.3 |
 | R2 | Kimmel CB et al. (1995) *Stages of embryonic development of the zebrafish.* Developmental Dynamics 203:253–310 |
 | R3 | ZFIN Zebrafish Developmental Staging Series — https://zfin.org/zf_info/zfbook/stages/ |
 | R4 | ข้อมูลดิบของลูกค้า 4 ไฟล์ (`Raw data v1`, `Working data v1`, `Clean table v1`, `Raw data v2 ongoing`) |
@@ -113,7 +113,7 @@ graph LR
     AN["👤 Data Analyst<br/>(Toon)"]
     CARE["👤 Animal Care Staff"]
 
-    SYS["🖥️ SCNT Tracking System"]
+    SYS["🖥️ KUVTH Zebrafish LIMS"]
 
     XL["📄 Excel Workbook<br/>(14 sheets)"]
     PDF["📄 PDF Summary"]

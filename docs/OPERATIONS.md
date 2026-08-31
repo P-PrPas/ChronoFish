@@ -1,4 +1,4 @@
-# ChronoFish operations runbook
+# KUVTH Zebrafish LIMS operations runbook
 
 This runbook covers a clean local or self-hosted deployment. Hosting, TLS, backup retention, and the production database owner remain deployment decisions outside this repository.
 
@@ -11,7 +11,7 @@ APP_ENV=production
 DB_DRIVER=postgres
 DATABASE_URL=postgresql+psycopg://USER:PASSWORD@HOST:5432/chronofish?sslmode=require
 MIGRATIONS_DIR=/migrations/postgres
-CORS_ALLOWED_ORIGINS=https://chronofish.example
+CORS_ALLOWED_ORIGINS=https://kuvth-zebrafish-lims.example
 IP_ALLOWLIST=10.0.0.0/8,192.168.1.0/24
 ```
 
@@ -26,7 +26,7 @@ Build the API image from the repository root so migration files are included:
 ```powershell
 $imageBuildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
 $imageRevision = git rev-parse HEAD
-docker build --build-arg "BUILD_DATE=$imageBuildDate" --build-arg "VCS_REF=$imageRevision" -f backend/Dockerfile -t chronofish-api:local .
+docker build --build-arg "BUILD_DATE=$imageBuildDate" --build-arg "VCS_REF=$imageRevision" -f backend/Dockerfile -t kuvth-zebrafish-lims-api:local .
 cd frontend
 npm ci
 npm run check
@@ -46,8 +46,8 @@ Serve `frontend/dist` from a static web server with SPA fallback to `index.html`
 The API image is pinned to a patch-level Python base, runs as the non-root `chronofish` user, contains only the installed backend and migrations, and carries OCI build metadata. Scan the exact image that will be deployed before promotion; for example:
 
 ```powershell
-trivy image --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 chronofish-api:local
-docker image inspect chronofish-api:local --format '{{.Config.User}} {{index .Config.Labels "org.opencontainers.image.revision"}}'
+trivy image --ignore-unfixed --severity HIGH,CRITICAL --exit-code 1 kuvth-zebrafish-lims-api:local
+docker image inspect kuvth-zebrafish-lims-api:local --format '{{.Config.User}} {{index .Config.Labels "org.opencontainers.image.revision"}}'
 ```
 
 The frontend is a static artifact. The repository also provides an optional nginx image for environments that want one Compose stack: it builds with Node, runs the static files with unprivileged nginx, proxies `/api/` to the API service, and has SPA fallback. Node is not present in the runtime image. For static hosting, deploy `frontend/dist` directly instead.
@@ -80,21 +80,21 @@ Schedule a daily logical backup in the database platform or job runner and retai
 PostgreSQL example:
 
 ```powershell
-docker compose -f compose.yaml exec -T postgres pg_dump -U chronofish -d chronofish --format=custom --file=/tmp/chronofish.dump
-docker compose -f compose.yaml cp postgres:/tmp/chronofish.dump ./chronofish-YYYYMMDD.dump
+docker compose -f compose.yaml exec -T postgres pg_dump -U chronofish -d chronofish --format=custom --file=/tmp/kuvth-zebrafish-lims.dump
+docker compose -f compose.yaml cp postgres:/tmp/kuvth-zebrafish-lims.dump ./kuvth-zebrafish-lims-YYYYMMDD.dump
 docker compose -f compose.yaml exec -T postgres createdb -U chronofish chronofish_restore
-docker compose -f compose.yaml cp ./chronofish-YYYYMMDD.dump postgres:/tmp/chronofish-restore.dump
-docker compose -f compose.yaml exec -T postgres pg_restore -U chronofish --clean --if-exists --dbname=chronofish_restore /tmp/chronofish-restore.dump
+docker compose -f compose.yaml cp ./kuvth-zebrafish-lims-YYYYMMDD.dump postgres:/tmp/kuvth-zebrafish-lims-restore.dump
+docker compose -f compose.yaml exec -T postgres pg_restore -U chronofish --clean --if-exists --dbname=chronofish_restore /tmp/kuvth-zebrafish-lims-restore.dump
 ```
 
 MySQL example:
 
 ```powershell
-docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysqldump -uroot -proot --single-transaction --result-file=/tmp/chronofish.sql chronofish
-docker compose -f compose.mysql.yaml --profile mysql cp mysql:/tmp/chronofish.sql ./chronofish-YYYYMMDD.sql
+docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysqldump -uroot -proot --single-transaction --result-file=/tmp/kuvth-zebrafish-lims.sql chronofish
+docker compose -f compose.mysql.yaml --profile mysql cp mysql:/tmp/kuvth-zebrafish-lims.sql ./kuvth-zebrafish-lims-YYYYMMDD.sql
 docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysql -uroot -proot --execute="CREATE DATABASE chronofish_restore"
-docker compose -f compose.mysql.yaml --profile mysql cp ./chronofish-YYYYMMDD.sql mysql:/tmp/chronofish-restore.sql
-docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysql -uroot -proot chronofish_restore --execute="source /tmp/chronofish-restore.sql"
+docker compose -f compose.mysql.yaml --profile mysql cp ./kuvth-zebrafish-lims-YYYYMMDD.sql mysql:/tmp/kuvth-zebrafish-lims-restore.sql
+docker compose -f compose.mysql.yaml --profile mysql exec -T mysql mysql -uroot -proot chronofish_restore --execute="source /tmp/kuvth-zebrafish-lims-restore.sql"
 ```
 
 After a restore, check `/api/v1/health`, run the database constraint checks, and verify one idempotent mutation plus its audit entry before reopening traffic.

@@ -1,4 +1,4 @@
-# Requirement Analysis — ระบบติดตามผลการทดลอง Cloning ปลา (SCNT Tracking System)
+# KUVTH Zebrafish LIMS — Requirement Analysis ระบบติดตามผลการทดลอง Cloning ปลา
 
 | | |
 |---|---|
@@ -1411,7 +1411,7 @@ H_T = h / (0.055 × T − 0.57)
 | — | *(Change request 23 ส.ค. 2026)* backend ใช้ภาษาใด | เปลี่ยนเป็น **Python** | ใช้ FastAPI + SQLAlchemy; คง OpenAPI/schema และใช้ Docker image เป็น artifact หลัก |
 | — | *(คำถามเพิ่ม)* จะ demo ยังไง | **Static host + container/VPS** เปิดบน iPad ให้ลูกค้าดู | แยก frontend และ API; เตือนกับดัก free-tier spin-down และฐานข้อมูลชั่วคราว |
 
-> **หมายเหตุการ deploy:** แผน demo ใช้ได้เพราะ ChronoFish API เป็น stateless และไม่พึ่ง background process แต่ migration/maintenance ต้องเป็นคำสั่งแยกที่รันอย่างชัดเจน
+> **หมายเหตุการ deploy:** แผน demo ใช้ได้เพราะ KUVTH Zebrafish LIMS API เป็น stateless และไม่พึ่ง background process แต่ migration/maintenance ต้องเป็นคำสั่งแยกที่รันอย่างชัดเจน
 
 ---
 

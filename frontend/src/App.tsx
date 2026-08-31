@@ -21,6 +21,8 @@ import { type ApiItem, type Language, type Page, text } from "./types";
 
 type NavItem = { page: Page; label: string; icon: string; group: "primary" | "research" | "system" };
 
+const productName = "KUVTH Zebrafish LIMS";
+
 const iconPaths: Record<string, ReactNode> = {
   dashboard: <><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></>,
   due: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
@@ -105,7 +107,7 @@ function App() {
     localStorage.setItem("chronofish.language", language);
   }, [language]);
   useEffect(() => {
-    document.title = `${currentNav.label} · ChronoFish`;
+    document.title = `${currentNav.label} · ${productName}`;
   }, [currentNav.label]);
   useEffect(() => {
     if (previousPage.current === page) return;
@@ -201,7 +203,7 @@ function App() {
         <div className="brand-lockup">
           <span className="brand-mark" aria-hidden="true"><Icon name="fish" /></span>
           <span className="brand-copy">
-            <span className="brand">ChronoFish</span>
+            <span className="brand">{productName}</span>
             <span className="tagline">{language === "th" ? "พื้นที่บันทึกงานวิจัย SCNT" : "SCNT research workspace"}</span>
           </span>
         </div>

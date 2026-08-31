@@ -1,4 +1,4 @@
-# Phase 9 UAT and release sign-off
+# KUVTH Zebrafish LIMS — Phase 9 UAT and release sign-off
 
 This is the handoff sheet for the deployment owner. Automated checks belong in CI; the rows below require the real deployment, reference data, target browsers/devices, or an operator sign-off. Record the artifact/image digest used for the run so UAT and release use the same build.
 
@@ -43,7 +43,7 @@ This is the handoff sheet for the deployment owner. Automated checks belong in C
 | T-22 | | | |
 | T-23 | | | |
 
-Use the test definitions and expected results in `docs/SRS_Cloning_Tracking_System.md`. T-23 must include the reconciled Excel comparison, not only a screenshot of the export.
+Use the test definitions and expected results in `docs/KUVTH_Zebrafish_LIMS_SRS.md`. T-23 must include the reconciled Excel comparison, not only a screenshot of the export.
 
 ## Release gates
 

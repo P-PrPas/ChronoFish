@@ -1,6 +1,6 @@
-# ChronoFish
+# KUVTH Zebrafish LIMS
 
-ChronoFish tracks SCNT zebrafish experiments from injection through embryo checkpoints and clone-fish follow-up. This repository is the implementation baseline for SRS v1.0.
+KUVTH Zebrafish LIMS tracks SCNT zebrafish experiments from injection through embryo checkpoints and clone-fish follow-up. This repository is the implementation baseline for SRS v1.0.
 
 ## Repository layout
 

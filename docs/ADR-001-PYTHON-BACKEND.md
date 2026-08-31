@@ -1,4 +1,4 @@
-# ADR-001: เปลี่ยน Backend จาก Go เป็น Python
+# KUVTH Zebrafish LIMS — ADR-001: เปลี่ยน Backend จาก Go เป็น Python
 
 - สถานะ: Accepted
 - วันที่: 23 สิงหาคม 2026

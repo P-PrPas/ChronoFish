@@ -18,9 +18,9 @@ ENV API_UPSTREAM=api \
     NGINX_ENVSUBST_FILTER=API_UPSTREAM \
     NGINX_ENVSUBST_OUTPUT_DIR=/tmp/nginx/conf.d
 
-LABEL org.opencontainers.image.title="ChronoFish frontend" \
-      org.opencontainers.image.description="ChronoFish static React application" \
-      org.opencontainers.image.source="https://github.com/P-PrPas/ChronoFish" \
+LABEL org.opencontainers.image.title="KUVTH Zebrafish LIMS frontend" \
+      org.opencontainers.image.description="KUVTH Zebrafish LIMS static React application" \
+      org.opencontainers.image.source="https://github.com/P-PrPas/KUVTH-Zebrafish-LIMS" \
       org.opencontainers.image.revision="$VCS_REF"
 
 COPY --from=build /app/dist /usr/share/nginx/html

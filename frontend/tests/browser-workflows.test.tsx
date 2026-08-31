@@ -23,6 +23,7 @@ describe('browser shell workflows', () => {
     document.body.append(rootElement)
     const root = createRoot(rootElement)
     await act(async () => { root.render(<App />); await Promise.resolve() })
+    expect(document.querySelector('.brand')?.textContent).toBe('KUVTH Zebrafish LIMS')
     expect(document.querySelector('nav[aria-label="เมนูหลัก"]')).not.toBeNull()
     expect(document.querySelectorAll('.nav-group--primary button')).toHaveLength(4)
     expect(document.querySelector('.nav-disclosure--mobile summary')?.textContent).toContain('เพิ่มเติม')
@@ -46,7 +47,7 @@ describe('browser shell workflows', () => {
 
     const batches = Array.from(document.querySelectorAll<HTMLButtonElement>('.nav-group--primary button')).find((button) => button.textContent?.trim() === 'การทดลอง')
     await act(async () => { batches?.click(); await new Promise((resolve) => requestAnimationFrame(resolve)) })
-    expect(document.title).toBe('การทดลอง · ChronoFish')
+    expect(document.title).toBe('การทดลอง · KUVTH Zebrafish LIMS')
     expect(document.activeElement?.id).toBe('main-content')
 
     await act(async () => {
@@ -54,7 +55,7 @@ describe('browser shell workflows', () => {
       window.dispatchEvent(new PopStateEvent('popstate'))
       await new Promise((resolve) => requestAnimationFrame(resolve))
     })
-    expect(document.title).toBe('ตรวจสอบการแก้ไข · ChronoFish')
+    expect(document.title).toBe('ตรวจสอบการแก้ไข · KUVTH Zebrafish LIMS')
     expect(document.activeElement?.id).toBe('main-content')
     root.unmount()
   })

@@ -1,9 +1,9 @@
-# ChronoFish — Detailed Implementation Plan
+# KUVTH Zebrafish LIMS — Detailed Implementation Plan
 
 > สถานะเอกสาร: แผนดำเนินงานสำหรับ SRS v1.0
 > วันที่จัดทำ: 20 สิงหาคม 2026
 > ตรวจสอบสถานะล่าสุด: 23 สิงหาคม 2026 (Phase 1 เทียบกับ implementation และ automated tests)
-> แหล่งความจริง: `SRS_Cloning_Tracking_System.md` → `api/openapi.yaml` → implementation
+> แหล่งความจริง: `KUVTH_Zebrafish_LIMS_SRS.md` → `api/openapi.yaml` → implementation
 > ฐานข้อมูลหลัก: PostgreSQL 16 และต้องผ่านชุดทดสอบเดียวกันบน MySQL 8
 
 ## 1. วัตถุประสงค์และวิธีใช้เอกสารนี้
