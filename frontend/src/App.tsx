@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { get, operatorId } from "./api/client";
 import {
   discardRejected,
@@ -32,6 +32,7 @@ const iconPaths: Record<string, ReactNode> = {
   controls: <><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="7" cy="18" r="2"/></>,
   audit: <><path d="M6 3h12v18H6zM9 8h6M9 12h6M9 16h4"/><path d="m4 5 2 2"/></>,
   export: <><path d="M12 3v12M7 10l5 5 5-5M5 19h14"/></>,
+  more: <><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></>,
 };
 
 function Icon({ name, className = "icon" }: { name: string; className?: string }) {
@@ -48,6 +49,22 @@ function pageForWrite(path: string): Page {
   return "master";
 }
 
+export function markInvalidFields(form: HTMLFormElement | null, page: Page, language: Language) {
+  return Array.from(form?.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>("input, select, textarea") ?? []).filter((control) => !control.validity.valid).map((control, index) => {
+    if (!control.id) {
+      let suffix = index + 1;
+      while (document.getElementById(`invalid-${page}-${suffix}`)) suffix += 1;
+      control.id = `invalid-${page}-${suffix}`;
+    }
+    const errorId = `${control.id}-error`;
+    const message = language === "th" ? "กรุณากรอกหรือแก้ไขข้อมูลในช่องนี้" : "Enter or correct this field.";
+    control.setAttribute("aria-invalid", "true");
+    control.setAttribute("aria-describedby", [...new Set([...(control.getAttribute("aria-describedby")?.split(" ") ?? []), errorId])].join(" "));
+    control.parentElement?.setAttribute("data-field-error", message);
+    return { id: control.id, errorId, label: control.labels?.[0]?.textContent?.trim() || control.getAttribute("aria-label") || (language === "th" ? `ช่องที่ ${index + 1}` : `Field ${index + 1}`), message };
+  });
+}
+
 function App() {
   const [page, setPage] = useState<Page>(
     (location.hash.slice(1) as Page) || "dashboard",
@@ -58,6 +75,9 @@ function App() {
   const [rejected, setRejected] = useState<QueuedWriteRecord[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [operators, setOperators] = useState<ApiItem[]>([]);
+  const [formErrors, setFormErrors] = useState<{ id: string; errorId: string; label: string; message: string }[]>([]);
+  const validationFrame = useRef(0);
+  const previousPage = useRef(page);
   const currentOperator = operatorId();
   const writePage = !["dashboard", "audit", "export"].includes(page);
   const t = text[language];
@@ -84,6 +104,16 @@ function App() {
     document.documentElement.lang = language;
     localStorage.setItem("chronofish.language", language);
   }, [language]);
+  useEffect(() => {
+    document.title = `${currentNav.label} · ChronoFish`;
+  }, [currentNav.label]);
+  useEffect(() => {
+    if (previousPage.current === page) return;
+    previousPage.current = page;
+    setFormErrors([]);
+    window.scrollTo({ top: 0, behavior: "auto" });
+    window.requestAnimationFrame(() => document.getElementById("main-content")?.focus());
+  }, [page]);
   useEffect(() => {
     const followHistory = () => {
       const next = location.hash.slice(1) as Page;
@@ -149,15 +179,16 @@ function App() {
   const navigate = (next: Page) => {
     if (next !== page) window.history.pushState(null, "", `${window.location.pathname}${window.location.search}#${next}`);
     setPage(next);
-    window.scrollTo({ top: 0, behavior: "auto" });
-    window.requestAnimationFrame(() => document.getElementById("main-content")?.focus());
   };
   const renderNav = (items: NavItem[]) => items.map((item) => (
     <button
       key={item.page}
       aria-current={page === item.page ? "page" : undefined}
       className={page === item.page ? "nav-link nav-link--active" : "nav-link"}
-      onClick={() => navigate(item.page)}
+      onClick={(event) => {
+        event.currentTarget.closest(".nav-disclosure--mobile")?.removeAttribute("open");
+        navigate(item.page);
+      }}
     >
       <Icon name={item.icon} />
       <span>{item.label}</span>
@@ -179,13 +210,17 @@ function App() {
             <p className="nav-group__label">{language === "th" ? "งานหลัก" : "Core work"}</p>
             {renderNav(navItems.filter((item) => item.group === "primary"))}
           </div>
-          <details className="nav-disclosure" open={navItems.some((item) => item.group === "research" && item.page === page)}>
+          <details className="nav-disclosure nav-disclosure--desktop" open={navItems.some((item) => item.group === "research" && item.page === page)}>
             <summary>{language === "th" ? "งานต่อเนื่องและรายงาน" : "Follow-up & reports"}</summary>
             <div className="nav-group">{renderNav(navItems.filter((item) => item.group === "research"))}</div>
           </details>
-          <details className="nav-disclosure" open={navItems.some((item) => item.group === "system" && item.page === page)}>
+          <details className="nav-disclosure nav-disclosure--desktop" open={navItems.some((item) => item.group === "system" && item.page === page)}>
             <summary>{language === "th" ? "ข้อมูลอ้างอิงและระบบ" : "Reference & system"}</summary>
             <div className="nav-group">{renderNav(navItems.filter((item) => item.group === "system"))}</div>
+          </details>
+          <details className="nav-disclosure nav-disclosure--mobile">
+            <summary><Icon name="more" /><span>{language === "th" ? "เพิ่มเติม" : "More"}</span></summary>
+            <div className="nav-group">{renderNav(navItems.filter((item) => item.group !== "primary"))}</div>
           </details>
         </nav>
         <div className="sidebar-note">
@@ -276,7 +311,31 @@ function App() {
       </header>
       <main className="content" id="main-content" tabIndex={-1}>
         {writePage && !currentOperator && <div className="operator-gate" role="alert"><strong>{t.operatorRequired}</strong><button type="button" onClick={() => document.getElementById("operator-select")?.focus()}>{t.chooseOperator}</button></div>}
-        <fieldset className="page-gate" disabled={writePage && !currentOperator} aria-describedby={writePage && !currentOperator ? "operator-select" : undefined}>
+        {formErrors.length > 0 && <div className="error form-error-summary" id="form-error-summary" role="alert" tabIndex={-1}><strong>{language === "th" ? "ตรวจสอบข้อมูลที่ต้องแก้ไข" : "Check the fields that need attention"}</strong><ul>{formErrors.map((item) => <li id={item.errorId} key={item.id}><a href={`#${item.id}`}>{item.label}</a>: {item.message}</li>)}</ul></div>}
+        <fieldset
+          className="page-gate"
+          disabled={writePage && !currentOperator}
+          aria-describedby={writePage && !currentOperator ? "operator-select" : undefined}
+          onInvalid={(event: FormEvent<HTMLElement>) => {
+            const field = event.target as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+            window.cancelAnimationFrame(validationFrame.current);
+            validationFrame.current = window.requestAnimationFrame(() => {
+              setFormErrors(markInvalidFields(field.form, page, language));
+              window.requestAnimationFrame(() => document.getElementById("form-error-summary")?.focus());
+            });
+          }}
+          onInputCapture={(event: FormEvent<HTMLElement>) => {
+            const field = event.target as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+            if (field.validity?.valid) {
+              field.removeAttribute("aria-invalid");
+              const describedBy = field.getAttribute("aria-describedby")?.split(" ").filter((id) => id !== `${field.id}-error`).join(" ");
+              if (describedBy) field.setAttribute("aria-describedby", describedBy); else field.removeAttribute("aria-describedby");
+              field.parentElement?.removeAttribute("data-field-error");
+              setFormErrors((current) => current.filter((item) => item.id !== field.id));
+            }
+          }}
+        >
+          {writePage && <p className="required-note">{language === "th" ? "ช่องที่มีเครื่องหมาย * จำเป็นต้องกรอก" : "Fields marked * are required"}</p>}
           {page === "dashboard" && <Dashboard onNavigate={navigate} t={t} />}
           {page === "due" && <Due t={t} />}
           {page === "batches" && <Batches t={t} />}

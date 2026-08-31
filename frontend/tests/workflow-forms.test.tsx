@@ -193,6 +193,7 @@ describe('lab workflow forms', () => {
     await act(async () => { root.render(<Promotions t={text.en} />); await Promise.resolve() })
     const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement
     await act(async () => { checkbox.click(); await Promise.resolve() })
+    expect(document.querySelector('input[aria-label="Fish code B-1_1_1"]')?.hasAttribute('required')).toBe(true)
     const confirm = Array.from(document.querySelectorAll('button')).find((button) => button.textContent?.includes('Confirm selected'))
     await act(async () => { confirm?.click(); await Promise.resolve() })
     await vi.waitFor(() => expect(fetchMock.mock.calls.some(([input, init]) => String(input).includes('/promotions') && init?.method === 'POST')).toBe(true))
@@ -345,19 +346,34 @@ describe('lab workflow forms', () => {
     await act(async () => { root.render(<Timing />); await new Promise((resolve) => setTimeout(resolve, 0)) })
     expect(document.body.textContent).toContain('Protocol')
     expect(document.querySelector('select[required]')).not.toBeNull()
-    expect(document.querySelector('input[aria-label="Expected HPA stage_01_1C"]')).not.toBeNull()
+    expect(document.querySelector('input[aria-label="New HPA for stage_01_1C"]')).not.toBeNull()
     expect(document.body.textContent).toContain('Current version 2')
     expect(document.body.textContent).toContain('Archived profile')
     expect(document.body.textContent).toContain('Tech One')
     expect(document.body.textContent).toContain('Current HPA')
     expect(document.body.textContent).toContain('New HPA')
 
-    const input = document.querySelector('input[aria-label="Expected HPA stage_01_1C"]') as HTMLInputElement
+    const input = document.querySelector('input[aria-label="New HPA for stage_01_1C"]') as HTMLInputElement
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
     await act(async () => { setValue?.call(input, '2.75'); input.dispatchEvent(new Event('input', { bubbles: true })); await Promise.resolve() })
     await act(async () => { document.querySelector('form')?.dispatchEvent(new SubmitEvent('submit', { bubbles: true, cancelable: true })); await Promise.resolve() })
     expect(confirm).toHaveBeenCalledOnce()
     expect(fetchMock.mock.calls.some(([, init]) => (init as RequestInit | undefined)?.method === 'POST')).toBe(false)
+    root.unmount()
+  })
+
+  it('localizes timing input names for Thai screen readers', async () => {
+    const current = { id: 'profile-1', version: 1, name: 'Current profile', isCurrent: true, entries: [{ id: 'stage-1', stageCode: 'stage_01_1C', stageLabel: 'Activated', stageOrder: 1, expectedHpa: 2.5 }] }
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.endsWith('/protocols')) return json({ items: [{ id: 'protocol-1', name: 'SCNT' }] })
+      if (path.includes('/timing-profiles/current')) return json(current)
+      if (path.includes('/timing-profiles?')) return json({ items: [current] })
+      return json({})
+    }))
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Timing t={text.th} />); await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(document.querySelector('input[aria-label="HPA ใหม่ของ stage_01_1C"]')).not.toBeNull()
     root.unmount()
   })
 

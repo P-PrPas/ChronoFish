@@ -292,7 +292,7 @@ export function FishSurvivalChart({ points, thai = false }: { points: ApiItem[];
     const key = `${String(point.strain ?? 'All')} / ${String(point.treatmentGroup ?? 'All')} / ${String(point.condition ?? 'All')}`
     groups.set(key, [...(groups.get(key) ?? []), point])
   }
-  const colors = ['#ef9f67', '#78c7b5', '#caa7f7', '#f2d479', '#8ab6ed']
+  const colors = ['#0b6761', '#b67b2f', '#557f9c', '#775f8f', '#a83c35']
   return <div className="chart-block"><div className="chart-legend" aria-label={thai ? "เลือกกลุ่มปลาที่ต้องการแสดง" : "Toggle fish groups"}>{Array.from(groups.keys()).map((key, index) => <button type="button" key={key} aria-pressed={!hidden.has(key)} className="chart-legend__item" onClick={() => setHidden((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next })}><span className="chart-dot" style={{ background: colors[index % colors.length] }} aria-hidden="true" />{key}</button>)}</div><svg className="chart" role="img" aria-label={thai ? "กราฟอัตรารอดของปลาตามอายุ" : "Fish survival curves by age, strain and treatment"} viewBox={`0 0 ${width} ${height}`}>
     {[0, .5, 1].map((value) => <g key={value}><line x1="38" y1={height - 28 - value * (height - 44)} x2={width - 12} y2={height - 28 - value * (height - 44)} stroke="currentColor" opacity=".12"/><text x="4" y={height - 24 - value * (height - 44)}>{value * 100}%</text></g>)}
     <text x="38" y={height - 7}>0</text><text x={width - 12} y={height - 7} textAnchor="end">{maxAge} {thai ? "วัน" : "days"}</text>
@@ -392,6 +392,9 @@ export function Dashboard({
   const stage2 = data.kpi?.stage2 as ApiItem | undefined;
   const comparison = (stage1?.controlComparison as ApiItem[] | undefined) ?? [];
   const thai = t === text.th;
+  const lowestEmbryoSurvival = data.survival.reduce<ApiItem | undefined>((lowest, point) => !lowest || Number(point.surv ?? 1) < Number(lowest.surv ?? 1) ? point : lowest, undefined);
+  const highestEmbryoLoss = data.funnel.reduce<ApiItem | undefined>((highest, point) => !highest || Number(point.nDead ?? 0) > Number(highest.nDead ?? 0) ? point : highest, undefined);
+  const lowestFishSurvival = data.fishSurvival.reduce<ApiItem | undefined>((lowest, point) => !lowest || Number(point.surv ?? 1) < Number(lowest.surv ?? 1) ? point : lowest, undefined);
   const moveTab = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
@@ -486,11 +489,11 @@ export function Dashboard({
       {tab === "stage1" && (
         <div id="dashboard-panel-stage1" role="tabpanel" aria-labelledby="dashboard-tab-stage1">
           <ReportPanel title={thai ? "การรอดของตัวอ่อนตามระยะ" : "Stage 1 survival curve"} loading={loading} empty={data.survival.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลการรอดที่ตรงกับตัวกรอง" : "No survival observations match these filters."} sampleSize={data.survivalMeta?.sampleSize} quality={<QualityNote meta={data.survivalMeta} thai={thai} />}>
+            <p className="insight-strip">{thai ? `อัตรารอดต่ำสุดในข้อมูลที่กรองคือ ${percent(lowestEmbryoSurvival?.surv)} ที่ระยะ ${String(lowestEmbryoSurvival?.stageLabel ?? lowestEmbryoSurvival?.stageOrder)} · ${String(lowestEmbryoSurvival?.strain ?? "ทุกสายพันธุ์")} · ${String(lowestEmbryoSurvival?.treatmentGroup ?? "ทุกกลุ่ม")} (n=${Number(lowestEmbryoSurvival?.riskSet ?? 0)})` : `Lowest filtered survival is ${percent(lowestEmbryoSurvival?.surv)} at ${String(lowestEmbryoSurvival?.stageLabel ?? lowestEmbryoSurvival?.stageOrder)} · ${String(lowestEmbryoSurvival?.strain ?? "all strains")} · ${String(lowestEmbryoSurvival?.treatmentGroup ?? "all groups")} (n=${Number(lowestEmbryoSurvival?.riskSet ?? 0)}).`}</p>
             <SurvivalChart points={data.survival} thai={thai} />
-            <p className="insight-strip">{thai ? "เส้นที่ลดลงแสดงช่วงที่ตัวอ่อนสูญเสียมากขึ้น ใช้ระบุระยะที่ควรตรวจเงื่อนไขการทดลองเพิ่มเติม" : "A steeper drop marks the checkpoint where embryo loss increases and the protocol may need closer review."}</p>
             <ReportTable
               collapsed summary={thai ? "ดูตารางข้อมูลและแหล่งที่มา" : "View supporting data"}
-              caption="Stage 1 survival by checkpoint"
+              caption={thai ? "การรอดของตัวอ่อนแยกตามระยะ" : "Stage 1 survival by checkpoint"}
               headers={[
                 thai ? "สถานที่" : "Site",
                 thai ? "สายพันธุ์" : "Strain",
@@ -513,11 +516,11 @@ export function Dashboard({
             <p className="table-note">{thai ? "ตรวจข้อมูลต้นทาง:" : "Source records:"} <button type="button" className="inline-action" onClick={() => openSource("batches")}>{thai ? "เปิดการทดลองตามตัวกรอง" : "Open filtered batches"}</button><button type="button" className="inline-action" onClick={() => openSource("due")}>{thai ? "เปิดผลตรวจตัวอ่อน" : "Open embryo checkpoints"}</button></p>
           </ReportPanel>
           <ReportPanel title={thai ? "ระยะที่สูญเสียและเริ่มพบความผิดปกติ" : "Attrition / abnormality onset"} loading={loading} empty={data.funnelMeta?.sampleSize === 0 && data.abnormality.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลความสูญเสียที่ตรงกับตัวกรอง" : "No attrition or abnormality observations match these filters."} sampleSize={data.funnelMeta?.sampleSize} quality={<QualityNote meta={data.funnelMeta} thai={thai} />}>
+            <p className="insight-strip">{thai ? `ระยะที่สูญเสียมากที่สุดคือ ${String(highestEmbryoLoss?.stageLabel ?? highestEmbryoLoss?.stageOrder)} จำนวน ${Number(highestEmbryoLoss?.nDead ?? 0)} จาก ${Number(highestEmbryoLoss?.riskSet ?? 0)} ฟอง` : `Highest loss occurs at ${String(highestEmbryoLoss?.stageLabel ?? highestEmbryoLoss?.stageOrder)}: ${Number(highestEmbryoLoss?.nDead ?? 0)} of ${Number(highestEmbryoLoss?.riskSet ?? 0)} embryos.`}</p>
             <FunnelChart points={data.funnel} thai={thai} />
-            <p className="insight-strip">{thai ? "เรียงจากระยะที่สูญเสียมากที่สุด เพื่อชี้จุดที่ควรย้อนตรวจวิธีปฏิบัติและสภาวะแวดล้อม" : "Stages are ranked by loss so the highest-impact protocol and environment checks surface first."}</p>
             <ReportTable
               collapsed summary={thai ? "ดูอันดับการสูญเสีย" : "View attrition ranking"}
-              caption="Attrition ranking by checkpoint"
+              caption={thai ? "อันดับการสูญเสียแยกตามระยะ" : "Attrition ranking by checkpoint"}
               headers={thai ? ["อันดับ", "ระยะ", "จำนวนตั้งต้น", "สูญเสีย"] : ["Rank", "Stage", "At risk", "Dead"]}
               rows={[...data.funnel]
                 .sort((left, right) => Number(right.nDead ?? 0) - Number(left.nDead ?? 0))
@@ -530,7 +533,7 @@ export function Dashboard({
             />
             <ReportTable
               collapsed summary={thai ? "ดูระยะที่เริ่มพบความผิดปกติ" : "View abnormality onset"}
-              caption="Abnormality onset by checkpoint"
+              caption={thai ? "ระยะที่เริ่มพบความผิดปกติ" : "Abnormality onset by checkpoint"}
               headers={thai ? ["ระยะ", "จำนวน"] : ["Stage", "n"]}
               rows={data.abnormality.map((point) => [
                 String(point.stageLabel ?? point.stageOrder),
@@ -544,7 +547,7 @@ export function Dashboard({
             <p className="insight-strip">{thai ? "ค่าใกล้ศูนย์หมายถึงเวลาใกล้มาตรฐาน ค่าบวกคือช้ากว่า และค่าลบคือเร็วกว่ามาตรฐาน" : "Values near zero match the timing standard; positive values are later and negative values are earlier."}</p>
             <ReportTable
               collapsed summary={thai ? "ดูค่ารายกลุ่ม" : "View group values"}
-              caption="Timing deviation by checkpoint and group"
+              caption={thai ? "เวลาเบี่ยงเบนแยกตามระยะและกลุ่ม" : "Timing deviation by checkpoint and group"}
               headers={[
                 thai ? "กลุ่ม" : "Group",
                 thai ? "ระยะ" : "Stage",
@@ -570,7 +573,7 @@ export function Dashboard({
             <BarSummary points={comparison} label={(point) => `${String(point.armType)} · ${String(point.stageLabel ?? point.stageOrder)}`} value={(point) => Number(point.nNormal ?? 0)} />
             <ReportTable
               collapsed summary={thai ? "ดูผลเปรียบเทียบรายระยะ" : "View comparison by stage"}
-              caption="SCNT and control-arm comparison"
+              caption={thai ? "เปรียบเทียบ SCNT และกลุ่มควบคุม" : "SCNT and control-arm comparison"}
               headers={thai ? ["กลุ่ม", "ระยะ", "จำนวน", "ปกติ", "ผิดปกติ", "ปกติ (%)"] : ["Arm", "Stage", "n", "Normal", "Abnormal", "Normal %"]}
               rows={comparison.map((point) => [
                 String(point.armType),
@@ -588,11 +591,11 @@ export function Dashboard({
       {tab === "stage2" && (
         <div id="dashboard-panel-stage2" role="tabpanel" aria-labelledby="dashboard-tab-stage2">
           <ReportPanel title={thai ? "การรอดของปลาตามอายุ" : "Fish survival by age"} loading={loading} empty={data.fishSurvival.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลการรอดของปลาที่ตรงกับตัวกรอง" : "No fish survival observations match these filters."} sampleSize={data.fishSurvivalMeta?.sampleSize} quality={<QualityNote meta={data.fishSurvivalMeta} thai={thai} />}>
+            <p className="insight-strip">{thai ? `อัตรารอดของปลาต่ำสุดในข้อมูลที่กรองคือ ${percent(lowestFishSurvival?.surv)} เมื่ออายุ ${Number(lowestFishSurvival?.ageDays ?? 0)} วัน · ${String(lowestFishSurvival?.strain ?? "ทุกสายพันธุ์")} · ${String(lowestFishSurvival?.treatmentGroup ?? "ทุกกลุ่ม")} (n=${Number(lowestFishSurvival?.atRisk ?? 0)})` : `Lowest filtered fish survival is ${percent(lowestFishSurvival?.surv)} at age ${Number(lowestFishSurvival?.ageDays ?? 0)} days · ${String(lowestFishSurvival?.strain ?? "all strains")} · ${String(lowestFishSurvival?.treatmentGroup ?? "all groups")} (n=${Number(lowestFishSurvival?.atRisk ?? 0)}).`}</p>
             <FishSurvivalChart points={data.fishSurvival} thai={thai} />
-            <p className="insight-strip">{thai ? "เปรียบเทียบเส้นตามอายุเพื่อดูว่ากลุ่มใดเริ่มมีการรอดลดลงเร็วกว่ากลุ่มอื่น" : "Compare age curves to see which group begins losing survival earlier than the others."}</p>
             <ReportTable
               collapsed summary={thai ? "ดูข้อมูลการรอดรายอายุ" : "View survival data by age"}
-              caption="Fish survival by age and condition"
+              caption={thai ? "การรอดของปลาแยกตามอายุและสภาพ" : "Fish survival by age and condition"}
               headers={thai ? ["สภาพ", "สายพันธุ์", "กลุ่มทดลอง", "อายุ (วัน)", "จำนวนตั้งต้น", "รอด", "ตาย", "แช่แข็ง", "คัดออก", "ผู้/เมีย", "ตู้ปลา", "อัตรารอด"] : ["Condition", "Strain", "Treatment", "Age day", "At risk", "Alive", "Dead", "Frozen", "Discarded", "M/F", "Boxes", "Survival"]}
               rows={data.fishSurvival.map((point) => [
                 String(point.condition ?? "All"),
@@ -614,7 +617,7 @@ export function Dashboard({
           <ReportPanel title={thai ? "ปลาที่ขาดการตรวจติดตาม" : "Observation gaps"} loading={loading} empty={data.gaps.length === 0} emptyMessage={thai ? "ไม่พบปลาที่ขาดการตรวจติดตาม" : "No fish observation gaps for this filter."} sampleSize={data.gapsMeta?.sampleSize} quality={<QualityNote meta={data.gapsMeta} thai={thai} />}>
             <ReportTable
               collapsed summary={thai ? "ดูปลาที่ขาดการติดตาม" : "View fish with missing checks"}
-              caption="Fish observation gaps"
+              caption={thai ? "ช่วงที่ขาดการตรวจติดตามปลา" : "Fish observation gaps"}
               headers={thai ? ["ปลา", "ตรวจล่าสุด", "ขาดการตรวจ (วัน)"] : ["Fish", "Last observed", "Missed days"]}
               rows={data.gaps.map((point) => [
                 String(point.fishCode ?? "—"),
@@ -632,7 +635,7 @@ export function Dashboard({
             <BarSummary points={data.pipeline} label={(point) => String(point.step)} value={(point) => Number(point.count ?? 0)} />
             <ReportTable
               collapsed summary={thai ? "ดูอัตราเปลี่ยนผ่านทุกขั้น" : "View conversion by step"}
-              caption="End-to-end pipeline conversion"
+              caption={thai ? "อัตราการเปลี่ยนผ่านตลอดกระบวนการ" : "End-to-end pipeline conversion"}
               headers={thai ? ["ขั้นตอน", "จำนวน", "% จากขั้นก่อน", "% จากตัวอ่อนที่กระตุ้น"] : ["Step", "n", "% previous", "% activated"]}
               rows={data.pipeline.map((point) => [
                 String(point.step),
@@ -646,7 +649,7 @@ export function Dashboard({
           <ReportPanel title={thai ? "หลักฐานเวลาเบี่ยงเบน" : "Timing deviation evidence"} loading={loading} empty={data.deviation.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลเวลาเบี่ยงเบนที่ตรงกับตัวกรอง" : "No timing deviations match these filters."} sampleSize={data.deviationMeta?.sampleSize} quality={<QualityNote meta={data.deviationMeta} thai={thai} />}>
             <ReportTable
               collapsed summary={thai ? "ดูหลักฐานเวลาเบี่ยงเบน" : "View timing evidence"}
-              caption="Timing deviation evidence"
+              caption={thai ? "หลักฐานเวลาเบี่ยงเบน" : "Timing deviation evidence"}
               headers={thai ? ["ระยะ", "จำนวน", "เฉลี่ย (ชม.)", "SD (ชม.)"] : ["Stage", "n", "Mean H", "SD H"]}
               rows={data.deviation.map((point) => [
                 String(point.stageLabel ?? point.stageOrder),

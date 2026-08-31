@@ -405,7 +405,7 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
                         <td>{original}</td>
                         <td>
                           <input
-                            aria-label={`Expected HPA ${String(entry.stageCode ?? index + 1)}`}
+                            aria-label={`${thai ? "HPA ใหม่ของ" : "New HPA for"} ${String(entry.stageCode ?? index + 1)}`}
                             type="number"
                             required
                             min="0"
@@ -429,20 +429,20 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
         </>
       )}
       {csvPreview && (
-        <section className="form-card" aria-label="CSV preview">
+        <section className="form-card" aria-label={thai ? "ตัวอย่าง CSV" : "CSV preview"}>
           <div>
-            <h2>CSV preview</h2>
-            <p className="muted">{csvPreview.fileName} · {csvPreview.rows.length} rows ready</p>
+            <h2>{thai ? "ตัวอย่าง CSV" : "CSV preview"}</h2>
+            <p className="muted">{csvPreview.fileName} · {csvPreview.rows.length} {thai ? "แถวพร้อมนำเข้า" : "rows ready"}</p>
           </div>
           {csvPreview.errors.map((previewError) => <ErrorMessage key={previewError} message={previewError} />)}
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Row</th><th>Stage</th><th>Label</th><th>Expected HPA</th><th>Status</th></tr></thead>
+              <thead><tr>{(thai ? ["แถว", "ระยะ", "ชื่อระยะ", "HPA ที่คาดไว้", "สถานะ"] : ["Row", "Stage", "Label", "Expected HPA", "Status"]).map((header) => <th key={header}>{header}</th>)}</tr></thead>
               <tbody>
                 {csvPreview.rows.map((row) => (
                   <tr key={row.row}>
                     <td>{row.row}</td><td>{row.stageCode}</td><td>{row.label}</td><td>{row.expectedHpa}</td>
-                    <td>{row.errors.length ? row.errors.join(" · ") : "Ready"}</td>
+                    <td>{row.errors.length ? row.errors.join(" · ") : (thai ? "พร้อม" : "Ready")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -450,9 +450,9 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
           </div>
           <div className="button-row">
             <button className="button button--primary" disabled={importing || csvPreview.errors.length > 0 || csvPreview.rows.some((row) => row.errors.length > 0)} onClick={() => void importCsv()}>
-              {importing ? t.importing : "Import preview"}
+              {importing ? t.importing : (thai ? "นำเข้าตัวอย่าง" : "Import preview")}
             </button>
-            <button className="button button--secondary" onClick={() => setCsvPreview(null)}>Cancel</button>
+            <button className="button button--secondary" onClick={() => setCsvPreview(null)}>{thai ? "ยกเลิก" : "Cancel"}</button>
           </div>
         </section>
       )}
@@ -553,7 +553,7 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
       !queued.includes(String(item.embryoId)),
   );
   return (
-    <section>
+    <form onSubmit={(event) => { event.preventDefault(); void promote(eligibleSelected) }}>
       <div className="page-heading">
         <div>
           <p className="eyebrow">{t === text.th ? "เปลี่ยนสถานะจากตัวอ่อนเป็นปลา" : "EMBRYO-TO-FISH HANDOFF"}</p>
@@ -563,13 +563,12 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
           </p>
         </div>
         <div className="button-row">
-          <button className="button button--secondary" onClick={load}>
+          <button className="button button--secondary" type="button" onClick={load}>
             {t.refresh}
           </button>
           <button
             className="button button--primary"
             disabled={!eligibleSelected.length}
-            onClick={() => void promote(eligibleSelected)}
           >
             {t.confirmSelected} ({eligibleSelected.length})
           </button>
@@ -611,7 +610,8 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
                   </span>
                 </label>
                 <input
-                  aria-label={`Fish code ${String(item.embryoCode)}`}
+                  aria-label={`${t === text.th ? "รหัสปลา" : "Fish code"} ${String(item.embryoCode)}`}
+                  required={selected.includes(id)}
                   value={edit.fishCode}
                   onChange={(event) =>
                     setEdits((current) => ({
@@ -621,7 +621,7 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
                   }
                 />
                 <select
-                  aria-label={`Fish box ${String(item.embryoCode)}`}
+                  aria-label={`${t === text.th ? "ตู้ปลา" : "Fish box"} ${String(item.embryoCode)}`}
                   value={edit.fishBoxId}
                   onChange={(event) =>
                     setEdits((current) => ({
@@ -643,7 +643,7 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
           })}
         </div>
       )}
-    </section>
+    </form>
   );
 }
 

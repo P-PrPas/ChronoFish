@@ -3,7 +3,7 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { indexedDB as fakeIndexedDB } from 'fake-indexeddb'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import App from '../src/App'
+import App, { markInvalidFields } from '../src/App'
 import { drainQueue, putQueue, rejectedQueueCount } from '../src/offline'
 
 describe('browser shell workflows', () => {
@@ -24,7 +24,9 @@ describe('browser shell workflows', () => {
     const root = createRoot(rootElement)
     await act(async () => { root.render(<App />); await Promise.resolve() })
     expect(document.querySelector('nav[aria-label="เมนูหลัก"]')).not.toBeNull()
-    expect(document.querySelectorAll('nav button').length).toBe(10)
+    expect(document.querySelectorAll('.nav-group--primary button')).toHaveLength(4)
+    expect(document.querySelector('.nav-disclosure--mobile summary')?.textContent).toContain('เพิ่มเติม')
+    expect(document.querySelectorAll('.nav-disclosure--mobile button')).toHaveLength(6)
     expect(Array.from(document.querySelectorAll('nav button')).every((button) => button.tabIndex >= 0)).toBe(true)
     expect(document.querySelectorAll('[role="tab"][tabindex="0"]')).toHaveLength(1)
     const language = document.querySelector<HTMLButtonElement>('[aria-label="เปลี่ยนภาษาเป็นอังกฤษ"]')
@@ -32,6 +34,45 @@ describe('browser shell workflows', () => {
     await act(async () => { language?.click(); await Promise.resolve() })
     expect(document.querySelector('nav')?.textContent).toContain('Research results')
     root.unmount()
+  })
+
+  it('announces route changes and restores focus for history navigation', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ items: [] }), { headers: { 'Content-Type': 'application/json' } })))
+    vi.stubGlobal('scrollTo', vi.fn())
+    const rootElement = document.createElement('div')
+    document.body.append(rootElement)
+    const root = createRoot(rootElement)
+    await act(async () => { root.render(<App />); await Promise.resolve() })
+
+    const batches = Array.from(document.querySelectorAll<HTMLButtonElement>('.nav-group--primary button')).find((button) => button.textContent?.trim() === 'การทดลอง')
+    await act(async () => { batches?.click(); await new Promise((resolve) => requestAnimationFrame(resolve)) })
+    expect(document.title).toBe('การทดลอง · ChronoFish')
+    expect(document.activeElement?.id).toBe('main-content')
+
+    await act(async () => {
+      window.history.pushState(null, '', `${window.location.pathname}#audit`)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+    })
+    expect(document.title).toBe('ตรวจสอบการแก้ไข · ChronoFish')
+    expect(document.activeElement?.id).toBe('main-content')
+    root.unmount()
+  })
+
+  it('marks invalid required fields and links them to the error summary', () => {
+    const form = document.createElement('form')
+    form.innerHTML = '<label>รหัสสถานที่<input required></label><label>ชื่อสถานที่<input required></label>'
+    document.body.append(form)
+    const invalid = form.querySelector<HTMLInputElement>('input[required]')
+    expect(markInvalidFields(form, 'master', 'th')).toHaveLength(2)
+    expect(invalid?.getAttribute('aria-invalid')).toBe('true')
+    expect(invalid?.getAttribute('aria-describedby')).toContain(`${invalid?.id}-error`)
+    expect(invalid?.parentElement?.getAttribute('data-field-error')).toBe('กรุณากรอกหรือแก้ไขข้อมูลในช่องนี้')
+    const secondForm = form.cloneNode(true) as HTMLFormElement
+    secondForm.querySelectorAll('input').forEach((input) => { input.removeAttribute('id'); input.removeAttribute('aria-invalid'); input.removeAttribute('aria-describedby') })
+    document.body.append(secondForm)
+    const secondErrors = markInvalidFields(secondForm, 'master', 'th')
+    expect(secondErrors[0]?.id).not.toBe(invalid?.id)
   })
 
   it('keeps rejected writes visible until the user reviews or discards them', async () => {

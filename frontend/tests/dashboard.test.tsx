@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Dashboard } from '../src/pages/dashboard'
+import { Dashboard, FishSurvivalChart } from '../src/pages/dashboard'
 import { text } from '../src/types'
 
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
@@ -37,6 +37,8 @@ describe('analytics dashboard', () => {
     expect(analyticsCalls.every(([input]) => String(input).includes('siteId=site-1') && String(input).includes('dateFrom=2026-08-20'))).toBe(true)
     expect(document.body.textContent).toContain('(n=3)')
     expect(document.body.textContent).toContain('Data quality')
+    expect(document.body.textContent).toContain('Lowest filtered survival is 100.00% at 1-cell')
+    expect(document.body.textContent).toContain('Highest loss occurs at 1-cell: 0 of 3 embryos')
     expect(document.body.textContent).toContain('Source records')
     expect(document.body.textContent).toContain('Attrition ranking by checkpoint')
     expect(document.querySelector('table caption')).not.toBeNull()
@@ -46,12 +48,28 @@ describe('analytics dashboard', () => {
     await act(async () => { stage1Tab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); await Promise.resolve() })
     expect(document.getElementById('dashboard-tab-stage2')?.getAttribute('aria-selected')).toBe('true')
     expect(document.getElementById('dashboard-panel-stage2')).not.toBeNull()
+    expect(document.body.textContent).toContain('Lowest filtered fish survival is 100.00% at age 0 days')
     await act(async () => { document.getElementById('dashboard-tab-stage2')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })); await Promise.resolve() })
 
     const openBatches = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Open filtered batches')
     await act(async () => { openBatches?.click(); await Promise.resolve() })
     expect(navigate).toHaveBeenCalledWith('batches')
     expect(window.location.search).toContain('siteId=site-1')
+    root.unmount()
+  })
+
+  it('uses high-contrast fish series with non-color line patterns', async () => {
+    const points = ['AB', 'TU', 'NHGRI', 'WT', 'MIXED'].flatMap((strain, index) => [
+      { ageDays: 0, surv: 1, strain, treatmentGroup: 'SCNT', condition: 'NORMAL' },
+      { ageDays: 10, surv: 0.8 - index * 0.1, strain, treatmentGroup: 'SCNT', condition: 'NORMAL' },
+    ])
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<FishSurvivalChart points={points} thai />); await Promise.resolve() })
+
+    const lines = Array.from(document.querySelectorAll<SVGPolylineElement>('polyline'))
+    expect(new Set(lines.map((line) => line.getAttribute('stroke')))).toEqual(new Set(['#0b6761', '#b67b2f', '#557f9c', '#775f8f', '#a83c35']))
+    expect(lines.some((line) => line.hasAttribute('stroke-dasharray'))).toBe(true)
+    expect(document.querySelector('svg[aria-label="กราฟอัตรารอดของปลาตามอายุ"]')).not.toBeNull()
     root.unmount()
   })
 })

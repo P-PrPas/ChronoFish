@@ -17,6 +17,7 @@ describe('master data form', () => {
 
     const form = document.querySelector<HTMLFormElement>('.master-catalog form')
     expect(form?.checkValidity()).toBe(false)
+    expect(document.querySelectorAll('.admin-toolbar [aria-pressed="true"]')).toHaveLength(1)
     root.unmount()
   })
 

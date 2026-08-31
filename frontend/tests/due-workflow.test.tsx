@@ -66,7 +66,7 @@ describe('due and checkpoint workflows', () => {
 
     expect(document.body.textContent).toContain('Late 25 min')
     expect(document.body.textContent).toContain('Due in 10 min')
-    const site = document.querySelector('[aria-label="Filter due by site"]') as HTMLSelectElement
+    const site = Array.from(document.querySelectorAll('label')).find((label) => label.textContent?.startsWith('Site'))?.querySelector('select') as HTMLSelectElement
     const setValue = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
     await act(async () => { setValue?.call(site, 'site-1'); site.dispatchEvent(new Event('change', { bubbles: true })); await Promise.resolve() })
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('siteId=site-1'))).toBe(true)
@@ -223,7 +223,7 @@ describe('due and checkpoint workflows', () => {
 
     expect(document.body.textContent).toContain('Saved by Operator unavailable')
     expect(document.body.textContent).toContain('Observation time is captured automatically')
-    const correctionReason = document.querySelector('[aria-label="Correction reason"]') as HTMLInputElement
+    const correctionReason = Array.from(document.querySelectorAll('label')).find((label) => label.textContent?.startsWith('Correction reason'))?.querySelector('input') as HTMLInputElement
     const setInput = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
     await act(async () => { setInput?.call(correctionReason, 'wrong status'); correctionReason.dispatchEvent(new Event('input', { bubbles: true })); await Promise.resolve() })
     await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Save correction')?.click(); await Promise.resolve() })

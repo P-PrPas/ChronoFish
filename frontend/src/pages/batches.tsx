@@ -1023,7 +1023,7 @@ function BatchDetail({
                   <tr key={String(embryo.id)}>
                     <td>
                       <select
-                        aria-label={`Well for ${String(embryo.embryoCode)}`}
+                        aria-label={`${thai ? "หลุมของ" : "Well for"} ${String(embryo.embryoCode)}`}
                         value={String(embryo.wellPosition ?? "")}
                         onChange={(event) =>
                           void updateWell(embryo, event.target.value)
