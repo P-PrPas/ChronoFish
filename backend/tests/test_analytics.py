@@ -5,7 +5,7 @@ from time import perf_counter
 
 import pytest
 from test_experiments import create_batch, headers
-from test_fish import setup_eligible_embryo
+from test_fish import BANGKOK, setup_eligible_embryo
 
 
 def analytics_fixture(client, write_headers):
@@ -177,7 +177,7 @@ def test_analytics_fixture_matches_manual_counts_and_shared_filters(client, writ
 
 def test_manual_fish_is_not_counted_as_promoted_and_uses_unknown_metadata(client, write_headers):
     _batch, donor = create_batch(client, write_headers)
-    today = datetime.now().date().isoformat()
+    today = datetime.now(BANGKOK).date().isoformat()
     fish_response = client.post(
         "/api/v1/fish",
         headers=headers(write_headers, 520),
@@ -219,7 +219,7 @@ def test_zero_denominator_and_missing_checkpoint_are_explicit(client, write_head
 
 
 def test_dashboard_bundle_smoke_fixture_stays_under_three_seconds(client, store):
-    today = datetime.now().date()
+    today = datetime.now(BANGKOK).date()
     with store.lock:
         store.state.entities["fish"] = {
             f"fish-{index}": {
@@ -247,7 +247,7 @@ def test_fish_survival_respects_dead_status_without_exit_date(client, store):
             "dead-fish": {
                 "id": "dead-fish",
                 "fishCode": "DEAD-1",
-                "dob": datetime.now().date().isoformat(),
+                "dob": datetime.now(BANGKOK).date().isoformat(),
                 "donorCellLineId": "donor-fixture",
                 "status": "DEAD",
                 "condition": "NORMAL",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import re
-from datetime import date
+from datetime import datetime
 from io import BytesIO, StringIO
 from pathlib import Path
 from xml.etree import ElementTree
@@ -10,6 +10,7 @@ from zipfile import ZipFile
 
 import yaml
 from test_experiments import headers
+from test_fish import BANGKOK
 from test_observations import setup_embryo
 
 from chronofish.reporting.xlsx import build_xlsx
@@ -62,7 +63,11 @@ def test_excel_export_is_read_only_valid_14_sheet_xlsx(client, store, write_head
     manual = client.post(
         "/api/v1/fish",
         headers=headers(write_headers, 450),
-        json={"fishCode": "manual-export", "dob": date.today().isoformat(), "donorCellLineId": lot["donorCellLineId"]},
+        json={
+            "fishCode": "manual-export",
+            "dob": datetime.now(BANGKOK).date().isoformat(),
+            "donorCellLineId": lot["donorCellLineId"],
+        },
     )
     assert manual.status_code == 201, manual.text
     idempotency_before_export = set(store.idempotency)
