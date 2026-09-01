@@ -70,7 +70,7 @@ def test_dashboard_endpoints_return_complete_shapes(client, write_headers):
         response = client.get(f"/api/v1/analytics/{endpoint}")
         assert response.status_code == 200, (endpoint, response.text)
         assert isinstance(response.json()["items"], list)
-        assert set(response.json()["meta"]) == {"filters", "sampleSize", "denominators", "unknown", "missing"}
+        assert {"filters", "sampleSize", "denominators", "unknown", "missing"} <= set(response.json()["meta"])
 
 
 def test_dashboard_bundle_uses_one_consistent_snapshot(client, store, monkeypatch):
@@ -168,11 +168,32 @@ def test_analytics_fixture_matches_manual_counts_and_shared_filters(client, writ
 
     abnormality = client.get("/api/v1/analytics/abnormality-onset", params=filters).json()
     assert abnormality["items"] == [{"stageOrder": 19, "stageLabel": "Shield", "count": 1}]
-    assert abnormality["meta"]["missing"]["firstAbnormality"] == 2
+    assert abnormality["meta"]["denominators"]["everAbnormal"] == 1
+    assert abnormality["meta"]["denominators"]["noAbnormalityRecorded"] == 2
+    assert abnormality["meta"]["missing"].get("firstAbnormality", 0) == 0
 
     pipeline = client.get("/api/v1/analytics/pipeline", params=filters).json()
     assert [item["count"] for item in pipeline["items"]] == [3, 2, 2, 0, 0]
     assert pipeline["items"][0]["pctOfStart"] == 1
+
+
+def test_stage1_survival_does_not_increase_when_raw_alive_rises_after_a_gap(client, write_headers, store):
+    _batch, _donor, lot = analytics_fixture(client, write_headers)
+    with store.lock:
+        stage_19 = next(
+            item
+            for item in store.state.observations.values()
+            if item.get("embryoId") == lot["embryos"][0]["id"] and item.get("stageCode") == "stage_19_50%"
+        )
+        stage_19["outcome"] = "DEAD"
+
+    rows = client.get("/api/v1/analytics/survival").json()["items"]
+    assert all(current["surv"] <= previous["surv"] for previous, current in zip(rows, rows[1:], strict=False))
+    stage_19_row = next(item for item in rows if item["stageOrder"] == 19)
+    stage_22_row = next(item for item in rows if item["stageOrder"] == 22)
+    assert (stage_19_row["alive"], stage_19_row["nPrev"]) == (1, 3)
+    assert (stage_22_row["alive"], stage_22_row["nPrev"]) == (2, 2)
+    assert stage_22_row["surv"] == pytest.approx(stage_19_row["surv"])
 
 
 def test_manual_fish_is_not_counted_as_promoted_and_uses_unknown_metadata(client, write_headers):
@@ -190,6 +211,10 @@ def test_manual_fish_is_not_counted_as_promoted_and_uses_unknown_metadata(client
     assert result["stage1"]["nPromoted"] == 0
     assert result["stage2"]["nFish"] == 1
     assert result["meta"]["unknown"]["fishSex"] == 1
+    pipeline = client.get("/api/v1/analytics/pipeline").json()
+    assert pipeline["items"][-1]["step"] == "Alive Fish"
+    assert pipeline["items"][-1]["count"] == 0
+    assert pipeline["meta"]["denominators"]["manualFish"] == 1
     filtered = client.get("/api/v1/analytics/kpi", params={"donorCellLineId": donor["id"]}).json()
     assert filtered["stage2"]["nFish"] == 1
     fish_survival = client.get("/api/v1/analytics/fish-survival", params={"splitByCondition": True}).json()
@@ -216,6 +241,9 @@ def test_zero_denominator_and_missing_checkpoint_are_explicit(client, write_head
     assert survival["items"][1]["surv"] == 1
     assert survival["items"][1]["pctOfDevelopment"] is None
     assert survival["meta"]["missing"]["stageCheckpoint"] >= len(lot["embryos"])
+    abnormality = client.get("/api/v1/analytics/abnormality-onset").json()
+    assert abnormality["meta"]["denominators"].get("noAbnormalityRecorded", 0) == 0
+    assert abnormality["meta"]["missing"]["firstAbnormality"] == len(lot["embryos"])
 
 
 def test_dashboard_bundle_smoke_fixture_stays_under_three_seconds(client, store):
@@ -258,6 +286,56 @@ def test_fish_survival_respects_dead_status_without_exit_date(client, store):
         }
     point = client.get("/api/v1/analytics/fish-survival").json()["items"][0]
     assert (point["atRisk"], point["alive"], point["surv"]) == (1, 0, 0)
+    assert point["nEvents"] == 1
+    assert client.get("/api/v1/analytics/fish-survival").json()["meta"]["missing"]["exitDate"] == 1
+
+
+def test_fish_survival_uses_kaplan_meier_events_and_last_follow_up_censoring(client, store):
+    today = datetime.now(BANGKOK).date()
+    dob = (today - timedelta(days=4)).isoformat()
+    with store.lock:
+        store.state.entities["fish"] = {
+            "alive": {
+                "id": "alive", "fishCode": "ALIVE", "dob": dob, "status": "ALIVE",
+                "condition": "NORMAL", "sex": "UNKNOWN", "active": True, "deletedAt": None,
+            },
+            "dead": {
+                "id": "dead", "fishCode": "DEAD", "dob": dob, "status": "DEAD",
+                "condition": "NORMAL", "sex": "UNKNOWN", "exitDate": (today - timedelta(days=2)).isoformat(),
+                "active": True, "deletedAt": None,
+            },
+            "frozen": {
+                "id": "frozen", "fishCode": "FROZEN", "dob": dob, "status": "FROZEN",
+                "condition": "ABNORMAL", "sex": "UNKNOWN",
+                "firstAbnormalOn": (today - timedelta(days=1)).isoformat(),
+                "exitDate": (today - timedelta(days=1)).isoformat(), "active": True, "deletedAt": None,
+            },
+            "discarded": {
+                "id": "discarded", "fishCode": "DISCARDED", "dob": dob, "status": "DISCARDED",
+                "condition": "NORMAL", "sex": "UNKNOWN", "exitDate": (today - timedelta(days=3)).isoformat(),
+                "active": True, "deletedAt": None,
+            },
+        }
+        store.state.fish_observations["alive-follow-up"] = {
+            "id": "alive-follow-up", "cloneFishId": "alive", "observedOn": (today - timedelta(days=2)).isoformat(),
+            "outcome": "ALIVE", "condition": "NORMAL", "deletedAt": None,
+        }
+
+    result = client.get("/api/v1/analytics/fish-survival").json()
+    rows = result["items"]
+    assert [(row["ageDays"], row["atRisk"], row["nEvents"], row["nCensored"]) for row in rows] == [
+        (0, 4, 0, 0), (1, 4, 0, 1), (2, 3, 1, 1), (3, 1, 0, 1)
+    ]
+    assert [row["surv"] for row in rows] == pytest.approx([1, 1, 2 / 3, 2 / 3])
+    assert all(current["surv"] <= previous["surv"] for previous, current in zip(rows, rows[1:], strict=False))
+    assert all(0 <= row["survLower95"] <= row["surv"] <= row["survUpper95"] <= 1 for row in rows)
+    split = client.get("/api/v1/analytics/fish-survival?splitByCondition=true").json()
+    assert split["meta"]["method"] == "Kaplan-Meier"
+    assert split["meta"]["comparison"]["label"] == "Ever abnormal vs No abnormality recorded"
+    assert split["meta"]["comparison"]["interpretation"] == "Exploratory comparison; not causal."
+    assert {row["abnormalityGroup"] for row in split["items"]} == {
+        "EVER_ABNORMAL", "NO_ABNORMALITY_RECORDED", "UNKNOWN"
+    }
 
 
 def test_nullable_egg_count_is_reported_without_breaking_kpi(client, write_headers):

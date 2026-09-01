@@ -923,14 +923,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Discrete-time survival by checkpoint
-         * @description Returns `riskSet`, `alive`, `nPrev`, `nDead` and `surv` per BR-15 and
+         * Monotonic discrete-time survival by checkpoint
+         * @description Returns `riskSet`, `alive`, `nPrev`, `nDead` and monotonic `surv` per BR-15 and
          *     BR-16, grouped by site and strain — the same shape the lab's existing R
          *     notebook consumes.
          *
          *     `riskSet` excludes embryos that have not yet reached the checkpoint's
          *     due time, so an experiment still in progress does not read as mass
-         *     mortality. The raw counts are always returned alongside `surv` so the
+         *     mortality. The raw `alive` and `nPrev` counts are always returned alongside `surv` so the
          *     analyst can recompute survival their own way rather than trusting ours.
          */
         get: operations["getSurvival"];
@@ -989,7 +989,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Daily survival of clone fish */
+        /** Kaplan-Meier daily survival of clone fish */
         get: operations["getFishSurvival"];
         put?: never;
         post?: never;
@@ -1960,6 +1960,14 @@ export interface components {
             };
             missing: {
                 [key: string]: number;
+            };
+            /** @description Statistical method used by the endpoint when applicable. */
+            method?: string;
+            /** @description Comparison labels and interpretation for exploratory groupings. */
+            comparison?: {
+                field: string;
+                label: string;
+                interpretation: string;
             };
         };
         FunnelStep: {
@@ -4121,7 +4129,7 @@ export interface operations {
                  *     `donorCellLineId`, `strain`, `batchId`.
                  */
                 filters?: components["parameters"]["AnalyticsFilters"];
-                /** @description Return normal and abnormal fish as separate series (FR-817) */
+                /** @description Return Ever abnormal, No abnormality recorded, and unknown fish as separate exploratory series (FR-817) */
                 splitByCondition?: boolean;
             };
             header?: never;
@@ -4130,7 +4138,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Fish survival series */
+            /** @description Fish survival series with daily events and right-censoring */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4139,12 +4147,19 @@ export interface operations {
                     "application/json": {
                         items: {
                             group?: string | null;
+                            /** @description Current comparison group when splitByCondition=true. */
                             condition?: string | null;
+                            /** @description Semantic comparison group — EVER_ABNORMAL, NO_ABNORMALITY_RECORDED, or UNKNOWN. */
+                            abnormalityGroup?: string | null;
                             strain?: string | null;
                             treatmentGroup?: string | null;
                             ageDays: number;
                             atRisk: number;
                             alive: number;
+                            /** @description Death events at this age. */
+                            nEvents?: number;
+                            /** @description Right-censored fish at this age. */
+                            nCensored?: number;
                             nAlive?: number;
                             nDead?: number;
                             nFrozen?: number;
@@ -4153,7 +4168,12 @@ export interface operations {
                             nFemale?: number;
                             nUnknownSex?: number;
                             nBoxes?: number;
+                            /** @description Kaplan-Meier survival estimate. */
                             surv: number;
+                            /** @description Approximate Greenwood 95% lower confidence bound. */
+                            survLower95?: number;
+                            /** @description Approximate Greenwood 95% upper confidence bound. */
+                            survUpper95?: number;
                         }[];
                         meta: components["schemas"]["AnalyticsMeta"];
                     };
