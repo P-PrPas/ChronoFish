@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { type KeyboardEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { type ApiItem, get, operatorId } from '../api/client'
 import { putQueue, type ApiQueueResult, type QueuedWrite } from '../offline'
 import { type AppText, text } from '../types'
@@ -21,10 +21,7 @@ export function nextCheckpoints(items: ApiItem[]): ApiItem[] {
     byLot.set(key, [...(byLot.get(key) ?? []), item])
   }
   return [...byLot.values()]
-    .map((group) => ({
-      ...[...group].sort((a, b) => Number(b.minutesLate ?? 0) - Number(a.minutesLate ?? 0))[0],
-      pendingStages: group.filter((item) => Number(item.minutesLate ?? 0) > 0).length,
-    }))
+    .map((group) => ({ ...[...group].sort((a, b) => Number(b.minutesLate ?? 0) - Number(a.minutesLate ?? 0))[0], pendingStages: group.filter((item) => Number(item.minutesLate ?? 0) > 0).length }))
     .sort((a, b) => Number(b.minutesLate ?? 0) - Number(a.minutesLate ?? 0))
 }
 
@@ -64,10 +61,8 @@ export function Due({ t }: { t: AppText }) {
   }, [dashboardFilters, selectedOperatorId, siteId])
   useEffect(() => { load(); const timer = window.setInterval(load, 60_000); return () => window.clearInterval(timer) }, [load])
   useEffect(() => {
-    void Promise.all(['sites', 'operators'].map((resource) =>
-      get(`/${resource}`).then((value) => [resource, value.items ?? []] as [string, ApiItem[]])))
-      .then((items) => { setMasters(Object.fromEntries(items)); setMastersReady(true) })
-      .catch((e: Error) => setError(e.message))
+    void Promise.all(['sites', 'operators'].map((resource) => get(`/${resource}`).then((value) => [resource, value.items ?? []] as [string, ApiItem[]])))
+      .then((items) => { setMasters(Object.fromEntries(items)); setMastersReady(true) }).catch((e: Error) => setError(e.message))
   }, [])
   const thai = t === text.th
   if (selected) {
@@ -77,18 +72,33 @@ export function Due({ t }: { t: AppText }) {
   }
   const items = nextCheckpoints([...(data.overdue ?? []), ...(data.upcoming ?? [])])
   return <section>
-    <div className="page-heading"><div><p className="eyebrow">{thai ? 'งานตรวจตัวอ่อนวันนี้' : 'Stage 1 daily work'}</p><h1>{t.due}</h1><p className="muted">{thai ? 'เปิดตรวจเป็นราย lot แล้วเลือกระยะของตัวอ่อนแต่ละฟองตามที่เห็นจริง' : 'Open a lot, then record the stage seen for each embryo independently.'}</p></div><button className="button button--secondary" onClick={load}>{t.refresh}</button></div>
-    <details className="filter-disclosure"><summary>{thai ? 'กรองตามสถานที่หรือผู้ปฏิบัติงาน' : 'Filter by site or operator'}</summary><fieldset className="filter-bar"><legend>{thai ? 'แสดงเฉพาะงานที่เกี่ยวข้อง' : 'Show relevant work'}</legend>
-      <label>{thai ? 'สถานที่' : 'Site'}<select value={siteId} onChange={(event) => setSiteId(event.target.value)}><option value="">{thai ? 'ทุกสถานที่' : 'All sites'}</option>{masters.sites.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.code ?? item.name)}</option>)}</select></label>
-      <label>{thai ? 'ผู้ปฏิบัติงาน' : 'Operator'}<select value={selectedOperatorId} onChange={(event) => setSelectedOperatorId(event.target.value)}><option value="">{thai ? 'ทุกคน' : 'All operators'}</option>{masters.operators.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.name ?? '')}</option>)}</select></label>
-    </fieldset></details>
+    <div className="page-heading"><div><p className="eyebrow">{thai ? 'งานตรวจตัวอ่อนวันนี้' : 'Stage 1 daily work'}</p><h1>{t.due}</h1><p className="muted">{thai ? 'เปิดตรวจเป็นราย lot แล้วเลือกผลของตัวอ่อนแต่ละฟองตามที่เห็นจริง' : 'Open a lot, then record the stage seen for each embryo independently.'}</p></div><button className="button button--secondary" onClick={load}>{t.refresh}</button></div>
+    <details className="filter-disclosure"><summary>{thai ? 'กรองตามสถานที่หรือผู้ปฏิบัติงาน' : 'Filter by site or operator'}</summary><fieldset className="filter-bar"><legend>{thai ? 'แสดงเฉพาะงานที่เกี่ยวข้อง' : 'Show relevant work'}</legend><label>{thai ? 'สถานที่' : 'Site'}<select value={siteId} onChange={(event) => setSiteId(event.target.value)}><option value="">{thai ? 'ทุกสถานที่' : 'All sites'}</option>{masters.sites.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.code ?? item.name)}</option>)}</select></label><label>{thai ? 'ผู้ปฏิบัติงาน' : 'Operator'}<select value={selectedOperatorId} onChange={(event) => setSelectedOperatorId(event.target.value)}><option value="">{thai ? 'ทุกคน' : 'All operators'}</option>{masters.operators.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.name ?? '')}</option>)}</select></label></fieldset></details>
     {error && <ErrorMessage message={error} />}
     {items.length === 0 ? <Empty message={t.empty} actionLabel={thai ? 'เปิดรายการทดลอง' : 'Open experiments'} onAction={() => { location.hash = 'batches' }} /> : <div className="list">{items.map((item: ApiItem) => {
-      const late = Number(item.minutesLate ?? 0)
-      const pendingStages = Number(item.pendingStages ?? 0)
+      const late = Number(item.minutesLate ?? 0); const pendingStages = Number(item.pendingStages ?? 0)
       return <button key={String(item.injectionLotId)} className="list-row" onClick={() => setSelected(item)}><span><strong>{String(item.batchCode)} · Lot {String(item.lotNo)}</strong><small>{thai ? `ช่วงแนะนำ ${String(item.stageLabel)} · เหลือ ${String(item.embryosRemaining ?? '—')} ตัว${pendingStages > 1 ? ` · มี ${pendingStages} ช่วงที่ถึงเวลาแล้ว` : ''}` : `Suggested ${String(item.stageLabel)} · ${String(item.embryosRemaining ?? '—')} embryos${pendingStages > 1 ? ` · ${pendingStages} stages due` : ''}`}</small></span><span className={late > 0 ? 'pill pill--late' : 'pill'}>{late > 0 ? (thai ? `เกิน ${late} นาที` : `Late ${late} min`) : (thai ? `อีก ${Math.abs(late)} นาที` : `Due in ${Math.abs(late)} min`)}</span></button>
     })}</div>}
   </section>
+}
+
+type WellFilter = 'all' | 'unreviewed' | 'ready' | 'exception' | 'saved'
+
+function wellPositionKey(value: unknown): [number, number] {
+  const match = /^([A-Za-z]+)(\d+)$/.exec(String(value ?? ''))
+  if (!match) return [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER]
+  const row = [...match[1].toUpperCase()].reduce((total, letter) => total * 26 + letter.charCodeAt(0) - 64, 0)
+  return [row, Number(match[2])]
+}
+
+function wellButtonId(id: string): string { return `checkpoint-well-${id.replace(/[^a-zA-Z0-9_-]/g, '-')}` }
+
+function outcomeLabel(value: EmbryoOutcome, thai: boolean): string {
+  return ({ ALIVE: thai ? 'รอด' : 'Alive', DEAD: thai ? 'ตาย' : 'Dead', DEGENERATED: thai ? 'เสื่อม' : 'Degenerated', NOT_OBSERVED: thai ? 'ไม่พบการสังเกต' : 'Not observed' } as Record<EmbryoOutcome, string>)[value]
+}
+
+function conditionLabel(value: string, thai: boolean): string {
+  return ({ NORMAL: thai ? 'ปกติ' : 'Normal', ABNORMAL: thai ? 'พบความผิดปกติ' : 'Abnormal', UNDETERMINED: thai ? 'ยังประเมินไม่ได้' : 'Undetermined' } as Record<string, string>)[value] ?? value
 }
 
 function ObservationRound({ due, t, operatorName, onBack }: { due: ApiItem; t: AppText; operatorName: string; onBack: () => void }) {
@@ -96,6 +106,7 @@ function ObservationRound({ due, t, operatorName, onBack }: { due: ApiItem; t: A
   const [entry, setEntry] = useState<ApiItem | null>(null)
   const [stageCodes, setStageCodes] = useState<Record<string, string>>({})
   const [selectedStage, setSelectedStage] = useState(String(due.stageCode ?? ''))
+  const [selectedId, setSelectedId] = useState('')
   const [embryoOutcomes, setEmbryoOutcomes] = useState<Record<string, EmbryoOutcome>>({})
   const [embryoConditions, setEmbryoConditions] = useState<Record<string, string>>({})
   const [notes, setNotes] = useState<Record<string, string>>({})
@@ -103,99 +114,102 @@ function ObservationRound({ due, t, operatorName, onBack }: { due: ApiItem; t: A
   const [correctionReason, setCorrectionReason] = useState('')
   const [confirmedAt, setConfirmedAt] = useState('')
   const [savedIds, setSavedIds] = useState<Record<string, string>>({})
+  const [queuedIds, setQueuedIds] = useState<Record<string, boolean>>({})
+  const [lastSavedIds, setLastSavedIds] = useState<string[]>([])
+  const [lastBulk, setLastBulk] = useState<{ ids: string[]; stage: string } | null>(null)
   const [saveStatus, setSaveStatus] = useState(thai ? 'ยังไม่บันทึก' : 'Not saved')
   const [undoUntil, setUndoUntil] = useState(0)
+  const [viewFilter, setViewFilter] = useState<WellFilter>('all')
+  const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const wellButtons = useRef<Record<string, HTMLButtonElement | null>>({})
 
   useEffect(() => {
     void get(`/injection-lots/${due.injectionLotId}/checkpoints/${due.stageCode}`).then((value) => {
-      setEntry(value)
-      setEmbryoOutcomes(Object.fromEntries((value.embryos ?? []).map((embryo: ApiItem) => [String(embryo.embryoId), 'ALIVE'])))
-      setEmbryoConditions(Object.fromEntries((value.embryos ?? []).map((embryo: ApiItem) => [String(embryo.embryoId), String(embryo.defaultCondition ?? 'NORMAL')])))
+      const loadedEmbryos = (value.embryos as ApiItem[] | undefined) ?? []
+      setEntry(value); setSelectedId(String(loadedEmbryos[0]?.embryoId ?? ''))
+      setEmbryoOutcomes(Object.fromEntries(loadedEmbryos.map((embryo) => [String(embryo.embryoId), 'ALIVE'])))
+      setEmbryoConditions(Object.fromEntries(loadedEmbryos.map((embryo) => [String(embryo.embryoId), String(embryo.defaultCondition ?? 'NORMAL')])))
     }).catch((e: Error) => setError(e.message))
   }, [due.injectionLotId, due.stageCode])
 
   const embryos = (entry?.embryos as ApiItem[] | undefined) ?? []
   const stages = (entry?.stages as ApiItem[] | undefined) ?? []
-  const pending = embryos.filter((embryo: ApiItem) => {
-    const id = String(embryo.embryoId)
-    return stageCodes[id] && !savedIds[id]
+  const orderedEmbryos = [...embryos].sort((left, right) => {
+    const [leftRow, leftColumn] = wellPositionKey(left.wellPosition); const [rightRow, rightColumn] = wellPositionKey(right.wellPosition)
+    return leftRow - rightRow || leftColumn - rightColumn || String(left.embryoCode ?? '').localeCompare(String(right.embryoCode ?? ''))
   })
+  const hasException = (embryo: ApiItem): boolean => {
+    const id = String(embryo.embryoId)
+    return (embryoOutcomes[id] ?? 'ALIVE') !== 'ALIVE' || (embryoConditions[id] ?? 'NORMAL') !== 'NORMAL' || Boolean(notes[id]?.trim())
+  }
+  const stateFor = (embryo: ApiItem): 'saved' | 'queued' | 'exception' | 'ready' | 'unreviewed' => {
+    const id = String(embryo.embryoId)
+    if (savedIds[id]) return 'saved'; if (queuedIds[id]) return 'queued'; if (hasException(embryo)) return 'exception'; if (!stageCodes[id]) return 'unreviewed'
+    return 'ready'
+  }
+  const stateLabel = (state: ReturnType<typeof stateFor>): string => ({ saved: thai ? 'บันทึกแล้ว' : 'Saved', queued: thai ? 'รอส่ง' : 'Queued', exception: thai ? 'ข้อยกเว้น' : 'Exception', ready: thai ? 'พร้อมบันทึก' : 'Ready', unreviewed: thai ? 'ยังไม่ตรวจ' : 'Unreviewed' }[state])
+  const matchingEmbryos = orderedEmbryos.filter((embryo) => {
+    const query = search.trim().toLowerCase(); const matchesSearch = !query || String(embryo.wellPosition ?? '').toLowerCase().includes(query) || String(embryo.embryoCode ?? '').toLowerCase().includes(query)
+    const matchesFilter = viewFilter === 'all' || (viewFilter === 'exception' ? hasException(embryo) : viewFilter === 'unreviewed' ? !stageCodes[String(embryo.embryoId)] && !savedIds[String(embryo.embryoId)] && !queuedIds[String(embryo.embryoId)] : stateFor(embryo) === viewFilter)
+    return matchesSearch && matchesFilter
+  })
+  const pending = orderedEmbryos.filter((embryo) => { const id = String(embryo.embryoId); return Boolean(stageCodes[id]) && !savedIds[id] && !queuedIds[id] })
+  const bulkable = orderedEmbryos.filter((embryo) => { const id = String(embryo.embryoId); return !stageCodes[id] && !savedIds[id] && !queuedIds[id] })
+  const selectedCount = orderedEmbryos.filter((embryo) => Boolean(stageCodes[String(embryo.embryoId)])).length
+  const unreviewedCount = orderedEmbryos.filter((embryo) => stateFor(embryo) === 'unreviewed').length
+  const exceptionCount = orderedEmbryos.filter(hasException).length
+  const savedCount = Object.keys(savedIds).length; const queuedCount = Object.keys(queuedIds).length
+  const activeEmbryo = orderedEmbryos.find((embryo) => String(embryo.embryoId) === selectedId) ?? null
+  const activeId = activeEmbryo ? String(activeEmbryo.embryoId) : ''
+  const activeWell = activeEmbryo ? String(activeEmbryo.wellPosition ?? (thai ? 'ไม่ระบุหลุม' : 'Unassigned')) : ''
+  const priorStage = activeEmbryo && stages.find((stage: ApiItem) => String(stage.stageCode) === String(activeEmbryo.priorStageCode))
+  const disabledReason = !entry ? (thai ? 'กำลังโหลดหลุมทดลอง…' : 'Loading wells…') : saving ? (thai ? 'กำลังบันทึก…' : 'Saving…') : pending.length > 0 ? (unreviewedCount ? (thai ? `ยังไม่ตรวจ ${unreviewedCount} ฟอง; เลือกระยะเพื่อรวมในการยืนยัน` : `${unreviewedCount} unreviewed; select a stage to include them`) : (thai ? 'พร้อมยืนยัน' : 'Ready to confirm')) : queuedCount > 0 ? (thai ? `รอส่ง ${queuedCount} รายการ` : `${queuedCount} queued for delivery`) : unreviewedCount > 0 ? (thai ? 'เลือกระยะอย่างน้อยหนึ่งฟองก่อนยืนยัน' : 'Select a stage for at least one embryo before confirming') : (thai ? 'ยังไม่มีรายการที่พร้อมบันทึก' : 'There are no unsaved observations to confirm')
 
   const applyResults = useCallback((result: ApiQueueResult, submitted: ObservationDraft[]) => {
-    const rows = (result.results as ObservationResult[] | undefined) ?? []
-    const rejected = rows.filter((item) => item.status === 'rejected')
-    setSavedIds((current) => ({
-      ...current,
-      ...Object.fromEntries(rows.flatMap((item, index) =>
-        item.id && item.status !== 'rejected' ? [[String(submitted[index]?.embryoId), String(item.id)]] : [])),
-    }))
-    setUndoUntil(Date.now() + 10_000)
-    setSaveStatus(rejected.length ? `${thai ? 'บันทึก' : 'Saved'} ${rows.length - rejected.length}; ${rejected.length} rejected` : `${thai ? 'บันทึกโดย' : 'Saved by'} ${operatorName}`)
+    const rows = (result.results as ObservationResult[] | undefined) ?? []; const rejected = rows.filter((item) => item.status === 'rejected')
+    const successfulIds = rows.flatMap((item, index) => item.id && item.status !== 'rejected' && submitted[index]?.embryoId != null ? [String(submitted[index].embryoId)] : [])
+    setQueuedIds((current) => Object.fromEntries(Object.entries(current).filter(([id]) => !submitted.some((item) => String(item.embryoId) === id))))
+    setSavedIds((current) => ({ ...current, ...Object.fromEntries(rows.flatMap((item, index) => item.id && item.status !== 'rejected' && submitted[index]?.embryoId != null ? [[String(submitted[index].embryoId), String(item.id)]] : [])) }))
+    if (successfulIds.length) { setLastSavedIds(successfulIds); setUndoUntil(Date.now() + 10_000) }
+    setSaveStatus(rejected.length ? `${thai ? 'บันทึกแล้ว' : 'Saved'} ${rows.length - rejected.length}; ${rejected.length} rejected` : `${thai ? 'บันทึกโดย' : 'Saved by'} ${operatorName}`)
     setError(rejected.map((item) => String(item.error?.message ?? 'Observation rejected')).join(' · '))
   }, [operatorName, thai])
 
   useEffect(() => {
-    const currentEmbryos = new Set((entry?.embryos ?? []).map((embryo: ApiItem) => String(embryo.embryoId)))
-    const currentObservations = new Set(Object.values(savedIds))
+    const currentEmbryos = new Set(embryos.map((embryo) => String(embryo.embryoId))); const currentObservations = new Set(Object.values(savedIds))
+    const bodyEmbryos = (detail: QueuedWrite) => ((detail.body as ApiItem).observations as ObservationDraft[] | undefined) ?? []
     const belongsToRound = (detail: QueuedWrite) => {
       if (detail.path !== '/observations/embryo') return [...currentObservations].some((id) => detail.path.startsWith(`/observations/embryo/${id}`))
-      const submitted = ((detail.body as ApiItem).observations as ObservationDraft[] | undefined) ?? []
-      return submitted.length > 0 && submitted.every((item) => currentEmbryos.has(String(item.embryoId)))
+      const submitted = bodyEmbryos(detail); return submitted.length > 0 && submitted.every((item) => currentEmbryos.has(String(item.embryoId)))
     }
-    const drained = (event: Event) => {
-      const detail = (event as CustomEvent<QueuedWrite & { result?: ApiQueueResult }>).detail
-      if (detail.result && belongsToRound(detail) && detail.path === '/observations/embryo') {
-        applyResults(detail.result, ((detail.body as ApiItem).observations as ObservationDraft[] | undefined) ?? [])
-      }
-    }
-    const rejected = (event: Event) => {
-      const detail = (event as CustomEvent<QueuedWrite>).detail
-      if (belongsToRound(detail)) setError(detail.lastError ?? 'Observation round write rejected')
-    }
-    window.addEventListener('chronofish:queue-drained', drained)
-    window.addEventListener('chronofish:queue-rejected', rejected)
-    return () => {
-      window.removeEventListener('chronofish:queue-drained', drained)
-      window.removeEventListener('chronofish:queue-rejected', rejected)
-    }
-  }, [applyResults, entry, savedIds])
+    const drained = (event: Event) => { const detail = (event as CustomEvent<QueuedWrite & { result?: ApiQueueResult }>).detail; if (detail.result && belongsToRound(detail) && detail.path === '/observations/embryo') applyResults(detail.result, bodyEmbryos(detail)) }
+    const rejected = (event: Event) => { const detail = (event as CustomEvent<QueuedWrite>).detail; if (!belongsToRound(detail)) return; const submitted = detail.path === '/observations/embryo' ? bodyEmbryos(detail) : []; setQueuedIds((current) => Object.fromEntries(Object.entries(current).filter(([id]) => !submitted.some((item) => String(item.embryoId) === id)))); setError(detail.lastError ?? 'Observation round write rejected') }
+    window.addEventListener('chronofish:queue-drained', drained); window.addEventListener('chronofish:queue-rejected', rejected)
+    return () => { window.removeEventListener('chronofish:queue-drained', drained); window.removeEventListener('chronofish:queue-rejected', rejected) }
+  }, [applyResults, embryos, savedIds])
 
   const observationFor = (embryo: ApiItem, observedAt: string) => {
     const id = String(embryo.embryoId)
-    return {
-      clientUuid: uuidv7(), embryoId: embryo.embryoId, stageCode: stageCodes[id], observedAt,
-      outcome: embryoOutcomes[id] ?? 'ALIVE', condition: embryoConditions[id] ?? 'NORMAL', notes: notes[id] || null,
-      ...(overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}),
-    }
+    return { clientUuid: uuidv7(), embryoId: embryo.embryoId, stageCode: stageCodes[id], observedAt, outcome: embryoOutcomes[id] ?? 'ALIVE', condition: embryoConditions[id] ?? 'NORMAL', notes: notes[id] || null, ...(overrideReason.trim() ? { overrideReason: overrideReason.trim() } : {}) }
   }
+  const removeQueuedIds = (items: ObservationDraft[]) => setQueuedIds((current) => Object.fromEntries(Object.entries(current).filter(([id]) => !items.some((item) => String(item.embryoId) === id))))
   const save = async () => {
     if (!entry || pending.length === 0) return
-    const observedAt = new Date().toISOString()
-    const observations = pending.map((embryo: ApiItem) => observationFor(embryo, observedAt))
-    setConfirmedAt(observedAt)
-    setError('')
-    setSaving(true)
-    try {
-      const result = await putQueue('/observations/embryo', { observations })
-      if (result.queued) setSaveStatus(`${thai ? 'รอส่งโดย' : 'Queued by'} ${operatorName}`)
-      else applyResults(result, observations)
-    } catch (e) { setError((e as Error).message) } finally { setSaving(false) }
+    const observedAt = new Date().toISOString(); const observations = pending.map((embryo) => observationFor(embryo, observedAt))
+    setQueuedIds((current) => ({ ...current, ...Object.fromEntries(observations.map((item) => [String(item.embryoId), true])) }))
+    setConfirmedAt(observedAt); setError(''); setSaving(true)
+    try { const result = await putQueue('/observations/embryo', { observations }); if (result.queued) setSaveStatus(`${thai ? 'รอส่งโดย' : 'Queued by'} ${operatorName}`); else applyResults(result, observations) }
+    catch (e) { removeQueuedIds(observations); setError((e as Error).message) } finally { setSaving(false) }
   }
   const correct = async () => {
     if (!correctionReason.trim()) { setError(thai ? 'โปรดระบุเหตุผลที่แก้ไข' : 'Enter a correction reason'); return }
     if (!window.confirm(thai ? 'บันทึกการแก้ไขพร้อมเหตุผลลงในประวัติหรือไม่?' : 'Save this correction with an audit reason?')) return
     setSaving(true); setError('')
     try {
-      const savedEmbryos = embryos.filter((embryo: ApiItem) => savedIds[String(embryo.embryoId)])
-      const results = await Promise.all(savedEmbryos.map((embryo: ApiItem) => {
-        const id = String(embryo.embryoId)
-        return putQueue(`/observations/embryo/${savedIds[id]}`, {
-          observedAt: confirmedAt, outcome: embryoOutcomes[id], condition: embryoConditions[id],
-          notes: notes[id] || null, correctionReason: correctionReason.trim(),
-        }, 'application/json', 'PATCH')
-      }))
+      const savedEmbryos = embryos.filter((embryo) => savedIds[String(embryo.embryoId)])
+      const results = await Promise.all(savedEmbryos.map((embryo) => { const id = String(embryo.embryoId); return putQueue(`/observations/embryo/${savedIds[id]}`, { observedAt: confirmedAt, outcome: embryoOutcomes[id], condition: embryoConditions[id], notes: notes[id] || null, correctionReason: correctionReason.trim() }, 'application/json', 'PATCH') }))
       setSaveStatus(`${results.some((result) => result.queued) ? (thai ? 'รอส่งการแก้ไข' : 'Correction queued') : (thai ? 'บันทึกการแก้ไขแล้ว' : 'Correction saved')} ${thai ? 'โดย' : 'by'} ${operatorName}`)
     } catch (e) { setError((e as Error).message) } finally { setSaving(false) }
   }
@@ -203,43 +217,57 @@ function ObservationRound({ due, t, operatorName, onBack }: { due: ApiItem; t: A
     if (!window.confirm(thai ? 'ยกเลิกการบันทึกรอบตรวจล่าสุดหรือไม่?' : 'Undo the last observation round save?')) return
     setSaving(true); setError('')
     try {
-      const results = await Promise.all(Object.values(savedIds).map((id) => putQueue(`/observations/embryo/${id}?reason=undo-within-10-seconds`, undefined, 'application/json', 'DELETE')))
-      setSavedIds({}); setUndoUntil(0); setSaveStatus(results.some((result) => result.queued) ? (thai ? 'รอส่งคำขอยกเลิก' : 'Undo queued') : (thai ? 'ยกเลิกการบันทึกล่าสุดแล้ว' : 'Last save undone'))
+      const idsToUndo = lastSavedIds.map((embryoId) => savedIds[embryoId]).filter(Boolean); const results = await Promise.all(idsToUndo.map((id) => putQueue(`/observations/embryo/${id}?reason=undo-within-10-seconds`, undefined, 'application/json', 'DELETE')))
+      setSavedIds((current) => Object.fromEntries(Object.entries(current).filter(([embryoId]) => !lastSavedIds.includes(embryoId)))); setLastSavedIds([]); setUndoUntil(0)
+      setSaveStatus(results.some((result) => result.queued) ? (thai ? 'รอส่งคำขอยกเลิก' : 'Undo queued') : (thai ? 'ยกเลิกการบันทึกล่าสุดแล้ว' : 'Last save undone'))
     } catch (e) { setError((e as Error).message) } finally { setSaving(false) }
   }
   const applyStageToBlankRows = () => {
-    if (!selectedStage) return
-    setStageCodes((current) => ({
-      ...current,
-      ...Object.fromEntries(embryos.flatMap((embryo: ApiItem) => {
-        const id = String(embryo.embryoId)
-        return !current[id] && !savedIds[id] ? [[id, selectedStage]] : []
-      })),
-    }))
+    if (!selectedStage || bulkable.length === 0) return
+    const ids = bulkable.map((embryo) => String(embryo.embryoId)); setStageCodes((current) => ({ ...current, ...Object.fromEntries(ids.map((id) => [id, selectedStage])) })); setLastBulk({ ids, stage: selectedStage }); setSaveStatus(`${thai ? 'ตั้งระยะให้แล้ว' : 'Stage applied to'} ${ids.length} ${thai ? 'ฟอง' : 'blank embryos'}`)
   }
-  const renderEmbryo = (embryo: ApiItem, well: string) => {
-    const id = String(embryo.embryoId)
-    const saved = Boolean(savedIds[id])
-    const priorStage = stages.find((stage: ApiItem) => stage.stageCode === embryo.priorStageCode)
-    return <div className="well checkpoint-well" data-well={well} key={id}>
-      <strong>{well} · {String(embryo.embryoCode)}</strong>
-      {embryo.priorStageCode != null && <small>{thai ? 'ครั้งก่อน' : 'Previous'}: {String(priorStage?.stageLabel ?? '—')}</small>}
-      <label>{thai ? 'ระยะที่เห็น' : 'Observed stage'}<select aria-label={`${thai ? 'ระยะของ' : 'Stage for'} ${String(embryo.embryoCode)}`} value={stageCodes[id] ?? ''} disabled={saved} onChange={(event) => setStageCodes({ ...stageCodes, [id]: event.target.value })}><option value="">{thai ? 'ไม่บันทึกฟองนี้' : 'Skip this embryo'}</option>{stages.map((stage: ApiItem) => <option key={String(stage.stageCode)} value={String(stage.stageCode)}>{String(stage.stageLabel)}</option>)}</select></label>
-      <label>{thai ? 'สถานะ' : 'Outcome'}<select aria-label={`${thai ? 'สถานะของ' : 'Outcome for'} ${String(embryo.embryoCode)}`} value={embryoOutcomes[id] ?? 'ALIVE'} onChange={(event) => setEmbryoOutcomes({ ...embryoOutcomes, [id]: event.target.value as EmbryoOutcome })}>{outcomes.map((outcome) => <option key={outcome}>{outcome}</option>)}</select></label>
-      <label>{thai ? 'สภาพ' : 'Condition'}<select value={embryoConditions[id] ?? 'NORMAL'} onChange={(event) => setEmbryoConditions({ ...embryoConditions, [id]: event.target.value })}>{conditions.map((condition) => <option key={condition}>{condition}</option>)}</select></label>
-      <label>{thai ? 'หมายเหตุ' : 'Notes'}<input value={notes[id] ?? ''} onChange={(event) => setNotes({ ...notes, [id]: event.target.value })} /></label>
-      {saved && <span className="pill">{thai ? 'บันทึกแล้ว' : 'Saved'}</span>}
-    </div>
+  const clearLatestBulk = () => {
+    if (!lastBulk) return
+    setStageCodes((current) => Object.fromEntries(Object.entries(current).map(([id, value]) => lastBulk.ids.includes(id) && value === lastBulk.stage && !savedIds[id] && !queuedIds[id] ? [id, ''] : [id, value]))); setLastBulk(null); setSaveStatus(thai ? 'ล้างการตั้งระยะล่าสุดแล้ว' : 'Latest bulk stage cleared')
   }
-  return <section>
+  const moveWell = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key) || matchingEmbryos.length === 0) return
+    const current = matchingEmbryos[index]; const [currentRow, currentColumn] = wellPositionKey(current.wellPosition); let nextIndex = -1
+    if (currentRow !== Number.MAX_SAFE_INTEGER) {
+      const sameAxis = matchingEmbryos.flatMap((embryo, candidateIndex) => { const [row, column] = wellPositionKey(embryo.wellPosition); const horizontal = event.key === 'ArrowLeft' || event.key === 'ArrowRight'; const matches = horizontal ? row === currentRow : column === currentColumn; const distance = event.key === 'ArrowLeft' ? currentColumn - column : event.key === 'ArrowRight' ? column - currentColumn : event.key === 'ArrowUp' ? currentRow - row : row - currentRow; return matches && distance > 0 ? [{ candidateIndex, distance }] : [] }).sort((left, right) => left.distance - right.distance)
+      nextIndex = sameAxis[0]?.candidateIndex ?? -1
+    }
+    if (nextIndex < 0) nextIndex = Math.min(matchingEmbryos.length - 1, Math.max(0, index + (event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1)))
+    if (nextIndex === index || nextIndex < 0) return
+    event.preventDefault(); const nextId = String(matchingEmbryos[nextIndex].embryoId); setSelectedId(nextId); window.setTimeout(() => wellButtons.current[nextId]?.focus(), 0)
+  }
+
+  return <section className="checkpoint-round">
     <button className="back" onClick={onBack}>← {t.due}</button>
-    <div className="page-heading"><div><p className="eyebrow">{String(due.batchCode)} · LOT {String(due.lotNo)}</p><h1>{thai ? 'บันทึกรอบตรวจ Lot' : 'Record lot observation'}</h1><p className="muted">{thai ? `ช่วงที่ระบบแนะนำ: ${String(due.stageLabel)} · เลือกระยะจริงแยกแต่ละฟอง` : `Suggested window: ${String(due.stageLabel)} · choose the observed stage per embryo`}</p></div><button className="button button--primary" disabled={saving || !entry || pending.length === 0} onClick={() => void save()}>{saving ? t.saving : thai ? `ยืนยัน ${pending.length} รายการ` : `Confirm ${pending.length} observations`}</button></div>
-    <div className="checkpoint-status" role="status"><strong>{thai ? 'ผู้บันทึก' : 'Operator'} {operatorName}</strong><span>{saveStatus}</span></div>
+    <div className="page-heading"><div><p className="eyebrow">{String(due.batchCode)} · LOT {String(due.lotNo)}</p><h1>{thai ? 'บันทึกรอบตรวจ Lot' : 'Record lot observation'}</h1><p className="muted">{thai ? `ช่วงที่ระบบแนะนำ: ${String(due.stageLabel)} · เลือกระยะจริงแยกแต่ละฟองในแผ่นหลุม` : `Suggested window: ${String(due.stageLabel)} · scan wells and record only what you observe`}</p></div></div>
+    <div className="checkpoint-status" role="status" aria-live="polite"><strong>{thai ? 'ผู้บันทึก' : 'Operator'} {operatorName}</strong><span>{saveStatus}</span></div>
     {error && <ErrorMessage message={error} />}
-    <p className="timing-preview">{thai ? 'เวลาจะถูกบันทึกอัตโนมัติเมื่อกด “ยืนยัน”' : 'Observation time is captured automatically when Confirm is pressed.'}{confirmedAt && ` · ${new Date(confirmedAt).toLocaleString()}`}</p>
-    <div className="form-card form-card--inline checkpoint-shortcuts"><label>{thai ? 'ตั้งระยะให้แถวที่ยังว่าง' : 'Stage for blank rows'}<select value={selectedStage} onChange={(event) => setSelectedStage(event.target.value)}><option value="">{thai ? 'เลือกระยะ' : 'Choose stage'}</option>{stages.map((stage: ApiItem) => <option key={String(stage.stageCode)} value={String(stage.stageCode)}>{String(stage.stageLabel)}</option>)}</select></label><button className="button button--secondary" type="button" disabled={!selectedStage} onClick={applyStageToBlankRows}>{thai ? 'ใช้กับฟองที่ยังไม่เลือกระยะ' : 'Apply to blank embryos'}</button></div>
-    <details className="workflow-disclosure"><summary>{thai ? 'เหตุผลกรณีบันทึกว่ารอดหลังมีสถานะสิ้นสุด' : 'Alive-after-exit exception'}</summary><div className="workflow-disclosure__body form-card--inline"><label>{thai ? 'เหตุผล' : 'Override reason'}<input value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} /></label></div></details>
-    {Object.keys(savedIds).length > 0 && <form className="form-card form-card--inline" onSubmit={(event) => { event.preventDefault(); void correct() }}><label>{thai ? 'เหตุผลที่แก้ไข' : 'Correction reason'}<input required value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} /></label><button className="button button--secondary" disabled={saving}>{thai ? 'บันทึกการแก้ไข' : 'Save correction'}</button>{undoUntil >= Date.now() && <button className="button button--secondary" type="button" onClick={() => void undo()}>{thai ? 'ยกเลิกการบันทึกล่าสุด' : 'Undo last save'}</button>}</form>}
-    {entry && <details className="workflow-disclosure" open><summary>{thai ? `ผลรายฟอง · ${embryos.length} ฟอง` : `Individual embryos · ${embryos.length}`}</summary><div className="workflow-disclosure__body"><div className="checkpoint-grid">{embryos.map((embryo: ApiItem) => renderEmbryo(embryo, String(embryo.wellPosition ?? (thai ? 'ไม่ระบุหลุม' : 'Unassigned'))))}</div></div></details>}
+    <p className="timing-preview">{thai ? 'เวลาจะถูกบันทึกอัตโนมัติเมื่อกดยืนยัน' : 'Observation time is captured automatically when Confirm is pressed.'}{confirmedAt && ` · ${new Date(confirmedAt).toLocaleString()}`}</p>
+    <div className="checkpoint-metrics" role="status" aria-live="polite"><div><span aria-hidden="true">•</span><strong>{pending.length} / {embryos.length}</strong><small>{thai ? 'พร้อมบันทึก' : 'Ready to save'}</small></div><div><span aria-hidden="true">○</span><strong>{unreviewedCount}</strong><small>{thai ? 'ยังไม่ตรวจ' : 'Unreviewed'}</small></div><div><span aria-hidden="true">!</span><strong>{exceptionCount}</strong><small>{thai ? 'ข้อยกเว้น' : 'Exceptions'}</small></div><div><span aria-hidden="true">✓</span><strong>{savedCount} / {embryos.length}</strong><small>{thai ? 'บันทึกแล้ว' : 'Saved'}</small></div></div>
+    <div className="checkpoint-shortcuts form-card form-card--inline"><label htmlFor="bulk-stage">{thai ? 'ระยะที่แนะนำสำหรับฟองที่ยังว่าง' : 'Suggested stage for blank embryos'}<select id="bulk-stage" value={selectedStage} onChange={(event) => setSelectedStage(event.target.value)}><option value="">{thai ? 'เลือกระยะ' : 'Choose stage'}</option>{stages.map((stage) => <option key={String(stage.stageCode)} value={String(stage.stageCode)}>{String(stage.stageLabel)}</option>)}</select></label><div className="bulk-action-copy"><strong>{thai ? `การกระทำนี้จะมีผลกับ ${bulkable.length} ฟองที่ยังว่างและยังไม่บันทึก` : `This deliberate action affects ${bulkable.length} blank unsaved embryos.`}</strong><span>{thai ? 'ตรวจทานหลุมที่เป็นข้อยกเว้นได้ทีละหลุมก่อนยืนยัน' : 'Review exception wells individually before confirming.'}</span></div><div className="button-row"><button className="button button--secondary" type="button" disabled={!selectedStage || bulkable.length === 0} onClick={applyStageToBlankRows}>{thai ? `ใช้กับฟองว่าง ${bulkable.length} ฟอง` : `Apply to ${bulkable.length} blank`}</button>{lastBulk && <button className="button button--secondary" type="button" onClick={clearLatestBulk}>{thai ? 'ล้างการตั้งค่าล่าสุด' : 'Undo bulk stage'}</button>}</div></div>
+    <div className="checkpoint-workspace">
+      <section className="checkpoint-plate" aria-labelledby="checkpoint-plate-heading"><div className="checkpoint-section-heading"><div><h2 id="checkpoint-plate-heading">{thai ? `แผ่นหลุม · เลือกแล้ว ${selectedCount} / ${embryos.length}` : `Plate map · ${selectedCount} / ${embryos.length} selected`}</h2><p className="muted">{thai ? 'เลือกหลุมเพื่อเปิดตัวแก้ไขด้านข้าง' : 'Select a well to open its editor.'}</p></div><span className="checkpoint-selection-note">{thai ? `กำลังแสดง ${matchingEmbryos.length} หลุม` : `Showing ${matchingEmbryos.length} wells`}</span></div>
+        <fieldset className="checkpoint-filters"><legend>{thai ? 'ค้นหาและกรองหลุม' : 'Find and filter wells'}</legend><label htmlFor="well-search">{thai ? 'ค้นหา Well ID หรือรหัสตัวอ่อน' : 'Search well ID or embryo code'}<input id="well-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={thai ? 'เช่น A1' : 'e.g. A1'} /></label><label htmlFor="well-filter">{thai ? 'แสดงสถานะ' : 'Show status'}<select id="well-filter" value={viewFilter} onChange={(event) => setViewFilter(event.target.value as WellFilter)}><option value="all">{thai ? 'ทุกหลุม' : 'All wells'}</option><option value="unreviewed">{thai ? 'ยังไม่ตรวจ' : 'Unreviewed'}</option><option value="ready">{thai ? 'พร้อมบันทึก' : 'Ready'}</option><option value="exception">{thai ? 'ข้อยกเว้น' : 'Exceptions'}</option><option value="saved">{thai ? 'บันทึกแล้ว' : 'Saved'}</option></select></label></fieldset>
+        <div className="checkpoint-legend" aria-label={thai ? 'คำอธิบายสถานะหลุม' : 'Well status legend'}><span>○ {thai ? 'ยังไม่ตรวจ' : 'Unreviewed'}</span><span>• {thai ? 'พร้อมบันทึก' : 'Ready'}</span><span>! {thai ? 'ข้อยกเว้น' : 'Exception'}</span><span>✓ {thai ? 'บันทึกแล้ว' : 'Saved'}</span></div>
+        {!matchingEmbryos.length ? <div className="empty"><p>{thai ? 'ไม่พบหลุมตามตัวกรอง' : 'No wells match this filter.'}</p><button className="button button--secondary" type="button" onClick={() => { setViewFilter('all'); setSearch('') }}>{thai ? 'แสดงทุกหลุม' : 'Show all wells'}</button></div> : <div className="well-grid checkpoint-grid" role="grid" aria-label={thai ? 'แผ่นหลุมตัวอ่อน' : 'Embryo plate wells'} aria-colcount={12}>{matchingEmbryos.map((embryo, index) => {
+          const id = String(embryo.embryoId); const well = String(embryo.wellPosition ?? (thai ? 'ไม่ระบุหลุม' : 'Unassigned')); const state = stateFor(embryo)
+          return <div role="gridcell" aria-selected={id === selectedId} key={id}><button ref={(button) => { wellButtons.current[id] = button }} id={wellButtonId(id)} data-well={well} type="button" className={`well-cell well-cell--${state}${id === selectedId ? ' well-cell--selected' : ''}`} aria-label={`${thai ? 'หลุม' : 'Well'} ${well}, ${String(embryo.embryoCode ?? '')}, ${stateLabel(state)}${id === selectedId ? `, ${thai ? 'กำลังเลือก' : 'selected'}` : ''}`} aria-pressed={id === selectedId} tabIndex={id === selectedId || (!selectedId && index === 0) ? 0 : -1} onClick={() => setSelectedId(id)} onKeyDown={(event) => moveWell(event, index)}><strong>{well}</strong><small title={String(embryo.embryoCode ?? '')}>{String(embryo.embryoCode ?? '')}</small><span><b aria-hidden="true">{state === 'saved' ? '✓' : state === 'exception' ? '!' : state === 'unreviewed' ? '○' : state === 'queued' ? '↺' : '•'}</b> {stateLabel(state)}</span></button></div>
+        })}</div>}
+      </section>
+      <aside className="checkpoint-editor" aria-labelledby="checkpoint-editor-heading">{activeEmbryo ? <>
+        <div className="checkpoint-editor__heading" aria-live="polite"><p className="eyebrow">{thai ? 'หลุมที่เลือก' : 'Selected well'}</p><h2 id="checkpoint-editor-heading">{activeWell}</h2><p className="checkpoint-editor__code" title={String(activeEmbryo.embryoCode ?? '')}>{String(activeEmbryo.embryoCode ?? '')}</p>{activeEmbryo.priorStageCode != null && <p className="muted">{thai ? 'ครั้งก่อน' : 'Previous'}: {String(priorStage?.stageLabel ?? '—')}{activeEmbryo.priorOutcome ? ` · ${outcomeLabel(String(activeEmbryo.priorOutcome) as EmbryoOutcome, thai)}` : ''}</p>}</div>
+        <fieldset className="checkpoint-editor__fields"><legend>{thai ? `ผลการตรวจ ${activeWell}` : `Observation for ${activeWell}`}</legend><label htmlFor="active-stage">{thai ? 'ระยะที่เห็น' : 'Observed stage'}<select id="active-stage" aria-label={`${thai ? 'ระยะของหลุม' : 'Stage for well'} ${activeWell}`} value={stageCodes[activeId] ?? ''} disabled={Boolean(savedIds[activeId] || queuedIds[activeId])} onChange={(event) => setStageCodes((current) => ({ ...current, [activeId]: event.target.value }))}><option value="">{thai ? 'ยังไม่เลือกระยะ' : 'Select observed stage'}</option>{stages.map((stage) => <option key={String(stage.stageCode)} value={String(stage.stageCode)}>{String(stage.stageLabel)}</option>)}</select></label><label htmlFor="active-outcome">{thai ? 'สถานะ' : 'Outcome'}<select id="active-outcome" aria-label={`${thai ? 'สถานะของหลุม' : 'Outcome for well'} ${activeWell}`} value={embryoOutcomes[activeId] ?? 'ALIVE'} onChange={(event) => setEmbryoOutcomes((current) => ({ ...current, [activeId]: event.target.value as EmbryoOutcome }))}>{outcomes.map((outcome) => <option key={outcome} value={outcome}>{outcomeLabel(outcome, thai)}</option>)}</select></label><label htmlFor="active-condition">{thai ? 'สภาพ' : 'Condition'}<select id="active-condition" aria-label={`${thai ? 'สภาพของหลุม' : 'Condition for well'} ${activeWell}`} value={embryoConditions[activeId] ?? 'NORMAL'} onChange={(event) => setEmbryoConditions((current) => ({ ...current, [activeId]: event.target.value }))}>{conditions.map((condition) => <option key={condition} value={condition}>{conditionLabel(condition, thai)}</option>)}</select></label></fieldset>
+        <details className="checkpoint-notes"><summary>{notes[activeId] ? (thai ? 'แก้ไขหมายเหตุ' : 'Edit notes') : (thai ? 'เพิ่มหมายเหตุ (ไม่บังคับ)' : 'Add notes (optional)')}</summary><label htmlFor="active-notes">{thai ? 'หมายเหตุ' : 'Notes'}<textarea id="active-notes" rows={4} value={notes[activeId] ?? ''} onChange={(event) => setNotes((current) => ({ ...current, [activeId]: event.target.value }))} /></label></details>
+        <details className="checkpoint-override"><summary>{thai ? 'ต้องระบุเหตุผลกรณีข้อยกเว้นหรือไม่?' : 'Need an override reason?'}</summary><p className="muted">{thai ? 'ใช้เมื่อบันทึกผลรอดหลังมีเหตุการณ์ออกจากการทดลอง' : 'Use when recording ALIVE after an exit event.'}</p><label htmlFor="override-reason">{thai ? 'เหตุผลข้อยกเว้น' : 'Override reason'}<input id="override-reason" value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} /></label></details>
+        {activeEmbryo.firstAbnormalStageLabel && <p className="checkpoint-warning"><span aria-hidden="true">!</span>{thai ? `เคยพบความผิดปกติที่ระยะ ${String(activeEmbryo.firstAbnormalStageLabel)}` : `Abnormality was first recorded at ${String(activeEmbryo.firstAbnormalStageLabel)}.`}</p>}
+        {savedCount > 0 && <form className="checkpoint-correction" onSubmit={(event) => { event.preventDefault(); void correct() }}><h3>{thai ? 'แก้ไขผลที่บันทึกแล้ว' : 'Correct saved results'}</h3><label htmlFor="correction-reason">{thai ? 'เหตุผลที่แก้ไข' : 'Correction reason'}<input id="correction-reason" required value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} /></label><div className="button-row"><button className="button button--secondary" disabled={saving}>{thai ? 'บันทึกการแก้ไข' : 'Save correction'}</button>{lastSavedIds.length > 0 && undoUntil >= Date.now() && <button className="button button--secondary" type="button" onClick={() => void undo()}>{thai ? 'ยกเลิกการบันทึกล่าสุด' : 'Undo last save'}</button>}</div></form>}
+      </> : <p className="muted">{thai ? 'เลือกหลุมเพื่อเริ่มบันทึก' : 'Select a well to start recording.'}</p>}</aside>
+    </div>
+    <div className="checkpoint-action-bar" aria-describedby="checkpoint-confirm-explainer"><div><strong>{thai ? 'ยืนยันผลการตรวจ' : 'Confirm observations'}</strong><span id="checkpoint-confirm-explainer">{disabledReason}</span></div><button className="button button--primary" disabled={saving || !entry || pending.length === 0} onClick={() => void save()}>{saving ? t.saving : thai ? `ยืนยัน ${pending.length} รายการ` : `Confirm ${pending.length} observations`}</button></div>
   </section>
 }

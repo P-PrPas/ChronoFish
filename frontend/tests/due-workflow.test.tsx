@@ -73,7 +73,7 @@ describe('due and checkpoint workflows', () => {
     root.unmount()
   })
 
-  it('renders every active embryo with its well and independent stage, outcome and condition controls', async () => {
+  it('renders a compact plate map with one selected-well editor', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input)
       if (path.includes('/due-checkpoints')) return json({ overdue: [dueItem], upcoming: [], pendingPromotionCount: 0 })
@@ -84,10 +84,12 @@ describe('due and checkpoint workflows', () => {
     await act(async () => { root.render(<Due t={text.en} />); await Promise.resolve() })
     await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement).click(); await Promise.resolve() })
 
-    expect(document.body.textContent).toContain('Individual embryos · 2')
+    expect(document.body.textContent).toContain('Plate map · 0 / 2 selected')
     expect(document.body.textContent).toContain('Previous: 2-cell')
     expect(document.body.textContent).not.toContain('stage_02_2C')
     expect(document.querySelectorAll('.checkpoint-grid [data-well]')).toHaveLength(2)
+    expect(document.querySelectorAll('.checkpoint-grid select')).toHaveLength(0)
+    expect(document.querySelectorAll('.checkpoint-editor [aria-label^="Stage for well"]')).toHaveLength(1)
     await act(async () => {
       window.dispatchEvent(new CustomEvent('chronofish:queue-drained', { detail: {
         path: '/observations/embryo', body: { observations: [{ embryoId: 'another-lot', stageCode: 'stage_03_4C' }] },
@@ -96,9 +98,9 @@ describe('due and checkpoint workflows', () => {
       await Promise.resolve()
     })
     expect(document.body.textContent).not.toContain('Saved by')
-    expect(document.querySelectorAll('.checkpoint-grid [aria-label^="Stage for"]')).toHaveLength(2)
-    expect(document.querySelectorAll('.checkpoint-grid [aria-label^="Outcome for"]')).toHaveLength(2)
-    expect(Array.from(document.querySelectorAll('.checkpoint-grid [aria-label^="Outcome for"] option')).map((option) => option.textContent)).toContain('NOT_OBSERVED')
+    expect(document.querySelectorAll('.checkpoint-editor [aria-label^="Stage for well"]')).toHaveLength(1)
+    expect(document.querySelectorAll('.checkpoint-editor [aria-label^="Outcome for well"]')).toHaveLength(1)
+    expect(Array.from(document.querySelectorAll('.checkpoint-editor [aria-label^="Outcome for well"] option')).map((option) => option.textContent)).toContain('Not observed')
     root.unmount()
   })
 
@@ -127,10 +129,14 @@ describe('due and checkpoint workflows', () => {
     await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement).click(); await Promise.resolve() })
     expect(performance.now() - openedAt).toBeLessThan(1_000)
 
-    const bulkStage = Array.from(document.querySelectorAll('label')).find((label) => label.textContent?.startsWith('Stage for blank rows'))?.querySelector('select') as HTMLSelectElement
+    const bulkStage = document.querySelector('#bulk-stage') as HTMLSelectElement
     const setSelect = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
     await act(async () => { setSelect?.call(bulkStage, 'stage_03_4C'); bulkStage.dispatchEvent(new Event('change', { bubbles: true })); await Promise.resolve() })
-    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Apply to blank embryos')?.click(); await Promise.resolve() })
+    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Apply to 15 blank')?.click(); await Promise.resolve() })
+    expect(document.body.textContent).toContain('Stage applied to 15 blank embryos')
+    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Undo bulk stage')?.click(); await Promise.resolve() })
+    expect(document.body.textContent).toContain('Apply to 15 blank')
+    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Apply to 15 blank')?.click(); await Promise.resolve() })
     await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Confirm 15 observations')?.click(); await Promise.resolve() })
 
     expect((saved as { observations: unknown[] }).observations).toHaveLength(15)
@@ -155,12 +161,12 @@ describe('due and checkpoint workflows', () => {
     await act(async () => { root.render(<Due t={text.en} />); await Promise.resolve() })
     await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement).click(); await Promise.resolve() })
 
-    const stageSelects = document.querySelectorAll<HTMLSelectElement>('.checkpoint-grid [aria-label^="Stage for"]')
-    expect(stageSelects).toHaveLength(2)
+    const stageSelect = document.querySelector<HTMLSelectElement>('#active-stage')
+    expect(stageSelect).not.toBeNull()
     const setSelect = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
     await act(async () => {
-      setSelect?.call(stageSelects[0], 'stage_04_8C')
-      stageSelects[0].dispatchEvent(new Event('change', { bubbles: true }))
+      setSelect?.call(stageSelect, 'stage_04_8C')
+      stageSelect?.dispatchEvent(new Event('change', { bubbles: true }))
       await Promise.resolve()
     })
     vi.setSystemTime(new Date('2026-08-23T02:05:00Z'))
@@ -187,10 +193,10 @@ describe('due and checkpoint workflows', () => {
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
     await act(async () => { root.render(<Due t={text.en} />); await Promise.resolve() })
     await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement).click(); await Promise.resolve() })
-    const bulkStage = Array.from(document.querySelectorAll('label')).find((label) => label.textContent?.startsWith('Stage for blank rows'))?.querySelector('select') as HTMLSelectElement
+    const bulkStage = document.querySelector('#bulk-stage') as HTMLSelectElement
     const setSelect = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
     await act(async () => { setSelect?.call(bulkStage, 'stage_03_4C'); bulkStage.dispatchEvent(new Event('change', { bubbles: true })); await Promise.resolve() })
-    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Apply to blank embryos')?.click(); await Promise.resolve() })
+    await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Apply to 2 blank')?.click(); await Promise.resolve() })
     await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Confirm 2 observations')?.click(); await Promise.resolve() })
 
     expect(document.body.textContent).toContain('observedAt is too far in the future')
@@ -216,7 +222,7 @@ describe('due and checkpoint workflows', () => {
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
     await act(async () => { root.render(<Due t={text.en} />); await Promise.resolve() })
     await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement).click(); await Promise.resolve() })
-    const stage = document.querySelector('.checkpoint-grid [aria-label^="Stage for"]') as HTMLSelectElement
+    const stage = document.querySelector('#active-stage') as HTMLSelectElement
     const setSelect = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
     await act(async () => { setSelect?.call(stage, 'stage_03_4C'); stage.dispatchEvent(new Event('change', { bubbles: true })); await Promise.resolve() })
     await act(async () => { Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Confirm 1 observations')?.click(); await Promise.resolve() })
