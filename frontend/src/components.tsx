@@ -1,4 +1,10 @@
 import type { ReactNode } from 'react'
+import { text } from './types'
+
+// Sentinel codes thrown by the API client are not user-facing copy. Mapping
+// them here covers every page at once, and <html lang> already carries the
+// language so no caller has to pass it down.
+const errorCopy: Record<string, keyof typeof text.th> = { OPERATOR_REQUIRED: 'operatorRequired' }
 
 export function Metric({ label, value }: { label: string; value: number | string }) {
   return <div className="metric"><span>{label}</span><strong>{value}</strong></div>
@@ -23,5 +29,7 @@ export function Empty({ message, actionLabel, onAction }: { message: string; act
 }
 
 export function ErrorMessage({ message }: { message: string }) {
-  return <p className="error" role="alert" tabIndex={-1} autoFocus>{message}</p>
+  const key = errorCopy[message]
+  const copy = key ? text[document.documentElement.lang === 'en' ? 'en' : 'th'][key] : message
+  return <p className="error" role="alert" tabIndex={-1} autoFocus>{copy}</p>
 }

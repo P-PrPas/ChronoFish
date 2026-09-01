@@ -74,7 +74,7 @@ export function Fish({ t }: { t: AppText }) {
       setOutcomesByFish({})
       setCorrectionReason('')
       loadRollCall()
-    } catch (e) { setError((e as Error).message === 'OPERATOR_REQUIRED' ? t.operatorRequired : (e as Error).message) }
+    } catch (e) { setError((e as Error).message) }
     finally { setSaving(false) }
   }
   const visible = useMemo(() => registry.filter((fish) =>
