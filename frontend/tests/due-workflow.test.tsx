@@ -27,6 +27,7 @@ const checkpoint = {
   embryos: [
     { embryoId: 'embryo-1', embryoCode: 'B-1_1_1', wellPosition: 'A1', defaultCondition: 'NORMAL', priorOutcome: 'ALIVE', priorStageCode: 'stage_02_2C' },
     { embryoId: 'embryo-2', embryoCode: 'B-1_1_2', wellPosition: 'A2', defaultCondition: 'ABNORMAL', priorOutcome: 'ALIVE' },
+    { embryoId: 'embryo-3', embryoCode: 'B-1_1_3', wellPosition: 'A3', defaultCondition: 'NORMAL', priorOutcome: 'DEAD', priorStageCode: 'stage_02_2C', isDead: true },
   ],
 }
 
@@ -87,7 +88,7 @@ describe('due and checkpoint workflows', () => {
     expect(document.body.textContent).toContain('Plate map · 0 / 2 selected')
     expect(document.body.textContent).toContain('Previous: 2-cell')
     expect(document.body.textContent).not.toContain('stage_02_2C')
-    expect(document.querySelectorAll('.checkpoint-grid [data-well]')).toHaveLength(2)
+    expect(document.querySelectorAll('.checkpoint-grid [data-well]')).toHaveLength(3)
     expect(document.querySelectorAll('.checkpoint-grid select')).toHaveLength(0)
     expect(document.querySelectorAll('.checkpoint-editor [aria-label^="Stage for well"]')).toHaveLength(1)
     await act(async () => {
@@ -100,7 +101,14 @@ describe('due and checkpoint workflows', () => {
     expect(document.body.textContent).not.toContain('Saved by')
     expect(document.querySelectorAll('.checkpoint-editor [aria-label^="Stage for well"]')).toHaveLength(1)
     expect(document.querySelectorAll('.checkpoint-editor [aria-label^="Outcome for well"]')).toHaveLength(1)
-    expect(Array.from(document.querySelectorAll('.checkpoint-editor [aria-label^="Outcome for well"] option')).map((option) => option.textContent)).toContain('Not observed')
+    expect(Array.from(document.querySelectorAll('.checkpoint-editor [aria-label^="Outcome for well"] option')).map((option) => option.textContent)).toEqual(['Alive', 'Dead'])
+    expect(Array.from(document.querySelectorAll('.checkpoint-editor [aria-label^="Condition for well"] option')).map((option) => option.textContent)).toEqual(['Normal', 'Abnormal'])
+    const deadWell = document.querySelector('[data-well="A3"]') as HTMLButtonElement
+    expect(deadWell.classList.contains('well-cell--dead')).toBe(true)
+    expect(deadWell.getAttribute('aria-label')).toContain('Dead')
+    await act(async () => { deadWell.click(); await Promise.resolve() })
+    expect(document.body.textContent).toContain('The well stays red and is excluded from future observations.')
+    expect(document.querySelectorAll('.checkpoint-editor [aria-label^="Outcome for well"]')).toHaveLength(0)
     root.unmount()
   })
 

@@ -53,8 +53,18 @@ def test_due_and_checkpoint_read_models_track_original_and_surviving_embryos(cli
     entry = client.get(f"/api/v1/injection-lots/{lot['id']}/checkpoints/stage_03_4C").json()
     assert entry["totalEmbryos"] == 3
     assert entry["embryosRemaining"] == 2
-    assert len(entry["embryos"]) == 2
-    assert {(item["priorOutcome"], item["priorStageCode"]) for item in entry["embryos"]} == {("ALIVE", "stage_02_2C")}
+    assert len(entry["embryos"]) == 3
+    dead = next(item for item in entry["embryos"] if item["embryoId"] == lot["embryos"][0]["id"])
+    assert (dead["isDead"], dead["priorOutcome"], dead["priorStageCode"]) == (
+        True,
+        "DEAD",
+        "stage_02_2C",
+    )
+    assert {
+        (item["priorOutcome"], item["priorStageCode"])
+        for item in entry["embryos"]
+        if not item["isDead"]
+    } == {("ALIVE", "stage_02_2C")}
 
     second_observed = (datetime.fromisoformat(activated.replace("Z", "+00:00")) + timedelta(hours=2)).isoformat()
     second_checkpoint = client.post(
@@ -70,7 +80,7 @@ def test_due_and_checkpoint_read_models_track_original_and_surviving_embryos(cli
                     "outcome": "DEAD",
                     "condition": "NORMAL",
                 }
-                for index, embryo in enumerate(entry["embryos"])
+                for index, embryo in enumerate(item for item in entry["embryos"] if not item["isDead"])
             ]
         },
     )
@@ -82,6 +92,49 @@ def test_due_and_checkpoint_read_models_track_original_and_surviving_embryos(cli
     )
     due = client.get("/api/v1/due-checkpoints").json()
     assert all(item["injectionLotId"] != lot["id"] for item in due["overdue"] + due["upcoming"])
+
+
+def test_dead_embryo_rejects_later_observation_even_with_override(client, write_headers):
+    _batch, lot, embryo, activated = setup_embryo(client, write_headers)
+    activation = datetime.fromisoformat(activated.replace("Z", "+00:00"))
+
+    dead = client.post(
+        "/api/v1/observations/embryo",
+        headers=headers(write_headers, 325),
+        json={
+            "observations": [
+                {
+                    "clientUuid": "01900000-0000-7000-8000-000000000325",
+                    "embryoId": embryo["id"],
+                    "stageCode": "stage_02_2C",
+                    "observedAt": (activation + timedelta(hours=1)).isoformat(),
+                    "outcome": "DEAD",
+                    "condition": "NORMAL",
+                }
+            ]
+        },
+    )
+    resurrected = client.post(
+        "/api/v1/observations/embryo",
+        headers=headers(write_headers, 326),
+        json={
+            "observations": [
+                {
+                    "clientUuid": "01900000-0000-7000-8000-000000000326",
+                    "embryoId": embryo["id"],
+                    "stageCode": "stage_03_4C",
+                    "observedAt": (activation + timedelta(hours=2)).isoformat(),
+                    "outcome": "ALIVE",
+                    "condition": "NORMAL",
+                    "overrideReason": "should not resurrect a dead embryo",
+                }
+            ]
+        },
+    )
+
+    assert dead.json()["results"][0]["status"] == "created"
+    assert resurrected.json()["results"][0]["status"] == "rejected"
+    assert "ตัวอ่อนตายแล้ว" in resurrected.json()["results"][0]["error"]["message"]
 
 
 def test_checkpoint_and_bulk_observation_snapshot_timing(client, write_headers):
@@ -348,7 +401,7 @@ def test_bulk_observation_shape_and_time_boundaries_are_enforced(client, write_h
     assert "5 นาที" in response.json()["results"][1]["error"]["message"]
 
 
-def test_monotonic_survival_allows_earlier_implied_alive_but_requires_later_override(client, write_headers):
+def test_monotonic_survival_allows_earlier_observation_but_never_later_resurrection(client, write_headers):
     _batch, lot, embryo, activated = setup_embryo(client, write_headers)
     activation = datetime.fromisoformat(activated.replace("Z", "+00:00"))
 
@@ -373,8 +426,8 @@ def test_monotonic_survival_allows_earlier_implied_alive_but_requires_later_over
     assert observe(335, "stage_02_2C", 1, "ALIVE")["status"] == "created"
     assert client.get(f"/api/v1/injection-lots/{lot['id']}/embryos").json()["items"][0]["exitReason"] == "DEAD"
     assert observe(336, "stage_05_16C", 4, "ALIVE")["status"] == "rejected"
-    assert observe(337, "stage_05_16C", 4, "ALIVE", "death was entered on the wrong embryo")["status"] == "created"
-    assert client.get(f"/api/v1/injection-lots/{lot['id']}/embryos").json()["items"][0].get("exitReason") is None
+    assert observe(337, "stage_05_16C", 4, "ALIVE", "death was entered on the wrong embryo")["status"] == "rejected"
+    assert client.get(f"/api/v1/injection-lots/{lot['id']}/embryos").json()["items"][0]["exitReason"] == "DEAD"
 
 
 def test_skipped_checkpoints_are_implied_alive_without_creating_fake_rows(client, write_headers):

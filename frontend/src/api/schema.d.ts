@@ -590,10 +590,12 @@ export interface paths {
         };
         /**
          * Everything the checkpoint entry screen needs
-         * @description Returns only embryos with no exit event (FR-405), each with the condition
-         *     carried forward from its previous observation so the screen can default
-         *     sensibly (FR-409), plus the reference time for this checkpoint so the
-         *     client can show the deviation live as the technician works (FR-412).
+         * @description Returns observable embryos plus embryos previously recorded DEAD or
+         *     DEGENERATED. Terminal embryos carry `isDead: true` so their original
+         *     plate wells remain visible as read-only dead wells in every later round;
+         *     they are excluded from `embryosRemaining` and new observations. The
+         *     prior condition is carried forward so the screen can default sensibly
+         *     (FR-409), together with the reference timing for the checkpoint (FR-412).
          */
         get: operations["getCheckpointEntry"];
         put?: never;
@@ -627,10 +629,11 @@ export interface paths {
          *     from the profile pinned to the batch and **freezes it onto the row**
          *     (BR-03), and derives `deviationH` (BR-04).
          *
-         *     Recording `DEAD` or `DEGENERATED` also writes the embryo's exit event.
-         *     Marking an embryo `ALIVE` after it already has one violates monotonic
-         *     survival (BR-07) and is reported as a rejected item unless
-         *     `overrideReason` is supplied. Request-level conflicts still use `409`.
+         *     Recording `DEAD` or `DEGENERATED` also writes the embryo's terminal exit
+         *     event. Later observations are rejected to preserve monotonic survival
+         *     (BR-07), even when an override reason is supplied. A mistaken terminal
+         *     result must be corrected or deleted on its original audited observation.
+         *     Request-level conflicts still use `409`.
          *
          *     Partial success is normal: each item reports its own status, so one bad
          *     row never discards the rest of the checkpoint.
@@ -1565,6 +1568,7 @@ export interface components {
             dueAt: string;
             /** @description Negative when the checkpoint is still in the future. */
             minutesLate: number;
+            /** @description Embryos without a terminal exit that remain eligible for observation. */
             embryosRemaining: number;
             operatorName?: string | null;
         };
@@ -1596,6 +1600,8 @@ export interface components {
                 wellPosition?: string | null;
                 /** @description Carried forward from the previous observation (FR-409). */
                 defaultCondition: components["schemas"]["Condition"];
+                /** @description True after a DEAD or DEGENERATED observation; shown read-only in later plate maps. */
+                isDead: boolean;
                 priorOutcome?: components["schemas"]["EmbryoOutcome"] | null;
                 priorStageCode?: string | null;
                 firstAbnormalStageLabel?: string | null;
@@ -1619,7 +1625,7 @@ export interface components {
             outcome: components["schemas"]["EmbryoOutcome"];
             condition: components["schemas"]["Condition"];
             notes?: string | null;
-            /** @description Required to record ALIVE for an embryo that already has an exit event (BR-07, FR-420). */
+            /** @description Audit context for exceptional writes; it cannot override a terminal embryo death. */
             overrideReason?: string | null;
         };
         EmbryoObservationResult: {

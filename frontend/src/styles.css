@@ -356,6 +356,8 @@ tbody tr:hover td { background: #f8fbf9; }
 .well-cell--saved { background: var(--surface-soft); }
 .well-cell--exception { border-color: var(--danger); background: var(--danger-soft); }
 .well-cell--exception strong, .well-cell--exception > span { color: var(--danger); }
+.well-cell--dead { border-color: var(--danger); background: var(--danger-soft); }
+.well-cell--dead strong, .well-cell--dead small, .well-cell--dead > span { color: var(--danger); }
 .well-cell--queued { background: var(--accent-soft); }
 .well-cell--unreviewed { background: var(--surface); }
 .checkpoint-editor__heading { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--line); scroll-margin-block: 150px; }
@@ -366,13 +368,15 @@ tbody tr:hover td { background: #f8fbf9; }
 .checkpoint-editor__fields { display: grid; gap: 14px; margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface-soft); }
 .checkpoint-editor__fields legend { padding: 0 6px; color: var(--ink-soft); font-size: .86rem; font-weight: 600; }
 .checkpoint-editor__fields label { font-size: .86rem; }
-.checkpoint-notes, .checkpoint-override { margin-top: 14px; border-top: 1px solid var(--line); }
-.checkpoint-notes > summary, .checkpoint-override > summary { min-height: 44px; padding: 11px 28px 8px 0; color: var(--primary-hover); font-size: .88rem; font-weight: 600; list-style: none; }
-.checkpoint-notes > summary::-webkit-details-marker, .checkpoint-override > summary::-webkit-details-marker { display: none; }
-.checkpoint-notes > summary::after, .checkpoint-override > summary::after { float: right; content: "+"; font-size: 1.2rem; }
-.checkpoint-notes[open] > summary::after, .checkpoint-override[open] > summary::after { content: "−"; }
-.checkpoint-notes label, .checkpoint-override label { margin-bottom: 10px; font-size: .86rem; }
-.checkpoint-override .muted { margin: 0 0 10px; font-size: .8rem; }
+.checkpoint-notes { margin-top: 14px; border-top: 1px solid var(--line); }
+.checkpoint-notes > summary { min-height: 44px; padding: 11px 28px 8px 0; color: var(--primary-hover); font-size: .88rem; font-weight: 600; list-style: none; }
+.checkpoint-notes > summary::-webkit-details-marker { display: none; }
+.checkpoint-notes > summary::after { float: right; content: "+"; font-size: 1.2rem; }
+.checkpoint-notes[open] > summary::after { content: "−"; }
+.checkpoint-notes label { margin-bottom: 10px; font-size: .86rem; }
+.checkpoint-dead-notice { padding: 16px; border: 1px solid var(--danger); border-radius: 11px; background: var(--danger-soft); color: var(--danger); }
+.checkpoint-dead-notice strong { font-size: 1rem; }
+.checkpoint-dead-notice p { margin: 5px 0 0; color: var(--ink-soft); font-size: .86rem; line-height: 1.55; }
 .checkpoint-warning { display: flex; gap: 8px; margin: 14px 0 0; padding: 10px 12px; border-left: 3px solid var(--danger); border-radius: 0 8px 8px 0; background: var(--danger-soft); color: var(--danger); font-size: .84rem; line-height: 1.45; }
 .checkpoint-correction { display: grid; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
 .checkpoint-correction h3 { margin: 0; font-size: .98rem; }
