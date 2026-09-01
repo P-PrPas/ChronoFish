@@ -330,8 +330,9 @@ their existing local horizontal scroll behavior.
 - `python -m pytest -q` — 88 passed, 5 skipped (SQL integration unavailable).
 - `python -m ruff check backend/src backend/tests/test_analytics.py` — passed.
 - `python scripts/validate_openapi.py` — passed (52 paths, 71 operations).
-- `npm.cmd exec -- vitest run tests/dashboard.test.tsx` — 5 passed.
-- `npm.cmd test` from `frontend` — 16 test files and 68 tests passed, including
+- `npm.cmd exec -- vitest run tests/dashboard.test.tsx` — 7 passed (including
+  candidate-level guard, roving focus, visible summaries, and dimension labels).
+- `npm.cmd test` from `frontend` — 16 test files and 70 tests passed, including
   TypeScript checking and the production Vite build.
 - `git diff --check` — passed.
 
@@ -346,3 +347,28 @@ their existing local horizontal scroll behavior.
   opening them exposes all series/daily rows behind the chart limit notice.
 - The SVG uses compact direct end labels; unusually long group names may still
   need a future label-collision affordance.
+
+### Phase 2 review correction
+
+The chart review identified six presentation/accessibility gaps and the
+correction closes them without changing the analytics contract:
+
+- headline guards now evaluate the candidate checkpoint's own `riskSet` or
+  `atRisk` value, not only the response-level sample size; comparison views
+  explicitly list series whose initial sample is below five;
+- SVG points use one roving tab stop per series, with Arrow/Home/End movement,
+  while every point retains its label and title;
+- each visible chart now has a compact risk/event/censor table beneath it;
+  the existing supporting tables still expose all rows, and table regions
+  remain the only horizontally scrollable regions;
+- Stage 1 table headings and values follow the selected dimension, including
+  operator master names when available; Stage 2 uses the selected dimension
+  for both its heading and values;
+- attrition headline sorting uses the same loss-rate definition as its chart
+  and table, with raw-dead-count tie-breaking;
+- the shared pipeline label helper is used by both the visual summary and its
+  supporting table, including Thai labels.
+
+The correction added candidate-level, roving-focus, visible-summary, and
+dimension-label regression coverage. Targeted dashboard tests pass (7 tests);
+the complete frontend validation is recorded in the Phase 2 test list above.

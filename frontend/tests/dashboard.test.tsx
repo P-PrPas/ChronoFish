@@ -100,6 +100,39 @@ describe('analytics dashboard', () => {
     expect(dashboardDataPath({ siteId: 'site-1' }, 'strain', 'abnormalityGroup')).toContain('stage2GroupBy=condition')
   })
 
+  it('guards headline candidates by their own risk set even when total n is five', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.includes('/analytics/dashboard')) return json({
+        reportMeta: { generatedAt: '2026-08-24T03:00:00Z' },
+        kpi: { stage1: { nActivated: 5, nReachedShield: 4, nReachedDay1: 3, nPromoted: 2, controlComparison: [] }, stage2: { nFish: 5, nAlive: 2, nDead: 1, nFrozen: 1, nDiscarded: 1 }, meta: meta(10) },
+        funnel: { items: [{ stageOrder: 1, stageLabel: '1-cell', riskSet: 5, nDead: 0 }, { stageOrder: 2, stageLabel: '2-cell', riskSet: 1, nDead: 1 }], meta: meta(5) },
+        survival: { items: [{ stageOrder: 1, stageLabel: '1-cell', site: 'North', strain: 'AB', riskSet: 5, surv: 1 }, { stageOrder: 1, stageLabel: '1-cell', site: 'North', strain: 'TU', riskSet: 1, surv: 0.9 }, { stageOrder: 2, stageLabel: '2-cell', site: 'North', strain: 'AB', riskSet: 1, surv: 0.1 }], meta: meta(5) },
+        timingDeviation: { items: [], meta: meta(5) },
+        abnormalityOnset: { items: [], meta: meta(5) },
+        fishSurvival: { items: [{ ageDays: 0, atRisk: 5, surv: 1, strain: 'AB' }, { ageDays: 0, atRisk: 1, surv: 1, strain: 'TU' }, { ageDays: 2, atRisk: 1, surv: 0.1, nEvents: 1, strain: 'AB' }], meta: meta(5) },
+        observationGaps: { items: [], meta: meta(5) },
+        pipeline: { items: [{ step: 'Activated', count: 5, pctOfPrevious: 1, pctOfStart: 1 }], meta: meta(5) },
+      })
+      return json({ items: [] })
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Dashboard onNavigate={vi.fn()} t={text.en} />); await Promise.resolve(); await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(document.body.textContent).toContain('No lowest/best survival headline: the candidate checkpoint has risk set n=1')
+    expect(document.body.textContent).not.toContain('Lowest filtered survival is')
+    expect(document.body.textContent).toContain('No highest-loss ranking: the candidate checkpoint has risk set n=1')
+    expect(document.body.textContent).toContain('Series with fewer than 5 at the initial point')
+    const stage2Tab = document.getElementById('dashboard-tab-stage2') as HTMLButtonElement
+    await act(async () => { stage2Tab.click(); await Promise.resolve() })
+    const stage2Comparison = Array.from(document.querySelectorAll('select')).find((select) => select.getAttribute('aria-label') === 'Chart comparison dimension') as HTMLSelectElement
+    await act(async () => { stage2Comparison.value = 'strain'; stage2Comparison.dispatchEvent(new Event('change', { bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(document.body.textContent).toContain('No lowest/best fish-survival headline: the candidate age has at-risk n=1')
+    expect(document.body.textContent).not.toContain('Lowest filtered fish survival is')
+    expect(document.body.textContent).toContain('Series with fewer than 5 at the initial point')
+    root.unmount()
+  })
+
   it('uses high-contrast fish series with non-color line patterns', async () => {
     const points = ['AB', 'TU', 'NHGRI', 'WT', 'MIXED'].flatMap((strain, index) => [
       { ageDays: 0, surv: 1, strain, treatmentGroup: 'SCNT', condition: 'NORMAL' },
@@ -127,11 +160,29 @@ describe('analytics dashboard', () => {
     await act(async () => { root.render(<><SurvivalChart points={points.slice(0, 2)} /><FishSurvivalChart points={points.slice(2)} /></>); await Promise.resolve() })
     expect(document.querySelector('.chart-line')?.getAttribute('d')).toContain('H')
     expect(document.querySelectorAll('.chart-point')).toHaveLength(4)
-    expect(document.querySelectorAll('.chart-point[tabindex="0"]').length).toBe(4)
+    expect(document.querySelectorAll('.chart-point[tabindex="0"]').length).toBe(2)
+    const firstPoint = document.querySelector('.chart-point[tabindex="0"]') as SVGCircleElement
+    await act(async () => { firstPoint.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(document.querySelectorAll('.chart-point[tabindex="0"]').length).toBe(2)
+    expect(document.querySelectorAll('.chart-point')[1].getAttribute('tabindex')).toBe('0')
     expect(document.querySelector('.chart-ci')).not.toBeNull()
     expect(document.querySelector('.chart-censor')).not.toBeNull()
     expect(document.querySelector('.chart-event')).not.toBeNull()
     root.unmount()
+  })
+
+  it('uses readable selected dimensions in visible chart summaries', async () => {
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<SurvivalChart points={[{ stageOrder: 1, stageLabel: '1-cell', site: 'North', operatorId: 'op-1', riskSet: 5, alive: 5, surv: 1 }]} comparison="operator" operators={[{ id: 'op-1', name: 'Dr Somchai' }]} />); await Promise.resolve() })
+    expect(document.body.textContent).toContain('Dr Somchai')
+    expect(document.body.textContent).toContain('Visible checkpoint risk summary')
+    root.unmount()
+    const fishRootElement = document.createElement('div'); document.body.append(fishRootElement); const fishRoot = createRoot(fishRootElement)
+    await act(async () => { fishRoot.render(<FishSurvivalChart points={[{ ageDays: 0, treatmentGroup: 'SCNT', atRisk: 5, surv: 1 }, { ageDays: 0, treatmentGroup: 'IVF', atRisk: 1, surv: 1 }]} comparison="treatmentGroup" />); await Promise.resolve() })
+    expect(document.body.textContent).toContain('Treatment group')
+    expect(document.body.textContent).toContain('SCNT')
+    expect(document.body.textContent).toContain('Visible risk, event, and censor summary')
+    fishRoot.unmount()
   })
 
   it('shows Thai pipeline labels and percentages without relying on the bar fill', async () => {

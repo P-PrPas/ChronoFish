@@ -226,6 +226,11 @@ button.list-row:hover { border-color: #a9bbb6; background: #fdfefd; box-shadow: 
 .chart-censor { stroke-linecap: round; }
 .chart-event { pointer-events: none; }
 .chart-summary, .chart-limit-note, .small-n-note { margin: 10px 0 0; color: var(--muted); font-size: .9rem; line-height: 1.55; }
+.chart-mini-table-wrap { max-width: 100%; margin: 12px 0 2px; overflow-x: auto; }
+.chart-mini-table { width: 100%; min-width: 420px; border-collapse: collapse; font-size: .88rem; }
+.chart-mini-table caption { padding: 7px 0; text-align: left; color: var(--muted); font-size: .9rem; font-weight: 600; }
+.chart-mini-table th, .chart-mini-table td { padding: 7px 9px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.chart-mini-table th[scope="row"] { font-weight: 600; }
 .comparison-note { margin: 10px 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); color: #704b1f; font-size: .9rem; line-height: 1.55; }
 .small-n-note { padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); color: #704b1f; }
 .histogram { display: grid; gap: 9px; margin: 12px 0 18px; }
