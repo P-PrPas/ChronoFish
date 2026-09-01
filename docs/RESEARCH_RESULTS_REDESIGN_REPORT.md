@@ -241,3 +241,108 @@ wrap with overflow-safe text so the layout remains usable from 320px upward.
 - Phase 2 should add small-sample headline guards and decide whether CI fields
   deserve a chart affordance; this phase intentionally does not reinterpret
   any analytical value.
+
+## Phase 2 — Core charts
+
+### Objective and data decisions
+
+The core charts now expose the shape of the evidence rather than implying a
+ranking from a dense table. Stage 1 requests `site` plus exactly one selected
+comparison dimension (`strain`, `treatmentGroup`, or `operator`) from the same
+dashboard snapshot. Each site is rendered as its own facet. Stage 2 requests
+the default overall series without grouping, so its Kaplan–Meier curve is
+calculated over all fish; comparison mode requests one dimension (`condition`
+for the semantic abnormality groups, `strain`, or `treatmentGroup`). The
+existing fish endpoint and dashboard gained additive `groupBy` parameters;
+legacy `splitByCondition` behavior remains supported.
+
+Both chart renderers use deterministic ordering and show at most four series
+per facet/chart. They announce the omitted-series count and leave every row in
+the supporting table; no statistical `Other` series is created. The UI treats
+sample sizes below five as exploratory and suppresses lowest/highest headlines.
+Abnormality comparison is explicitly labeled “Ever abnormal vs No abnormality
+recorded” and “exploratory, not causal.”
+
+### Chart and component breakdown
+
+- `SurvivalChart` renders SVG step paths, site facets, direct end labels,
+  color-plus-dash legends, keyboard-focusable checkpoint points, risk-set
+  summaries, and an explicit four-series limit.
+- `FishSurvivalChart` renders the overall or selected-group Kaplan–Meier step
+  curve, 95% CI band for overall mode, event rings, censor marks, direct labels,
+  focusable points, and daily at-risk/event/censor values in its supporting
+  table. Comparison mode suppresses cluttered CI bands but keeps CI values in
+  the table.
+- `FunnelChart` now ranks and labels loss rate (`dead / risk set`) while
+  retaining raw counts. `AbnormalityOnsetChart` makes onset, no-abnormality,
+  and missing-evidence categories visible as a histogram. `PipelineSummary`
+  shows count, previous-step percentage, activated percentage, Thai step names,
+  and a data-quality note when upstream counts are non-monotonic.
+- `ComparisonControl` provides one-dimension controls with a clear site-facet
+  or overall-KM explanation. Existing loading, empty, error, scope, and tab
+  state behavior remains in place.
+
+### Before vs after
+
+| Measure | Before Phase 2 | After Phase 2 |
+|---|---|---|
+| Stage 1 chart geometry | Straight point-to-point polylines | Monotonic checkpoint step paths |
+| Stage 1 grouping | Site, strain, and treatment mixed in one series set | Site facets with one selected comparison dimension |
+| Stage 2 default | Dashboard returned condition-split series | One overall Kaplan–Meier series |
+| Visible series | Unbounded | Maximum 4 per facet/chart, deterministic with explicit notice |
+| Stage 1 attrition | Raw dead count bars/ranking | Loss rate plus `dead / risk set` and raw `n` |
+| Abnormality onset | Supporting table only | Direct histogram plus semantic missing/no-abnormality categories |
+| Stage 2 supporting rows | Repeated legacy status totals | Daily at-risk, death events, censored, survival, and CI |
+| Accessibility | Chart-level labels | Chart summaries, direct labels, and keyboard-focusable data points |
+
+### Files changed
+
+- `frontend/src/pages/dashboard.tsx` — comparison controls, snapshot query
+  grouping, step/KM SVG charts, CI/censor/event marks, accessible summaries,
+  small-n guard, attrition rate, onset histogram, and pipeline summary.
+- `frontend/src/styles.css` — chart facets, controls, histogram/pipeline rows,
+  chart focus states, readable summaries, and narrow-screen layout.
+- `frontend/tests/dashboard.test.tsx` — default/group selection options,
+  four-series limit, step paths, focusable points, CI/censor/events, small-n
+  guard, and Thai pipeline labels.
+- `backend/src/chronofish/api/routes/analytics.py` and
+  `backend/src/chronofish/services/analytics.py` — additive dashboard/fish
+  grouping parameters while preserving snapshot and legacy semantics.
+- `backend/tests/test_analytics.py` — overall default, explicit fish grouping,
+  and grouped dashboard regression coverage.
+- `api/openapi.yaml` and `frontend/src/api/schema.d.ts` — documented and
+  regenerated grouping parameters.
+- `docs/RESEARCH_RESULTS_REDESIGN_REPORT.md` — this Phase 2 record.
+
+### Accessibility and responsive behavior
+
+Every chart has explicit units and text summaries. Legends show the same color
+and dash pattern used by their paths; status, counts, and labels remain textual
+so color is not the sole signal. SVG data points are focusable with unique
+labels containing series, age/checkpoint, survival, risk set, and event/censor
+counts. The existing 44px controls and focus outline remain active. Chart
+content scales to the available width from 320px; only supporting tables retain
+their existing local horizontal scroll behavior.
+
+### Tests and validation
+
+- `python -m pytest tests/test_analytics.py -q` — 13 passed.
+- `python -m pytest -q` — 88 passed, 5 skipped (SQL integration unavailable).
+- `python -m ruff check backend/src backend/tests/test_analytics.py` — passed.
+- `python scripts/validate_openapi.py` — passed (52 paths, 71 operations).
+- `npm.cmd exec -- vitest run tests/dashboard.test.tsx` — 5 passed.
+- `npm.cmd test` from `frontend` — 16 test files and 68 tests passed, including
+  TypeScript checking and the production Vite build.
+- `git diff --check` — passed.
+
+### Known limitations and follow-ups
+
+- The comparison selection is local component state; Phase 3 can persist it in
+  the URL if researchers need shareable chart views. The required tab/filter
+  query state remains preserved.
+- The approximate Greenwood/Wald CI from Phase 0 is shown for overall mode;
+  Phase 3 should decide on interval style and small-n CI presentation.
+- Supporting tables remain collapsible to keep the primary workflow compact;
+  opening them exposes all series/daily rows behind the chart limit notice.
+- The SVG uses compact direct end labels; unusually long group names may still
+  need a future label-collision affordance.

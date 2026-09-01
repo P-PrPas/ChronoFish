@@ -19,8 +19,12 @@ def build_analytics_router(store: Store) -> APIRouter:
         return Analytics(store.snapshot(), query_dict(request))
 
     @router.get("/dashboard")
-    def dashboard(request: Request) -> dict[str, Any]:
-        return service(request).dashboard()
+    def dashboard(
+        request: Request,
+        stage1GroupBy: Annotated[list[str] | None, Query()] = None,
+        stage2GroupBy: Annotated[list[str] | None, Query()] = None,
+    ) -> dict[str, Any]:
+        return service(request).dashboard(stage1GroupBy, stage2GroupBy)
 
     @router.get("/kpi")
     def kpi(request: Request) -> dict[str, Any]:
@@ -49,8 +53,12 @@ def build_analytics_router(store: Store) -> APIRouter:
         return service(request).abnormality_onset()
 
     @router.get("/fish-survival")
-    def fish_survival(request: Request, splitByCondition: bool = False) -> dict[str, Any]:
-        return service(request).fish_survival(splitByCondition)
+    def fish_survival(
+        request: Request,
+        splitByCondition: bool = False,
+        groupBy: Annotated[list[str] | None, Query()] = None,
+    ) -> dict[str, Any]:
+        return service(request).fish_survival(splitByCondition, groupBy)
 
     @router.get("/observation-gaps")
     def observation_gaps(request: Request) -> dict[str, Any]:

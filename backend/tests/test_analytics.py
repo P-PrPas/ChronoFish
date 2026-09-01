@@ -370,12 +370,12 @@ def test_fish_survival_non_split_aggregates_strain_and_treatment(client, store):
         }
         state_fish = {
             "fish-a": {
-                "id": "fish-a", "embryoId": "embryo-a", "donorCellLineId": "donor-a", "dob": dob,
+                "id": "fish-a", "fishCode": "FISH-A", "embryoId": "embryo-a", "donorCellLineId": "donor-a", "dob": dob,
                 "status": "ALIVE", "condition": "ABNORMAL", "firstAbnormalOn": (today - timedelta(days=1)).isoformat(),
                 "sex": "UNKNOWN", "active": True, "deletedAt": None,
             },
             "fish-b": {
-                "id": "fish-b", "embryoId": "embryo-b", "donorCellLineId": "donor-b", "dob": dob,
+                "id": "fish-b", "fishCode": "FISH-B", "embryoId": "embryo-b", "donorCellLineId": "donor-b", "dob": dob,
                 "status": "DEAD", "condition": "NORMAL", "exitDate": (today - timedelta(days=1)).isoformat(),
                 "sex": "UNKNOWN", "active": True, "deletedAt": None,
             },
@@ -396,6 +396,23 @@ def test_fish_survival_non_split_aggregates_strain_and_treatment(client, store):
     split = client.get("/api/v1/analytics/fish-survival?splitByCondition=true").json()["items"]
     assert {(row["abnormalityGroup"], row["strain"], row["treatmentGroup"]) for row in split} == {
         ("EVER_ABNORMAL", "AB", "SCNT"), ("NO_ABNORMALITY_RECORDED", "TU", "IVF")
+    }
+
+    by_strain = client.get("/api/v1/analytics/fish-survival", params=[("groupBy", "strain")]).json()["items"]
+    assert {(row["strain"], row["treatmentGroup"], row["condition"]) for row in by_strain} == {
+        ("AB", "ALL", None), ("TU", "ALL", None)
+    }
+    dashboard = client.get("/api/v1/analytics/dashboard").json()
+    assert {(row["strain"], row["treatmentGroup"], row["condition"]) for row in dashboard["fishSurvival"]["items"]} == {
+        ("ALL", "ALL", None)
+    }
+    grouped_dashboard = client.get(
+        "/api/v1/analytics/dashboard",
+        params=[("stage1GroupBy", "site"), ("stage1GroupBy", "strain"), ("stage2GroupBy", "condition")],
+    ).json()
+    assert {row["strain"] for row in grouped_dashboard["survival"]["items"]} == {"AB", "TU"}
+    assert {row["abnormalityGroup"] for row in grouped_dashboard["fishSurvival"]["items"]} == {
+        "EVER_ABNORMAL", "NO_ABNORMALITY_RECORDED"
     }
 
 

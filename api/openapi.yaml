@@ -1460,7 +1460,20 @@ paths:
       summary: Complete analytics dashboard from one consistent snapshot
       description: Bundles all dashboard panels so filters and counts cannot drift between requests.
       operationId: getAnalyticsDashboard
-      parameters: [ $ref: '#/components/parameters/AnalyticsFilters' ]
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFilters'
+        - name: stage1GroupBy
+          in: query
+          description: Stage 1 chart grouping; include site plus at most one comparison dimension.
+          schema:
+            type: array
+            items: { type: string, enum: [site, strain, treatmentGroup, operator] }
+        - name: stage2GroupBy
+          in: query
+          description: Stage 2 Kaplan-Meier comparison dimension; omit for the overall curve.
+          schema:
+            type: array
+            items: { type: string, enum: [condition, strain, treatmentGroup] }
       responses:
         '200':
           description: Dashboard analytics
@@ -1606,6 +1619,12 @@ paths:
           in: query
           description: Return Ever abnormal, No abnormality recorded, and unknown fish as separate exploratory series (FR-817)
           schema: { type: boolean, default: false }
+        - name: groupBy
+          in: query
+          description: One optional comparison dimension for the Kaplan-Meier chart; omit for the overall curve.
+          schema:
+            type: array
+            items: { type: string, enum: [condition, strain, treatmentGroup] }
       responses:
         '200':
           description: Fish survival series with daily events and right-censoring

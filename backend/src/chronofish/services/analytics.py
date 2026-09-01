@@ -23,6 +23,7 @@ ANALYTICS_FILTER_KEYS = (
     "batchId",
 )
 GROUP_DIMENSIONS = {"site", "strain", "treatmentGroup", "operator"}
+FISH_GROUP_DIMENSIONS = {"condition", "strain", "treatmentGroup"}
 CONTROL_STAGE_ORDERS = {3, 19, 20, 22, 23, 24}
 FISH_CENSOR_STATUSES = {"ALIVE", "FROZEN", "DISCARDED"}
 ABNORMALITY_COMPARISON = {
@@ -36,6 +37,18 @@ def group_dimensions(values: list[str] | None, default: tuple[str, ...]) -> tupl
     requested = values or [",".join(default)]
     dimensions = [part for value in requested for part in value.split(",") if part in GROUP_DIMENSIONS]
     return tuple(dict.fromkeys(dimensions)) or default
+
+
+def fish_group_dimensions(values: list[str] | None, split_by_condition: bool) -> tuple[str, ...]:
+    if values is None:
+        return ("condition", "strain", "treatmentGroup") if split_by_condition else ()
+    dimensions = [
+        part
+        for value in values
+        for part in value.split(",")
+        if part in FISH_GROUP_DIMENSIONS
+    ]
+    return tuple(dict.fromkeys(dimensions))
 
 
 def _quartiles(values: list[float]) -> tuple[float, float]:
@@ -588,11 +601,16 @@ class Analytics:
             "meta": meta,
         }
 
-    def fish_survival(self, split_by_condition: bool = False) -> dict[str, Any]:
-        groups: defaultdict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    def fish_survival(
+        self,
+        split_by_condition: bool = False,
+        group_by: list[str] | None = None,
+    ) -> dict[str, Any]:
+        dimensions = fish_group_dimensions(group_by, split_by_condition)
+        groups: defaultdict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
         today = datetime.now(BANGKOK).date()
         missing_exit_date = 0
-        prepared_by_group: defaultdict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+        prepared_by_group: defaultdict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
         for item in self.fish.values():
             status = str(item.get("status") or "")
             observations = [
@@ -627,20 +645,19 @@ class Analytics:
             end_date = min(end_date, today)
             dob = _as_date(item.get("dob")) or today
             end_age = max(age_days_on(dob, end_date), 0)
-            if split_by_condition:
-                key = (
-                    self._fish_abnormality_group(item),
-                    str(item.get("strain") or "ALL"),
-                    str(item.get("treatmentGroup") or "ALL"),
-                )
-            else:
-                key = ("ALL", "ALL", "ALL")
+            values = {
+                "condition": self._fish_abnormality_group(item),
+                "strain": str(item.get("strain") or "ALL"),
+                "treatmentGroup": str(item.get("treatmentGroup") or "ALL"),
+            }
+            key = tuple(values[dimension] for dimension in dimensions) or ("ALL",)
             groups[key].append(item)
             prepared_by_group[key].append({"item": item, "endAge": end_age, "event": is_event})
 
         rows = []
-        for (condition_name, strain_name, treatment_name), items in groups.items():
-            prepared = prepared_by_group[(condition_name, strain_name, treatment_name)]
+        for key, items in groups.items():
+            prepared = prepared_by_group[key]
+            values = {dimension: key[index] for index, dimension in enumerate(dimensions)}
             max_age = max((item["endAge"] for item in prepared), default=0)
             survival, greenwood = 1.0, 0.0
             for age in range(max_age + 1):
@@ -671,12 +688,11 @@ class Analytics:
                     "surv": survival,
                     "survLower95": max(0.0, survival - margin),
                     "survUpper95": min(1.0, survival + margin),
-                    "strain": strain_name,
-                    "treatmentGroup": treatment_name,
+                    "condition": values.get("condition"),
+                    "abnormalityGroup": values.get("condition"),
+                    "strain": values.get("strain", "ALL"),
+                    "treatmentGroup": values.get("treatmentGroup", "ALL"),
                 }
-                if split_by_condition:
-                    row["condition"] = condition_name
-                    row["abnormalityGroup"] = condition_name
                 rows.append(row)
         meta = self._meta(
             len(self.fish),
@@ -771,7 +787,11 @@ class Analytics:
             ),
         }
 
-    def dashboard(self) -> dict[str, Any]:
+    def dashboard(
+        self,
+        stage1_group_by: list[str] | None = None,
+        stage2_group_by: list[str] | None = None,
+    ) -> dict[str, Any]:
         profile_ids = {
             str(batch.get("timingProfileId")) for batch in self.batches.values() if batch.get("timingProfileId")
         } or {
@@ -792,10 +812,10 @@ class Analytics:
             },
             "kpi": self.kpi(),
             "funnel": self.funnel(),
-            "survival": self.survival(),
+            "survival": self.survival(stage1_group_by),
             "timingDeviation": self.timing_deviation(),
             "abnormalityOnset": self.abnormality_onset(),
-            "fishSurvival": self.fish_survival(True),
+            "fishSurvival": self.fish_survival(bool(stage2_group_by), stage2_group_by),
             "observationGaps": self.observation_gaps(),
             "pipeline": self.pipeline(),
         }

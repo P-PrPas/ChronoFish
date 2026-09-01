@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Dashboard, FishSurvivalChart, parseDashboardTab } from '../src/pages/dashboard'
+import { Dashboard, FishSurvivalChart, PipelineSummary, SurvivalChart, dashboardDataPath, parseDashboardTab } from '../src/pages/dashboard'
 import { text } from '../src/types'
 
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
@@ -36,7 +36,8 @@ describe('analytics dashboard', () => {
 
     const analyticsCalls = fetchMock.mock.calls.filter(([input]) => String(input).includes('/analytics/'))
     expect(analyticsCalls).toHaveLength(1)
-    expect(analyticsCalls.every(([input]) => String(input).includes('siteId=site-1') && String(input).includes('dateFrom=2026-08-20'))).toBe(true)
+    expect(analyticsCalls.every(([input]) => String(input).includes('siteId=site-1') && String(input).includes('dateFrom=2026-08-20') && String(input).includes('stage1GroupBy=site') && String(input).includes('stage1GroupBy=strain'))).toBe(true)
+    expect(String(analyticsCalls[0][0])).not.toContain('stage2GroupBy')
     expect(window.location.search).toContain('tab=stage1')
     expect(document.body.textContent).toContain('Records in view')
     expect(document.body.textContent).toContain('North Lab')
@@ -46,10 +47,12 @@ describe('analytics dashboard', () => {
     expect(document.body.textContent).not.toContain('All fish in registry')
     expect(document.body.textContent).toContain('(n=3)')
     expect(document.body.textContent).toContain('Data quality')
-    expect(document.body.textContent).toContain('Lowest filtered survival is 100.00% at 1-cell')
-    expect(document.body.textContent).toContain('Highest loss occurs at 1-cell: 0 of 3 embryos')
+    expect(document.body.textContent).toContain('Exploratory data only: n=3')
+    expect(document.body.textContent).not.toContain('Lowest filtered survival is 100.00% at 1-cell')
+    expect(document.body.textContent).not.toContain('Highest loss occurs at 1-cell: 0 of 3 embryos')
     expect(document.body.textContent).toContain('Source records')
     expect(document.body.textContent).toContain('Attrition ranking by checkpoint')
+    expect(document.body.textContent).toContain('No abnormality recorded')
     expect(document.querySelector('table caption')).not.toBeNull()
     expect(document.querySelector('[aria-label="Timing deviation from standard in hours"]')).toBeNull()
 
@@ -62,7 +65,9 @@ describe('analytics dashboard', () => {
     expect(document.body.textContent).toContain('All fish in registry')
     expect(document.body.textContent).toContain('1 fish need a follow-up check')
     expect(document.body.textContent).toContain('Open daily fish check')
-    expect(document.body.textContent).toContain('Lowest filtered fish survival is 100.00% at age 0 days')
+    expect(document.body.textContent).toContain('no lowest/best fish-survival headline is reported')
+    const stage2Comparison = Array.from(document.querySelectorAll('select')).find((select) => select.getAttribute('aria-label') === 'Chart comparison dimension') as HTMLSelectElement
+    expect(Array.from(stage2Comparison.options).map((option) => option.value)).toEqual(['overall', 'abnormalityGroup', 'strain', 'treatmentGroup'])
     const dailyFishCheck = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Open daily fish check')
     await act(async () => { dailyFishCheck?.click(); await Promise.resolve() })
     expect(navigate).toHaveBeenCalledWith('fish')
@@ -91,6 +96,8 @@ describe('analytics dashboard', () => {
   it('falls back to Stage 1 for an invalid URL tab', () => {
     expect(parseDashboardTab('?tab=not-a-dashboard-tab')).toBe('stage1')
     expect(parseDashboardTab('?tab=stage2')).toBe('stage2')
+    expect(dashboardDataPath({ siteId: 'site-1' }, 'strain', 'overall')).toContain('stage1GroupBy=site&stage1GroupBy=strain')
+    expect(dashboardDataPath({ siteId: 'site-1' }, 'strain', 'abnormalityGroup')).toContain('stage2GroupBy=condition')
   })
 
   it('uses high-contrast fish series with non-color line patterns', async () => {
@@ -99,12 +106,39 @@ describe('analytics dashboard', () => {
       { ageDays: 10, surv: 0.8 - index * 0.1, strain, treatmentGroup: 'SCNT', condition: 'NORMAL' },
     ])
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
-    await act(async () => { root.render(<FishSurvivalChart points={points} thai />); await Promise.resolve() })
+    await act(async () => { root.render(<FishSurvivalChart points={points} thai comparison="strain" />); await Promise.resolve() })
 
-    const lines = Array.from(document.querySelectorAll<SVGPolylineElement>('polyline'))
-    expect(new Set(lines.map((line) => line.getAttribute('stroke')))).toEqual(new Set(['#0b6761', '#b67b2f', '#557f9c', '#775f8f', '#a83c35']))
+    const lines = Array.from(document.querySelectorAll<SVGPathElement>('.chart-line'))
+    expect(new Set(lines.map((line) => line.getAttribute('stroke')))).toEqual(new Set(['#0b6761', '#b67b2f', '#557f9c', '#775f8f']))
     expect(lines.some((line) => line.hasAttribute('stroke-dasharray'))).toBe(true)
-    expect(document.querySelector('svg[aria-label="กราฟอัตรารอดของปลาตามอายุ"]')).not.toBeNull()
+    expect(document.querySelector('svg[aria-label="กราฟ Kaplan–Meier อัตรารอดของปลาตามอายุ"]')).not.toBeNull()
+    expect(document.querySelectorAll('.chart-line')).toHaveLength(4)
+    root.unmount()
+  })
+
+  it('renders step paths, accessible checkpoint points, KM uncertainty and censor/event marks', async () => {
+    const points = [
+      { stageOrder: 1, stageLabel: '1-cell', site: 'North', strain: 'AB', surv: 1, riskSet: 5 },
+      { stageOrder: 2, stageLabel: '2-cell', site: 'North', strain: 'AB', surv: 0.8, riskSet: 5 },
+      { ageDays: 0, surv: 1, survLower95: 0.9, survUpper95: 1, atRisk: 5, nEvents: 0, nCensored: 0 },
+      { ageDays: 2, surv: 0.8, survLower95: 0.6, survUpper95: 0.95, atRisk: 5, nEvents: 1, nCensored: 1 },
+    ]
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<><SurvivalChart points={points.slice(0, 2)} /><FishSurvivalChart points={points.slice(2)} /></>); await Promise.resolve() })
+    expect(document.querySelector('.chart-line')?.getAttribute('d')).toContain('H')
+    expect(document.querySelectorAll('.chart-point')).toHaveLength(4)
+    expect(document.querySelectorAll('.chart-point[tabindex="0"]').length).toBe(4)
+    expect(document.querySelector('.chart-ci')).not.toBeNull()
+    expect(document.querySelector('.chart-censor')).not.toBeNull()
+    expect(document.querySelector('.chart-event')).not.toBeNull()
+    root.unmount()
+  })
+
+  it('shows Thai pipeline labels and percentages without relying on the bar fill', async () => {
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<PipelineSummary thai points={[{ step: 'Activated', count: 10, pctOfPrevious: 1, pctOfStart: 1 }, { step: 'Promoted', count: 4, pctOfPrevious: 0.4, pctOfStart: 0.4 }]} />); await Promise.resolve() })
+    expect(document.body.textContent).toContain('เริ่มติดตาม')
+    expect(document.body.textContent).toContain('จากก่อนหน้า 40.0%')
     root.unmount()
   })
 })

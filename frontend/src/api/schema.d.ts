@@ -3943,6 +3943,10 @@ export interface operations {
                  *     `donorCellLineId`, `strain`, `batchId`.
                  */
                 filters?: components["parameters"]["AnalyticsFilters"];
+                /** @description Stage 1 chart grouping; include site plus at most one comparison dimension. */
+                stage1GroupBy?: ("site" | "strain" | "treatmentGroup" | "operator")[];
+                /** @description Stage 2 Kaplan-Meier comparison dimension; omit for the overall curve. */
+                stage2GroupBy?: ("condition" | "strain" | "treatmentGroup")[];
             };
             header?: never;
             path?: never;
@@ -4131,6 +4135,8 @@ export interface operations {
                 filters?: components["parameters"]["AnalyticsFilters"];
                 /** @description Return Ever abnormal, No abnormality recorded, and unknown fish as separate exploratory series (FR-817) */
                 splitByCondition?: boolean;
+                /** @description One optional comparison dimension for the Kaplan-Meier chart; omit for the overall curve. */
+                groupBy?: ("condition" | "strain" | "treatmentGroup")[];
             };
             header?: never;
             path?: never;
