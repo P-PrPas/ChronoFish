@@ -60,6 +60,42 @@ describe('browser shell workflows', () => {
     root.unmount()
   })
 
+  it('keeps a dropdown selection between its native input and change events', async () => {
+    sessionStorage.setItem('chronofish.operator_id', 'operator-1')
+    window.location.hash = '#batches'
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.endsWith('/operators')) return new Response(JSON.stringify({ items: [{ id: 'operator-1', name: 'Tech' }] }))
+      if (path.endsWith('/sites')) return new Response(JSON.stringify({ items: [{ id: 'site-1', code: 'LAB', name: 'Lab' }] }))
+      if (path.endsWith('/protocols')) return new Response(JSON.stringify({ items: [{ id: 'protocol-1', name: 'SCNT' }] }))
+      if (path.endsWith('/treatment-groups')) return new Response(JSON.stringify({ items: [{ id: 'group-1', code: 'SCNT' }] }))
+      return new Response(JSON.stringify({ items: [] }))
+    }))
+    const rootElement = document.createElement('div')
+    document.body.append(rootElement)
+    const root = createRoot(rootElement)
+    await act(async () => { root.render(<App />); await new Promise((resolve) => setTimeout(resolve, 0)) })
+    await act(async () => {
+      document.querySelector<HTMLButtonElement>('.page-heading .button--primary')?.click()
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    await vi.waitFor(() => expect(document.querySelector('option[value="site-1"]')).not.toBeNull())
+    const site = document.querySelector<HTMLSelectElement>('select:has(option[value="site-1"])')!
+
+    await act(async () => {
+      site.value = 'site-1'
+      site.dispatchEvent(new Event('input', { bubbles: true }))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      site.dispatchEvent(new Event('change', { bubbles: true }))
+      await Promise.resolve()
+    })
+
+    expect(site.value).toBe('site-1')
+    root.unmount()
+  })
+
   it('marks invalid required fields and links them to the error summary', () => {
     const form = document.createElement('form')
     form.innerHTML = '<label>รหัสสถานที่<input required></label><label>ชื่อสถานที่<input required></label>'

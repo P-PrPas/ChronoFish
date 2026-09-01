@@ -326,7 +326,7 @@ function App() {
               window.requestAnimationFrame(() => document.getElementById("form-error-summary")?.focus());
             });
           }}
-          onInput={(event: FormEvent<HTMLElement>) => {
+          onChange={(event: FormEvent<HTMLElement>) => {
             const field = event.target as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
             if (field.validity?.valid) {
               field.removeAttribute("aria-invalid");
