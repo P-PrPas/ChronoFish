@@ -293,6 +293,25 @@ def test_fish_survival_respects_dead_status_without_exit_date(client, store):
     assert client.get("/api/v1/analytics/fish-survival").json()["meta"]["missing"]["exitDate"] == 1
 
 
+def test_fish_survival_reports_unusable_dob_instead_of_hiding_it(client, store):
+    with store.lock:
+        store.state.entities["fish"] = {
+            "no-dob-fish": {
+                "id": "no-dob-fish",
+                "fishCode": "NODOB-1",
+                "dob": "",
+                "donorCellLineId": "donor-fixture",
+                "status": "DEAD",
+                "condition": "NORMAL",
+                "sex": "UNKNOWN",
+                "active": True,
+                "deletedAt": None,
+            }
+        }
+    meta = client.get("/api/v1/analytics/fish-survival").json()["meta"]
+    assert meta["missing"]["dob"] == 1
+
+
 def test_fish_survival_uses_kaplan_meier_events_and_last_follow_up_censoring(client, store):
     today = datetime.now(BANGKOK).date()
     dob = (today - timedelta(days=4)).isoformat()

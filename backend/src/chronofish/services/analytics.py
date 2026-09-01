@@ -6,7 +6,15 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from ..domain.rules import age_days_on, default_expected_hpa, round4, stage_code, stage_label, stage_number
+from ..domain.rules import (
+    DAY5_STAGE_ORDER,
+    age_days_on,
+    default_expected_hpa,
+    round4,
+    stage_code,
+    stage_label,
+    stage_number,
+)
 from ..domain.state import State
 from ..runtime.values import parse_datetime, utc_now
 from .fish import enrich_fish
@@ -26,7 +34,6 @@ GROUP_DIMENSIONS = {"site", "strain", "treatmentGroup", "operator"}
 FISH_GROUP_DIMENSIONS = {"condition", "strain", "treatmentGroup"}
 CONTROL_STAGE_ORDERS = {3, 19, 20, 22, 23, 24}
 FISH_CENSOR_STATUSES = {"ALIVE", "FROZEN", "DISCARDED"}
-DAY5_STAGE_ORDER = 26
 FISH_STATUS_ORDER = ("ALIVE", "DEAD", "FROZEN", "DISCARDED")
 FISH_AGE_BINS = ((0, 6, "0-6"), (7, 13, "7-13"), (14, 20, "14-20"), (21, 27, "21-27"), (28, None, "28+"))
 ABNORMALITY_COMPARISON = {
@@ -72,6 +79,7 @@ class Analytics:
         self.state = state
         self.query = {key: value for key, value in query.items() if key in ANALYTICS_FILTER_KEYS and value}
         self.observations = self._observation_index()
+        self.fish_observations = self._fish_observation_index()
         self.checkpoints = {
             embryo_id: {stage_number(str(item.get("stageCode", ""))): item for item in items}
             for embryo_id, items in self.observations.items()
@@ -192,6 +200,13 @@ class Analytics:
                 result[str(item.get("embryoId"))].append(item)
         return result
 
+    def _fish_observation_index(self) -> dict[str, list[dict[str, Any]]]:
+        result: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+        for item in self.state.fish_observations.values():
+            if item.get("deletedAt") is None:
+                result[str(item.get("cloneFishId"))].append(item)
+        return result
+
     def _embryo_abnormality(self, embryo: dict[str, Any]) -> tuple[int | None, bool, bool]:
         values = self.observations.get(str(embryo["id"]), [])
         observed_orders = [
@@ -210,10 +225,7 @@ class Analytics:
         ]
 
     def _fish_abnormality_group(self, fish: dict[str, Any]) -> str:
-        values = self.state.fish_observations.values()
-        observations = [
-            item for item in values if item.get("cloneFishId") == fish.get("id") and item.get("deletedAt") is None
-        ]
+        observations = self.fish_observations.get(str(fish.get("id")), [])
         ever_abnormal = bool(
             fish.get("firstAbnormalOn")
             or fish.get("firstAbnormalAgeDays") is not None
@@ -278,7 +290,8 @@ class Analytics:
             if order > 1 and n_previous:
                 # Keep the plotted estimate monotonic even when raw checkpoint
                 # counts rise after an observation gap or an explicit correction.
-                survival = min(survival, survival * min(1.0, alive / n_previous))
+                # Capping the ratio at 1 is enough: the product can only shrink.
+                survival *= min(1.0, alive / n_previous)
             first_alive = int(result[0]["alive"]) if result else alive
             result.append(
                 {
@@ -603,16 +616,12 @@ class Analytics:
         dimensions = fish_group_dimensions(group_by, split_by_condition)
         groups: defaultdict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
         today = datetime.now(BANGKOK).date()
-        missing_exit_date = 0
+        missing_exit_date = missing_dob = 0
         prepared_by_group: defaultdict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
         prepared_all: list[dict[str, Any]] = []
         for item in self.fish.values():
             status = str(item.get("status") or "")
-            observations = [
-                observation
-                for observation in self.state.fish_observations.values()
-                if observation.get("cloneFishId") == item.get("id") and observation.get("deletedAt") is None
-            ]
+            observations = self.fish_observations.get(str(item.get("id")), [])
             follow_ups = [
                 observed
                 for observation in observations
@@ -638,7 +647,13 @@ class Analytics:
             if exit_date is None and status in {"DEAD", "FROZEN", "DISCARDED"}:
                 missing_exit_date += 1
             end_date = min(end_date, today)
-            dob = _as_date(item.get("dob")) or today
+            # dob is NOT NULL in the schema, so a miss here means corrupt data
+            # rather than an ordinary gap. Falling back to today would land a
+            # dead fish on the curve as a day-0 death; report it instead.
+            dob = _as_date(item.get("dob"))
+            if dob is None:
+                missing_dob += 1
+                dob = today
             end_age = max(age_days_on(dob, end_date), 0)
             values = {
                 "condition": self._fish_abnormality_group(item),
@@ -703,7 +718,7 @@ class Analytics:
                 "condition": sum(item.get("condition") not in {"NORMAL", "ABNORMAL"} for item in self.fish.values()),
                 "sex": sum(item.get("sex") not in {"M", "F"} for item in self.fish.values()),
             },
-            {"exitDate": missing_exit_date},
+            {"exitDate": missing_exit_date, "dob": missing_dob},
         )
         meta["method"] = "Kaplan-Meier"
         meta["comparison"] = ABNORMALITY_COMPARISON
@@ -760,7 +775,6 @@ class Analytics:
             self.query.get(key)
             for key in ("batchId", "operatorId", "treatmentGroupId", "donorCellLineId", "strain", "dateFrom", "dateTo")
         )
-        boxes = []
         if not cohort_restricted:
             boxes = [
                 box
