@@ -197,7 +197,6 @@ function ScopeBar({ filters, options, reportMeta, thai, onClear, onEdit }: Scope
     <section className="analysis-scope" aria-label={thai ? "ขอบเขตข้อมูลผลการทดลอง" : "Research result analysis scope"}>
       <div className="analysis-scope__heading">
         <div>
-          <p className="eyebrow">{thai ? "ขอบเขตการวิเคราะห์" : "ANALYSIS SCOPE"}</p>
           <h2>{thai ? "ข้อมูลที่กำลังสรุป" : "Records in view"}</h2>
         </div>
         <div className="button-row">

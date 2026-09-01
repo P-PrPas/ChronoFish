@@ -42,6 +42,7 @@ describe('analytics dashboard', () => {
     expect(window.location.search).toContain('stage1Compare=strain')
     expect(window.location.search).toContain('stage2Compare=overall')
     expect(document.body.textContent).toContain('Records in view')
+    expect(document.body.textContent).not.toContain('ANALYSIS SCOPE')
     expect(document.body.textContent).toContain('North Lab')
     expect(document.body.textContent).toContain('Bangkok time')
     expect(document.body.textContent).toContain('Timing profile version(s)')
