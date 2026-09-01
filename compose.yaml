@@ -30,8 +30,8 @@ services:
     ports:
       - "${FRONTEND_PORT:-5173}:8080"
     depends_on:
-      api:
-        condition: service_healthy
+      seed:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/health"]
       interval: 30s
@@ -52,5 +52,19 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+  seed:
+    image: postgres:16-alpine
+    environment:
+      PGPASSWORD: chronofish
+    volumes:
+      - ./backend/db/seeds/postgres:/seeds:ro
+    command:
+      - sh
+      - -c
+      - psql -h postgres -U chronofish -d chronofish -v ON_ERROR_STOP=1 -f /seeds/master_data.sql -f /seeds/demo_data.sql
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: "no"
 volumes:
   postgres-data:

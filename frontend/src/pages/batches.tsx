@@ -83,7 +83,7 @@ export function Batches({ t }: { t: AppText }) {
       ...current,
     ]);
     setShowForm(false);
-    setMessage("Saved offline; will sync automatically");
+    setMessage("Saved locally; will sync automatically");
   };
   if (showForm) return <section><button className="back" onClick={() => setShowForm(false)}>← {thai ? "กลับไปการทดลองทั้งหมด" : "Back to experiments"}</button><BatchForm t={t} onSaved={() => { setShowForm(false); load(); }} onQueued={addQueued} /></section>;
   return (
@@ -603,7 +603,7 @@ function BatchDetail({
             queued: true,
           })),
         }));
-        setMessage("Lot saved offline; it will sync automatically");
+        setMessage(thai ? "บันทึกชุดไว้แล้ว ระบบจะซิงก์อัตโนมัติ" : "Lot saved locally; it will sync automatically");
       } else {
         setMessage(
           (result.warnings as string[] | undefined)?.join(" ") ||
@@ -637,6 +637,12 @@ function BatchDetail({
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const addEmbryos = async (lotId: string) => {
+    if (lotId.startsWith("queued-")) {
+      // The lot itself is still in the offline queue with a placeholder id; a
+      // child write here would 404 forever against /injection-lots/queued-lot-*.
+      setMessage(thai ? "ชุดนี้ยังไม่ซิงก์ รอสักครู่แล้วลองใหม่" : "This lot has not synced yet; try again once it clears the queue.");
+      return;
+    }
     const previous = embryos[lotId] ?? [];
     const optimistic = Array.from({ length: count }, (_, index) => ({
       id: `queued-embryo-${Date.now()}-${index}`,
@@ -652,7 +658,7 @@ function BatchDetail({
       const result = await putQueue(`/injection-lots/${lotId}/embryos`, {
         count,
       });
-      if (result.queued) setMessage("Embryos queued for sync");
+      if (result.queued) setMessage(thai ? "บันทึกตัวอ่อนแล้ว กำลังซิงก์" : "Embryos saved; syncing automatically");
       else {
         setMessage("Embryos added");
         load();
@@ -983,7 +989,9 @@ function BatchDetail({
                 {formatBangkokDateTime(String(item.activatedAt ?? ""))}
               </p>
             </div>
-            {item.activatedAt ? (
+            {item.activatedAt && String(item.id).startsWith("queued-") ? (
+              <span className="pill">{thai ? "รอซิงก์ก่อนเพิ่มตัวอ่อน" : "Sync pending"}</span>
+            ) : item.activatedAt ? (
               <button
                 className="button button--secondary"
                 type="button"
