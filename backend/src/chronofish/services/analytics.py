@@ -627,12 +627,14 @@ class Analytics:
             end_date = min(end_date, today)
             dob = _as_date(item.get("dob")) or today
             end_age = max(age_days_on(dob, end_date), 0)
-            group_name = self._fish_abnormality_group(item) if split_by_condition else "ALL"
-            key = (
-                group_name,
-                str(item.get("strain") or "ALL"),
-                str(item.get("treatmentGroup") or "ALL"),
-            )
+            if split_by_condition:
+                key = (
+                    self._fish_abnormality_group(item),
+                    str(item.get("strain") or "ALL"),
+                    str(item.get("treatmentGroup") or "ALL"),
+                )
+            else:
+                key = ("ALL", "ALL", "ALL")
             groups[key].append(item)
             prepared_by_group[key].append({"item": item, "endAge": end_age, "event": is_event})
 

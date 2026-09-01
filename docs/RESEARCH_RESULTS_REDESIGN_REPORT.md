@@ -72,6 +72,9 @@ monotonic by construction.
 
 `meta.method` identifies the estimator as `Kaplan-Meier`. `meta.sampleSize` and
 the event/censor/alive denominators give the UI explicit sample-size guards.
+Without `splitByCondition`, all fish are aggregated into one `ALL` strain / `ALL`
+treatment series; split output adds semantic abnormality, strain, and treatment
+dimensions.
 
 ### Abnormality semantics
 
@@ -132,7 +135,7 @@ chart's `surv`, strain, treatment, and legacy status fields.
 
 Focused validation completed:
 
-- `python -m pytest tests/test_analytics.py -q` — 12 passed.
+- `python -m pytest tests/test_analytics.py -q` — 13 passed.
 - `python -m pytest -q` — 87 passed, 5 skipped (SQL integration tests are
   skipped when their external database is unavailable).
 - `python -m ruff check src tests/test_analytics.py` — passed.
@@ -150,6 +153,7 @@ Focused validation completed:
 | Stage 2 daily event/censor fields | Not available | `nEvents`, `nCensored` per age |
 | Stage 2 estimator | `alive / atRisk` snapshot ratio | Kaplan–Meier product-limit estimate |
 | Stage 2 uncertainty | Not available | Approximate Greenwood/Wald 95% bounds |
+| Non-split fish series | Could fragment by strain/treatment | One overall `ALL`/`ALL` series; split mode retains dimensions |
 | Missing non-alive exit dates | Not surfaced by analytics | `meta.missing.exitDate`, conservative dated fallback |
 | Fixture abnormality metadata | 1 abnormal, 2 incorrectly missing | 1 ever abnormal, 2 no abnormality recorded, 0 missing |
 | Manual fish in pipeline Alive Fish | Included in all fish total | Excluded unless linked to promoted embryo |

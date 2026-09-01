@@ -338,6 +338,67 @@ def test_fish_survival_uses_kaplan_meier_events_and_last_follow_up_censoring(cli
     }
 
 
+def test_fish_survival_non_split_aggregates_strain_and_treatment(client, store):
+    today = datetime.now(BANGKOK).date()
+    dob = (today - timedelta(days=2)).isoformat()
+    with store.lock:
+        store.state.entities["donor-cell-lines"] = {
+            "donor-a": {"id": "donor-a", "strain": "AB", "active": True, "deletedAt": None},
+            "donor-b": {"id": "donor-b", "strain": "TU", "active": True, "deletedAt": None},
+        }
+        store.state.entities["treatment-groups"] = {
+            "treatment-a": {"id": "treatment-a", "code": "SCNT", "active": True, "deletedAt": None},
+            "treatment-b": {"id": "treatment-b", "code": "IVF", "active": True, "deletedAt": None},
+        }
+        store.state.entities["batches"] = {
+            "batch-a": {"id": "batch-a", "treatmentGroupId": "treatment-a", "active": True, "deletedAt": None},
+            "batch-b": {"id": "batch-b", "treatmentGroupId": "treatment-b", "active": True, "deletedAt": None},
+        }
+        store.state.entities["injection-lots"] = {
+            "lot-a": {
+                "id": "lot-a", "batchId": "batch-a", "donorCellLineId": "donor-a",
+                "activatedAt": f"{dob}T00:00:00Z", "active": True, "deletedAt": None,
+            },
+            "lot-b": {
+                "id": "lot-b", "batchId": "batch-b", "donorCellLineId": "donor-b",
+                "activatedAt": f"{dob}T00:00:00Z", "active": True, "deletedAt": None,
+            },
+        }
+        store.state.entities["embryos"] = {
+            "embryo-a": {"id": "embryo-a", "injectionLotId": "lot-a", "active": True, "deletedAt": None},
+            "embryo-b": {"id": "embryo-b", "injectionLotId": "lot-b", "active": True, "deletedAt": None},
+        }
+        state_fish = {
+            "fish-a": {
+                "id": "fish-a", "embryoId": "embryo-a", "donorCellLineId": "donor-a", "dob": dob,
+                "status": "ALIVE", "condition": "ABNORMAL", "firstAbnormalOn": (today - timedelta(days=1)).isoformat(),
+                "sex": "UNKNOWN", "active": True, "deletedAt": None,
+            },
+            "fish-b": {
+                "id": "fish-b", "embryoId": "embryo-b", "donorCellLineId": "donor-b", "dob": dob,
+                "status": "DEAD", "condition": "NORMAL", "exitDate": (today - timedelta(days=1)).isoformat(),
+                "sex": "UNKNOWN", "active": True, "deletedAt": None,
+            },
+        }
+        store.state.entities["fish"] = state_fish
+        store.state.fish_observations["fish-b-follow-up"] = {
+            "id": "fish-b-follow-up", "cloneFishId": "fish-b", "observedOn": (today - timedelta(days=1)).isoformat(),
+            "outcome": "DEAD", "condition": "NORMAL", "deletedAt": None,
+        }
+
+    overall = client.get("/api/v1/analytics/fish-survival").json()["items"]
+    assert len(overall) == 3
+    assert {(row["strain"], row["treatmentGroup"]) for row in overall} == {("ALL", "ALL")}
+    assert [(row["ageDays"], row["atRisk"], row["nEvents"]) for row in overall] == [
+        (0, 2, 0), (1, 2, 1), (2, 1, 0)
+    ]
+
+    split = client.get("/api/v1/analytics/fish-survival?splitByCondition=true").json()["items"]
+    assert {(row["abnormalityGroup"], row["strain"], row["treatmentGroup"]) for row in split} == {
+        ("EVER_ABNORMAL", "AB", "SCNT"), ("NO_ABNORMALITY_RECORDED", "TU", "IVF")
+    }
+
+
 def test_nullable_egg_count_is_reported_without_breaking_kpi(client, write_headers):
     batch, donor = create_batch(client, write_headers)
     response = client.post(
