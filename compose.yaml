@@ -30,8 +30,8 @@ services:
     ports:
       - "${FRONTEND_PORT:-5173}:8080"
     depends_on:
-      seed:
-        condition: service_completed_successfully
+      api:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/health"]
       interval: 30s
@@ -52,7 +52,11 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+  # Demo data only. `demo_data.sql` deletes and recreates the whole graph owned
+  # by batch ids 61000000-%, including rows entered through the UI, so it must
+  # never run against a real deployment: opt in with `--profile demo`.
   seed:
+    profiles: ["demo"]
     image: postgres:16-alpine
     environment:
       PGPASSWORD: chronofish
