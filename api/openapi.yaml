@@ -1632,7 +1632,7 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [items, meta]
+                required: [items, meta, supporting]
                 properties:
                   items:
                     type: array
@@ -1664,6 +1664,91 @@ paths:
                         survLower95: { type: number, description: Approximate Greenwood 95% lower confidence bound. }
                         survUpper95: { type: number, description: Approximate Greenwood 95% upper confidence bound. }
                   meta: { $ref: '#/components/schemas/AnalyticsMeta' }
+                  supporting:
+                    type: object
+                    required: [statusComposition, ageDistribution, ageDefinition, sexComposition, sexCompleteness, boxCensus, boxMeta, batchPerformance, day5Definition]
+                    properties:
+                      statusComposition:
+                        type: array
+                        items:
+                          type: object
+                          required: [status, n, pct]
+                          properties:
+                            status: { type: string }
+                            n: { type: integer, minimum: 0 }
+                            pct: { type: [number, 'null'], minimum: 0, maximum: 1 }
+                      ageDistribution:
+                        type: array
+                        items:
+                          type: object
+                          required: [bin, minDays, maxDays, n, pct]
+                          properties:
+                            bin: { type: string }
+                            minDays: { type: integer, minimum: 0 }
+                            maxDays: { type: [integer, 'null'], minimum: 0 }
+                            n: { type: integer, minimum: 0 }
+                            pct: { type: [number, 'null'], minimum: 0, maximum: 1 }
+                      ageDefinition: { type: string }
+                      sexComposition:
+                        type: array
+                        items:
+                          type: object
+                          required: [sex, n, pct]
+                          properties:
+                            sex: { type: string }
+                            n: { type: integer, minimum: 0 }
+                            pct: { type: [number, 'null'], minimum: 0, maximum: 1 }
+                      sexCompleteness:
+                        type: object
+                        required: [known, unknown, pctComplete]
+                        properties:
+                          known: { type: integer, minimum: 0 }
+                          unknown: { type: integer, minimum: 0 }
+                          pctComplete: { type: [number, 'null'], minimum: 0, maximum: 1 }
+                      boxCensus:
+                        type: array
+                        items:
+                          type: object
+                          required: [boxCode, n, pct, empty, statusCounts]
+                          properties:
+                            fishBoxId: { type: [string, 'null'] }
+                            boxCode: { type: string }
+                            n: { type: integer, minimum: 0 }
+                            pct: { type: [number, 'null'], minimum: 0, maximum: 1 }
+                            empty: { type: boolean }
+                            statusCounts:
+                              type: object
+                              required: [ALIVE, DEAD, FROZEN, DISCARDED, UNKNOWN]
+                              properties:
+                                ALIVE: { type: integer, minimum: 0 }
+                                DEAD: { type: integer, minimum: 0 }
+                                FROZEN: { type: integer, minimum: 0 }
+                                DISCARDED: { type: integer, minimum: 0 }
+                                UNKNOWN: { type: integer, minimum: 0 }
+                      boxMeta:
+                        type: object
+                        required: [nBoxes, emptyBoxes]
+                        properties:
+                          nBoxes: { type: integer, minimum: 0 }
+                          emptyBoxes: { type: integer, minimum: 0 }
+                      batchPerformance:
+                        type: array
+                        items:
+                          type: object
+                          required: [batchId, batchCode, status, eligible, n, denominator, nNormal, nAbnormal, missingEmbryos, pctNormal]
+                          properties:
+                            batchId: { type: string }
+                            batchCode: { type: string }
+                            status: { type: string, enum: [ELIGIBLE, NOT_ELIGIBLE, MISSING, MISSING_CONDITION] }
+                            eligible: { type: boolean }
+                            n: { type: integer, minimum: 0 }
+                            denominator: { type: integer, minimum: 0 }
+                            nNormal: { type: integer, minimum: 0 }
+                            nAbnormal: { type: integer, minimum: 0 }
+                            missingEmbryos: { type: integer, minimum: 0 }
+                            pctNormal: { type: [number, 'null'], minimum: 0, maximum: 1 }
+                      day5Definition: { type: string }
+                      missingExitDate: { type: integer, minimum: 0 }
 
   /analytics/observation-gaps:
     get:

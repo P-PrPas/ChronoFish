@@ -71,6 +71,9 @@ def test_dashboard_endpoints_return_complete_shapes(client, write_headers):
         assert response.status_code == 200, (endpoint, response.text)
         assert isinstance(response.json()["items"], list)
         assert {"filters", "sampleSize", "denominators", "unknown", "missing"} <= set(response.json()["meta"])
+    assert {"statusComposition", "ageDistribution", "sexComposition", "boxCensus", "batchPerformance"} <= set(
+        client.get("/api/v1/analytics/fish-survival").json()["supporting"]
+    )
 
 
 def test_dashboard_bundle_uses_one_consistent_snapshot(client, store, monkeypatch):
@@ -414,6 +417,116 @@ def test_fish_survival_non_split_aggregates_strain_and_treatment(client, store):
     assert {row["abnormalityGroup"] for row in grouped_dashboard["fishSurvival"]["items"]} == {
         "EVER_ABNORMAL", "NO_ABNORMALITY_RECORDED"
     }
+
+
+def test_fish_supporting_analysis_reports_composition_age_and_box_boundaries(client, store):
+    today = datetime.now(BANGKOK).date()
+    with store.lock:
+        store.state.entities["donor-cell-lines"] = {
+            "donor": {"id": "donor", "strain": "AB", "active": True, "deletedAt": None},
+        }
+        store.state.entities["fish-boxes"] = {
+            "box-1": {"id": "box-1", "boxCode": "B1", "active": True, "deletedAt": None},
+            "box-2": {"id": "box-2", "boxCode": "B2", "active": True, "deletedAt": None},
+            "box-empty": {"id": "box-empty", "boxCode": "B3", "active": True, "deletedAt": None},
+        }
+        values = [
+            ("alive-0", "ALIVE", 0, "M", "box-1"),
+            ("dead-6", "DEAD", 6, "F", "box-1"),
+            ("frozen-7", "FROZEN", 7, "M", "box-2"),
+            ("discarded-14", "DISCARDED", 14, "F", "box-2"),
+            ("alive-28", "ALIVE", 28, "UNKNOWN", None),
+        ]
+        store.state.entities["fish"] = {
+            fish_id: {
+                "id": fish_id,
+                "fishCode": fish_id,
+                "donorCellLineId": "donor",
+                "dob": (today - timedelta(days=age)).isoformat(),
+                "status": status,
+                "condition": "NORMAL",
+                "sex": sex,
+                "fishBoxId": box_id,
+                "active": True,
+                "deletedAt": None,
+            }
+            for fish_id, status, age, sex, box_id in values
+        }
+
+    supporting = client.get("/api/v1/analytics/fish-survival").json()["supporting"]
+    assert {row["status"]: row["n"] for row in supporting["statusComposition"]} == {
+        "ALIVE": 2, "DEAD": 1, "FROZEN": 1, "DISCARDED": 1,
+    }
+    assert {row["sex"]: row["n"] for row in supporting["sexComposition"]} == {"M": 2, "F": 2, "UNKNOWN": 1}
+    assert [row["n"] for row in supporting["ageDistribution"]] == [2, 1, 1, 0, 1]
+    assert supporting["ageDistribution"][0]["minDays"] == 0
+    assert supporting["ageDistribution"][0]["maxDays"] == 6
+    assert supporting["ageDistribution"][1]["minDays"] == 7
+    assert supporting["ageDistribution"][1]["maxDays"] == 13
+    assert supporting["ageDistribution"][-1]["minDays"] == 28
+    assert supporting["ageDistribution"][-1]["maxDays"] is None
+    assert {row["boxCode"]: row["n"] for row in supporting["boxCensus"]} == {
+        "B1": 2, "B2": 2, "B3": 0, "Unassigned": 1,
+    }
+    box_rows = {row["boxCode"]: row for row in supporting["boxCensus"]}
+    assert box_rows["B1"]["statusCounts"] == {"ALIVE": 1, "DEAD": 1, "FROZEN": 0, "DISCARDED": 0, "UNKNOWN": 0}
+    assert box_rows["B3"]["statusCounts"] == {"ALIVE": 0, "DEAD": 0, "FROZEN": 0, "DISCARDED": 0, "UNKNOWN": 0}
+    assert supporting["boxMeta"] == {"nBoxes": 4, "emptyBoxes": 1}
+    assert supporting["missingExitDate"] == 3
+
+
+def test_fish_supporting_day5_reports_eligibility_and_condition_denominator(client, store):
+    today = datetime.now(BANGKOK).date()
+    with store.lock:
+        store.state.entities["batches"] = {
+            "old-batch": {
+                "id": "old-batch", "batchCode": "OLD", "experimentDate": (today - timedelta(days=10)).isoformat(),
+                "active": True, "deletedAt": None,
+            },
+            "future-batch": {
+                "id": "future-batch", "batchCode": "FUTURE", "experimentDate": (today - timedelta(days=2)).isoformat(),
+                "active": True, "deletedAt": None,
+            },
+        }
+        store.state.entities["injection-lots"] = {
+            "old-lot": {
+                "id": "old-lot", "batchId": "old-batch", "donorCellLineId": "donor",
+                "activatedAt": f"{today}T00:00:00Z", "active": True, "deletedAt": None,
+            },
+            "future-lot": {
+                "id": "future-lot", "batchId": "future-batch", "donorCellLineId": "donor",
+                "activatedAt": f"{today}T00:00:00Z", "active": True, "deletedAt": None,
+            },
+        }
+        store.state.entities["embryos"] = {
+            "old-normal": {"id": "old-normal", "injectionLotId": "old-lot", "active": True, "deletedAt": None},
+            "old-abnormal": {"id": "old-abnormal", "injectionLotId": "old-lot", "active": True, "deletedAt": None},
+            "old-missing": {"id": "old-missing", "injectionLotId": "old-lot", "active": True, "deletedAt": None},
+            "future-missing": {
+                "id": "future-missing", "injectionLotId": "future-lot", "active": True, "deletedAt": None,
+            },
+        }
+        store.state.observations = {
+            "day5-normal": {
+                "id": "day5-normal", "embryoId": "old-normal", "stageCode": "stage_26_5D",
+                "observedAt": f"{today}T01:00:00Z", "condition": "NORMAL", "outcome": "ALIVE", "deletedAt": None,
+            },
+            "day5-abnormal": {
+                "id": "day5-abnormal", "embryoId": "old-abnormal", "stageCode": "stage_26_5D",
+                "observedAt": f"{today}T01:00:00Z", "condition": "ABNORMAL", "outcome": "ALIVE", "deletedAt": None,
+            },
+        }
+
+    rows = {
+        row["batchCode"]: row
+        for row in client.get("/api/v1/analytics/fish-survival").json()["supporting"]["batchPerformance"]
+    }
+    assert rows["OLD"] == {
+        "batchId": "old-batch", "batchCode": "OLD", "status": "ELIGIBLE", "eligible": True,
+        "n": 2, "denominator": 2, "nNormal": 1, "nAbnormal": 1, "missingEmbryos": 1, "pctNormal": 0.5,
+    }
+    assert rows["FUTURE"]["status"] == "NOT_ELIGIBLE"
+    assert rows["FUTURE"]["pctNormal"] is None
 
 
 def test_nullable_egg_count_is_reported_without_breaking_kpi(client, write_headers):

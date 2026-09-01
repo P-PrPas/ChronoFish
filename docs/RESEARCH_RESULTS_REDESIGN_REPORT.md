@@ -372,3 +372,82 @@ correction closes them without changing the analytics contract:
 The correction added candidate-level, roving-focus, visible-summary, and
 dimension-label regression coverage. Targeted dashboard tests pass (7 tests);
 the complete frontend validation is recorded in the Phase 2 test list above.
+
+## Phase 3 — Supporting analysis
+
+### Objective and analytical definitions
+
+Phase 3 adds compact, decision-oriented evidence below the primary charts. Fish
+status is shown as ALIVE/DEAD/FROZEN/DISCARDED counts and percentages. Age bins
+are 0–6, 7–13, 14–20, 21–27, and 28+ days, measured at the fish's current
+follow-up date, exit/status date, or today when no date is available. Sex is
+M/F/Unknown with a completeness percentage. Box census is scoped to the same
+filtered fish snapshot and includes empty boxes plus status counts per box.
+
+Day 5 batch performance uses protocol stage order 26 and reports percent normal
+over the known NORMAL/ABNORMAL denominator. Future Day 5 batches are
+`NOT_ELIGIBLE`; missing observations or condition data remain explicitly
+missing, never zero. Timing uses median/IQR as the primary summary and human
+readable signed durations (positive = slower, negative = faster); source tables
+retain range and n for audit. SCNT/control comparison uses percent normal with
+n/denominator and warns for n < 5 or unknown denominators.
+
+### Component and file breakdown
+
+- `backend/src/chronofish/services/analytics.py` adds one additive `supporting`
+  object to fish survival: status/sex composition, age bins, scoped box census,
+  and Day 5 batch performance. Box rows include a status-count map.
+- `api/openapi.yaml` and `frontend/src/api/schema.d.ts` document and regenerate
+  the additive fish-supporting contract.
+- `frontend/src/pages/dashboard.tsx` renders a collapsed supporting-analysis
+  section, stacked composition, age/box/Day 5 summaries, timing summary,
+  denominator-based control summary, and persists `stage1Compare`/
+  `stage2Compare` URL state with safe fallback on invalid values.
+- `frontend/src/styles.css` adds token-based summary tracks, legends, local
+  table scrolling, readable metadata, and 320px-safe narrow layouts.
+- `backend/tests/test_analytics.py` and `frontend/tests/dashboard.test.tsx`
+  cover supporting payload boundaries, eligibility/denominators, status counts,
+  composition, formatting, URL persistence, and invalid comparison values.
+
+### Before vs after
+
+| Measure | Before Phase 3 | After Phase 3 |
+|---|---|---|
+| Fish composition | Status totals repeated in survival rows | Collapsed stacked status and sex summaries with n/% |
+| Fish age evidence | Mean alive age KPI only | Explicit current-follow-up age bins with units and empty state |
+| Fish-box evidence | No cohort census | Concentration list, empty-box count, and per-box status counts |
+| Day 5 batch evidence | No denominator-based ranking | Ratio/denominator with batch labels and eligibility/missing states |
+| Timing evidence | Four-decimal values in supporting table | Median/IQR and signed human-readable durations |
+| Control evidence | Raw `nNormal` bars | Percent-normal bars with n/denominator and small-n guard |
+| Comparison URL | Comparison was local state | Shareable/reloadable comparison query parameters |
+
+### Accessibility, responsive behavior, and hierarchy
+
+Supporting analysis is inside a closed disclosure after the primary chart and
+compact risk/event/censor evidence, so the page does not present every card at
+once. Every visual has a textual label and n/% values; status and sex labels
+remain visible alongside color. Summary tracks are decorative only. Tables
+retain local horizontal scrolling while the page itself remains overflow-safe
+from 320px upward. Small-n and missing/unknown denominator states are separate
+text warnings, and comparison query values are validated before use.
+
+### Tests and validation
+
+- `python -m pytest tests/test_analytics.py -q` — 15 passed.
+- `python -m pytest -q` — 90 passed, 5 skipped (SQL integration unavailable).
+- `python -m ruff check src tests/test_analytics.py` — passed.
+- `python scripts/validate_openapi.py` — passed (52 paths, 71 operations).
+- `npm.cmd exec -- vitest run tests/dashboard.test.tsx` — 8 passed.
+- `npm.cmd test` from `frontend` — 16 test files and 71 tests passed, including
+  TypeScript checking and the production Vite build.
+- `git diff --check` — passed.
+
+### Known limitations and follow-ups
+
+- Box empties are included when the selected site has no cohort-level filter;
+  restrictive cohort filters include only boxes represented by that snapshot.
+- Age bins and Day 5 eligibility are intentionally fixed to the current
+  protocol semantics; future protocol-specific bins would require an additive
+  contract decision.
+- Supporting summaries intentionally show a compact subset while their full
+  tables remain available through disclosure controls.

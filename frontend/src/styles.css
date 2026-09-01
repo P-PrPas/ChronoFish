@@ -231,6 +231,34 @@ button.list-row:hover { border-color: #a9bbb6; background: #fdfefd; box-shadow: 
 .chart-mini-table caption { padding: 7px 0; text-align: left; color: var(--muted); font-size: .9rem; font-weight: 600; }
 .chart-mini-table th, .chart-mini-table td { padding: 7px 9px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
 .chart-mini-table th[scope="row"] { font-weight: 600; }
+.supporting-analysis { margin-top: 18px; }
+.supporting-analysis__sections { display: grid; gap: 18px; margin-top: 14px; }
+.supporting-analysis__section { padding: 14px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-warm); }
+.supporting-analysis__section h3 { margin: 0 0 8px; }
+.composition { display: grid; gap: 10px; }
+.composition__stack { display: flex; min-height: 20px; overflow: hidden; border-radius: 999px; background: var(--surface-soft); }
+.composition__segment { min-width: 2px; border-right: 1px solid var(--surface); }
+.composition__segment--alive, .composition__swatch--m { background: #0b6761; }
+.composition__segment--dead, .composition__swatch--dead { background: #a83c35; }
+.composition__segment--frozen, .composition__swatch--f { background: #b67b2f; }
+.composition__segment--discarded, .composition__swatch--discarded { background: #775f8f; }
+.composition__segment--unknown, .composition__swatch--unknown { background: #70818b; }
+.composition__segment--m { background: #0b6761; }
+.composition__segment--f { background: #b67b2f; }
+.composition__swatch--alive { background: #0b6761; }
+.composition__swatch--frozen { background: #b67b2f; }
+.composition__legend { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: .9rem; }
+.composition__legend span { display: inline-flex; align-items: center; gap: 6px; }
+.composition__swatch { width: 12px; height: 12px; flex: 0 0 12px; border-radius: 2px; }
+.age-distribution, .box-census, .batch-performance, .timing-summary, .control-summary { display: grid; gap: 9px; }
+.age-distribution__row, .box-census__row, .control-summary__row { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(100px, 2fr) auto; align-items: center; gap: 10px; font-size: .9rem; }
+.age-distribution__track, .box-census__track, .control-summary__track { height: 14px; overflow: hidden; border-radius: 999px; background: var(--surface-soft); }
+.age-distribution__track > span, .box-census__track > span, .control-summary__track > span { display: block; height: 100%; border-radius: inherit; background: var(--primary); }
+.batch-performance__row { display: grid; grid-template-columns: minmax(160px, 1fr) auto auto; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.batch-performance__row span { display: grid; gap: 2px; }
+.batch-performance__row small { color: var(--muted); font-size: .85rem; }
+.box-census__status { display: block; margin-top: 2px; color: var(--muted); font-size: .78rem; line-height: 1.35; }
+.timing-summary__row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .comparison-note { margin: 10px 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); color: #704b1f; font-size: .9rem; line-height: 1.55; }
 .small-n-note { padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); color: #704b1f; }
 .histogram { display: grid; gap: 9px; margin: 12px 0 18px; }
@@ -556,6 +584,10 @@ tbody tr:hover td { background: #f8fbf9; }
   .well-cell { min-height: 76px; padding: 8px 6px; }
   .well-cell strong { font-size: .92rem; }
   .well-cell small, .well-cell > span { font-size: .75rem; }
+  .age-distribution__row, .box-census__row, .control-summary__row { grid-template-columns: minmax(96px, 1fr) minmax(42px, 1fr) auto; gap: 6px; font-size: .84rem; }
+  .batch-performance__row { grid-template-columns: minmax(105px, 1fr) auto; gap: 8px; font-size: .88rem; }
+  .batch-performance__row > strong { grid-column: 2; grid-row: 1; }
+  .chart-mini-table { min-width: 390px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

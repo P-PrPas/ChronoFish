@@ -4182,6 +4182,64 @@ export interface operations {
                             survUpper95?: number;
                         }[];
                         meta: components["schemas"]["AnalyticsMeta"];
+                        supporting: {
+                            statusComposition: {
+                                status: string;
+                                n: number;
+                                pct: number | null;
+                            }[];
+                            ageDistribution: {
+                                bin: string;
+                                minDays: number;
+                                maxDays: number | null;
+                                n: number;
+                                pct: number | null;
+                            }[];
+                            ageDefinition: string;
+                            sexComposition: {
+                                sex: string;
+                                n: number;
+                                pct: number | null;
+                            }[];
+                            sexCompleteness: {
+                                known: number;
+                                unknown: number;
+                                pctComplete: number | null;
+                            };
+                            boxCensus: {
+                                fishBoxId?: string | null;
+                                boxCode: string;
+                                n: number;
+                                pct: number | null;
+                                empty: boolean;
+                                statusCounts: {
+                                    ALIVE: number;
+                                    DEAD: number;
+                                    FROZEN: number;
+                                    DISCARDED: number;
+                                    UNKNOWN: number;
+                                };
+                            }[];
+                            boxMeta: {
+                                nBoxes: number;
+                                emptyBoxes: number;
+                            };
+                            batchPerformance: {
+                                batchId: string;
+                                batchCode: string;
+                                /** @enum {string} */
+                                status: "ELIGIBLE" | "NOT_ELIGIBLE" | "MISSING" | "MISSING_CONDITION";
+                                eligible: boolean;
+                                n: number;
+                                denominator: number;
+                                nNormal: number;
+                                nAbnormal: number;
+                                missingEmbryos: number;
+                                pctNormal: number | null;
+                            }[];
+                            day5Definition: string;
+                            missingExitDate?: number;
+                        };
                     };
                 };
             };

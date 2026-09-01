@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Dashboard, FishSurvivalChart, PipelineSummary, SurvivalChart, dashboardDataPath, parseDashboardTab } from '../src/pages/dashboard'
+import { AgeDistributionSummary, BatchPerformanceSummary, BoxCensusSummary, ControlSummary, Dashboard, FishSurvivalChart, PipelineSummary, StackedComposition, SurvivalChart, TimingSummary, dashboardDataPath, formatDeviationHours, parseDashboardTab, parseStage1Comparison, parseStage2Comparison } from '../src/pages/dashboard'
 import { text } from '../src/types'
 
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
@@ -39,6 +39,8 @@ describe('analytics dashboard', () => {
     expect(analyticsCalls.every(([input]) => String(input).includes('siteId=site-1') && String(input).includes('dateFrom=2026-08-20') && String(input).includes('stage1GroupBy=site') && String(input).includes('stage1GroupBy=strain'))).toBe(true)
     expect(String(analyticsCalls[0][0])).not.toContain('stage2GroupBy')
     expect(window.location.search).toContain('tab=stage1')
+    expect(window.location.search).toContain('stage1Compare=strain')
+    expect(window.location.search).toContain('stage2Compare=overall')
     expect(document.body.textContent).toContain('Records in view')
     expect(document.body.textContent).toContain('North Lab')
     expect(document.body.textContent).toContain('Bangkok time')
@@ -68,6 +70,8 @@ describe('analytics dashboard', () => {
     expect(document.body.textContent).toContain('no lowest/best fish-survival headline is reported')
     const stage2Comparison = Array.from(document.querySelectorAll('select')).find((select) => select.getAttribute('aria-label') === 'Chart comparison dimension') as HTMLSelectElement
     expect(Array.from(stage2Comparison.options).map((option) => option.value)).toEqual(['overall', 'abnormalityGroup', 'strain', 'treatmentGroup'])
+    await act(async () => { stage2Comparison.value = 'strain'; stage2Comparison.dispatchEvent(new Event('change', { bubbles: true })); await Promise.resolve() })
+    expect(new URLSearchParams(window.location.search).get('stage2Compare')).toBe('strain')
     const dailyFishCheck = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Open daily fish check')
     await act(async () => { dailyFishCheck?.click(); await Promise.resolve() })
     expect(navigate).toHaveBeenCalledWith('fish')
@@ -85,17 +89,23 @@ describe('analytics dashboard', () => {
     const clearFilters = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Clear filters')
     await act(async () => { clearFilters?.click(); await Promise.resolve(); await new Promise((resolve) => setTimeout(resolve, 0)) })
     expect(window.location.search).not.toContain('siteId=site-1')
-    window.history.replaceState(null, '', '/?siteId=site-1&dateFrom=2026-08-20&tab=overall#dashboard')
+    window.history.replaceState(null, '', '/?siteId=site-1&dateFrom=2026-08-20&tab=overall&stage1Compare=operator&stage2Compare=treatmentGroup#dashboard')
     await act(async () => { window.dispatchEvent(new PopStateEvent('popstate')); await Promise.resolve() })
     expect(document.getElementById('dashboard-tab-overall')?.getAttribute('aria-selected')).toBe('true')
     expect(window.location.search).toContain('siteId=site-1')
     expect(window.location.search).toContain('tab=overall')
+    expect(new URLSearchParams(window.location.search).get('stage1Compare')).toBe('operator')
+    expect(new URLSearchParams(window.location.search).get('stage2Compare')).toBe('treatmentGroup')
     root.unmount()
   })
 
   it('falls back to Stage 1 for an invalid URL tab', () => {
     expect(parseDashboardTab('?tab=not-a-dashboard-tab')).toBe('stage1')
     expect(parseDashboardTab('?tab=stage2')).toBe('stage2')
+    expect(parseStage1Comparison('?stage1Compare=operator')).toBe('operator')
+    expect(parseStage1Comparison('?stage1Compare=invalid')).toBe('strain')
+    expect(parseStage2Comparison('?stage2Compare=treatmentGroup')).toBe('treatmentGroup')
+    expect(parseStage2Comparison('?stage2Compare=invalid')).toBe('overall')
     expect(dashboardDataPath({ siteId: 'site-1' }, 'strain', 'overall')).toContain('stage1GroupBy=site&stage1GroupBy=strain')
     expect(dashboardDataPath({ siteId: 'site-1' }, 'strain', 'abnormalityGroup')).toContain('stage2GroupBy=condition')
   })
@@ -190,6 +200,32 @@ describe('analytics dashboard', () => {
     await act(async () => { root.render(<PipelineSummary thai points={[{ step: 'Activated', count: 10, pctOfPrevious: 1, pctOfStart: 1 }, { step: 'Promoted', count: 4, pctOfPrevious: 0.4, pctOfStart: 0.4 }]} />); await Promise.resolve() })
     expect(document.body.textContent).toContain('เริ่มติดตาม')
     expect(document.body.textContent).toContain('จากก่อนหน้า 40.0%')
+    root.unmount()
+  })
+
+  it('renders supporting composition, bins, box census, Day 5 guards and timing summaries', async () => {
+    expect(formatDeviationHours(8 / 60)).toBe('+8 min')
+    expect(formatDeviationHours(-1.2)).toBe('−1 hr 12 min')
+    expect(formatDeviationHours(0)).toBe('0 min')
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<>
+      <StackedComposition rows={[{ status: 'ALIVE', n: 3, pct: .6 }, { status: 'DEAD', n: 2, pct: .4 }]} field="status" thai={false} />
+      <StackedComposition rows={[{ sex: 'M', n: 2, pct: .5 }, { sex: 'F', n: 1, pct: .25 }, { sex: 'UNKNOWN', n: 1, pct: .25 }]} field="sex" thai={false} />
+      <AgeDistributionSummary rows={[{ bin: '0-6', n: 2, pct: .5 }, { bin: '7-13', n: 2, pct: .5 }]} definition="Age in days at current follow-up date." thai={false} />
+      <BoxCensusSummary rows={[{ boxCode: 'B1', n: 4, pct: 1, empty: false, statusCounts: { ALIVE: 4, DEAD: 0, FROZEN: 0, DISCARDED: 0, UNKNOWN: 0 } }]} meta={{ nBoxes: 1, emptyBoxes: 0 }} thai={false} />
+      <BatchPerformanceSummary rows={[{ batchId: 'b1', batchCode: 'B1', status: 'ELIGIBLE', denominator: 2, n: 2, pctNormal: .5 }, { batchId: 'b2', batchCode: 'B2', status: 'MISSING', denominator: 0, n: 0 }]} definition="Day 5 denominator is known condition." thai={false} />
+      <ControlSummary points={[{ armType: 'SCNT', stageOrder: 3, n: 4, nNormal: 3, pctNormal: .75 }, { armType: 'IVF', stageOrder: 3, n: 0, nNormal: 0, pctNormal: null }]} thai={false} />
+      <TimingSummary rows={[{ stageOrder: 1, stageLabel: '1-cell', medianDeviationH: -1.2, q1DeviationH: -2, q3DeviationH: .25 }]} thai={false} />
+    </>); await Promise.resolve() })
+    expect(document.body.textContent).toContain('ALIVE: 3 (60.00%)')
+    expect(document.body.textContent).toContain('Unknown: 1 (25.00%)')
+    expect(document.body.textContent).toContain('0-6 days')
+    expect(document.body.textContent).toContain('B1')
+    expect(document.body.textContent).toContain('ALIVE 4')
+    expect(document.body.textContent).toContain('50.00% normal')
+    expect(document.body.textContent).toContain('denominator below 5')
+    expect(document.body.textContent).toContain('Unknown (n=0)')
+    expect(document.body.textContent).toContain('Median −1 hr 12 min')
     root.unmount()
   })
 })
