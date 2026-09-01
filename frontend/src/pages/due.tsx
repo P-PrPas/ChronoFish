@@ -91,6 +91,11 @@ function wellPositionKey(value: unknown): [number, number] {
   return [row, Number(match[2])]
 }
 
+function compareEmbryosByWell(left: ApiItem, right: ApiItem): number {
+  const [leftRow, leftColumn] = wellPositionKey(left.wellPosition); const [rightRow, rightColumn] = wellPositionKey(right.wellPosition)
+  return leftRow - rightRow || leftColumn - rightColumn || String(left.embryoCode ?? '').localeCompare(String(right.embryoCode ?? ''))
+}
+
 function wellButtonId(id: string): string { return `checkpoint-well-${id.replace(/[^a-zA-Z0-9_-]/g, '-')}` }
 
 function outcomeLabel(value: EmbryoOutcome, thai: boolean): string {
@@ -124,11 +129,13 @@ function ObservationRound({ due, t, operatorName, onBack }: { due: ApiItem; t: A
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const wellButtons = useRef<Record<string, HTMLButtonElement | null>>({})
+  const editorHeading = useRef<HTMLHeadingElement | null>(null)
 
   useEffect(() => {
     void get(`/injection-lots/${due.injectionLotId}/checkpoints/${due.stageCode}`).then((value) => {
       const loadedEmbryos = (value.embryos as ApiItem[] | undefined) ?? []
-      setEntry(value); setSelectedId(String(loadedEmbryos[0]?.embryoId ?? ''))
+      const firstWell = [...loadedEmbryos].sort(compareEmbryosByWell)[0]
+      setEntry(value); setSelectedId(String(firstWell?.embryoId ?? ''))
       setEmbryoOutcomes(Object.fromEntries(loadedEmbryos.map((embryo) => [String(embryo.embryoId), 'ALIVE'])))
       setEmbryoConditions(Object.fromEntries(loadedEmbryos.map((embryo) => [String(embryo.embryoId), String(embryo.defaultCondition ?? 'NORMAL')])))
     }).catch((e: Error) => setError(e.message))
@@ -136,20 +143,17 @@ function ObservationRound({ due, t, operatorName, onBack }: { due: ApiItem; t: A
 
   const embryos = (entry?.embryos as ApiItem[] | undefined) ?? []
   const stages = (entry?.stages as ApiItem[] | undefined) ?? []
-  const orderedEmbryos = [...embryos].sort((left, right) => {
-    const [leftRow, leftColumn] = wellPositionKey(left.wellPosition); const [rightRow, rightColumn] = wellPositionKey(right.wellPosition)
-    return leftRow - rightRow || leftColumn - rightColumn || String(left.embryoCode ?? '').localeCompare(String(right.embryoCode ?? ''))
-  })
+  const orderedEmbryos = [...embryos].sort(compareEmbryosByWell)
   const hasException = (embryo: ApiItem): boolean => {
     const id = String(embryo.embryoId)
     return (embryoOutcomes[id] ?? 'ALIVE') !== 'ALIVE' || (embryoConditions[id] ?? 'NORMAL') !== 'NORMAL' || Boolean(notes[id]?.trim())
   }
   const stateFor = (embryo: ApiItem): 'saved' | 'queued' | 'exception' | 'ready' | 'unreviewed' => {
     const id = String(embryo.embryoId)
-    if (savedIds[id]) return 'saved'; if (queuedIds[id]) return 'queued'; if (hasException(embryo)) return 'exception'; if (!stageCodes[id]) return 'unreviewed'
+    if (savedIds[id]) return 'saved'; if (queuedIds[id]) return 'queued'; if (!stageCodes[id]) return 'unreviewed'; if (hasException(embryo)) return 'exception'
     return 'ready'
   }
-  const stateLabel = (state: ReturnType<typeof stateFor>): string => ({ saved: thai ? 'บันทึกแล้ว' : 'Saved', queued: thai ? 'รอส่ง' : 'Queued', exception: thai ? 'ข้อยกเว้น' : 'Exception', ready: thai ? 'พร้อมบันทึก' : 'Ready', unreviewed: thai ? 'ยังไม่ตรวจ' : 'Unreviewed' }[state])
+  const stateLabel = (state: ReturnType<typeof stateFor>): string => ({ saved: thai ? 'บันทึกแล้ว' : 'Saved', queued: thai ? 'รอส่ง' : 'Queued', exception: thai ? 'ข้อยกเว้น' : 'Exception', ready: thai ? 'พร้อมบันทึก' : 'Ready to save', unreviewed: thai ? 'ยังไม่ตรวจ' : 'Unreviewed' }[state])
   const matchingEmbryos = orderedEmbryos.filter((embryo) => {
     const query = search.trim().toLowerCase(); const matchesSearch = !query || String(embryo.wellPosition ?? '').toLowerCase().includes(query) || String(embryo.embryoCode ?? '').toLowerCase().includes(query)
     const matchesFilter = viewFilter === 'all' || (viewFilter === 'exception' ? hasException(embryo) : viewFilter === 'unreviewed' ? !stageCodes[String(embryo.embryoId)] && !savedIds[String(embryo.embryoId)] && !queuedIds[String(embryo.embryoId)] : stateFor(embryo) === viewFilter)
@@ -230,6 +234,10 @@ function ObservationRound({ due, t, operatorName, onBack }: { due: ApiItem; t: A
     if (!lastBulk) return
     setStageCodes((current) => Object.fromEntries(Object.entries(current).map(([id, value]) => lastBulk.ids.includes(id) && value === lastBulk.stage && !savedIds[id] && !queuedIds[id] ? [id, ''] : [id, value]))); setLastBulk(null); setSaveStatus(thai ? 'ล้างการตั้งระยะล่าสุดแล้ว' : 'Latest bulk stage cleared')
   }
+  const selectWell = (id: string, scrollToEditor = false) => {
+    setSelectedId(id)
+    if (scrollToEditor && window.matchMedia?.('(max-width: 780px)')?.matches) window.setTimeout(() => editorHeading.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0)
+  }
   const moveWell = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key) || matchingEmbryos.length === 0) return
     const current = matchingEmbryos[index]; const [currentRow, currentColumn] = wellPositionKey(current.wellPosition); let nextIndex = -1
@@ -253,19 +261,20 @@ function ObservationRound({ due, t, operatorName, onBack }: { due: ApiItem; t: A
     <div className="checkpoint-workspace">
       <section className="checkpoint-plate" aria-labelledby="checkpoint-plate-heading"><div className="checkpoint-section-heading"><div><h2 id="checkpoint-plate-heading">{thai ? `แผ่นหลุม · เลือกแล้ว ${selectedCount} / ${embryos.length}` : `Plate map · ${selectedCount} / ${embryos.length} selected`}</h2><p className="muted">{thai ? 'เลือกหลุมเพื่อเปิดตัวแก้ไขด้านข้าง' : 'Select a well to open its editor.'}</p></div><span className="checkpoint-selection-note">{thai ? `กำลังแสดง ${matchingEmbryos.length} หลุม` : `Showing ${matchingEmbryos.length} wells`}</span></div>
         <fieldset className="checkpoint-filters"><legend>{thai ? 'ค้นหาและกรองหลุม' : 'Find and filter wells'}</legend><label htmlFor="well-search">{thai ? 'ค้นหา Well ID หรือรหัสตัวอ่อน' : 'Search well ID or embryo code'}<input id="well-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={thai ? 'เช่น A1' : 'e.g. A1'} /></label><label htmlFor="well-filter">{thai ? 'แสดงสถานะ' : 'Show status'}<select id="well-filter" value={viewFilter} onChange={(event) => setViewFilter(event.target.value as WellFilter)}><option value="all">{thai ? 'ทุกหลุม' : 'All wells'}</option><option value="unreviewed">{thai ? 'ยังไม่ตรวจ' : 'Unreviewed'}</option><option value="ready">{thai ? 'พร้อมบันทึก' : 'Ready'}</option><option value="exception">{thai ? 'ข้อยกเว้น' : 'Exceptions'}</option><option value="saved">{thai ? 'บันทึกแล้ว' : 'Saved'}</option></select></label></fieldset>
-        <div className="checkpoint-legend" aria-label={thai ? 'คำอธิบายสถานะหลุม' : 'Well status legend'}><span>○ {thai ? 'ยังไม่ตรวจ' : 'Unreviewed'}</span><span>• {thai ? 'พร้อมบันทึก' : 'Ready'}</span><span>! {thai ? 'ข้อยกเว้น' : 'Exception'}</span><span>✓ {thai ? 'บันทึกแล้ว' : 'Saved'}</span></div>
+        <div className="checkpoint-legend" aria-label={thai ? 'คำอธิบายสถานะหลุม' : 'Well status legend'}><span>○ {thai ? 'ยังไม่ตรวจ' : 'Unreviewed'}</span><span>• {thai ? 'พร้อมบันทึก' : 'Ready to save'}</span><span>! {thai ? 'ข้อยกเว้น' : 'Exception'}</span><span>✓ {thai ? 'บันทึกแล้ว' : 'Saved'}</span></div>
         {!matchingEmbryos.length ? <div className="empty"><p>{thai ? 'ไม่พบหลุมตามตัวกรอง' : 'No wells match this filter.'}</p><button className="button button--secondary" type="button" onClick={() => { setViewFilter('all'); setSearch('') }}>{thai ? 'แสดงทุกหลุม' : 'Show all wells'}</button></div> : <div className="well-grid checkpoint-grid" role="grid" aria-label={thai ? 'แผ่นหลุมตัวอ่อน' : 'Embryo plate wells'} aria-colcount={12}>{matchingEmbryos.map((embryo, index) => {
           const id = String(embryo.embryoId); const well = String(embryo.wellPosition ?? (thai ? 'ไม่ระบุหลุม' : 'Unassigned')); const state = stateFor(embryo)
-          return <div role="gridcell" aria-selected={id === selectedId} key={id}><button ref={(button) => { wellButtons.current[id] = button }} id={wellButtonId(id)} data-well={well} type="button" className={`well-cell well-cell--${state}${id === selectedId ? ' well-cell--selected' : ''}`} aria-label={`${thai ? 'หลุม' : 'Well'} ${well}, ${String(embryo.embryoCode ?? '')}, ${stateLabel(state)}${id === selectedId ? `, ${thai ? 'กำลังเลือก' : 'selected'}` : ''}`} aria-pressed={id === selectedId} tabIndex={id === selectedId || (!selectedId && index === 0) ? 0 : -1} onClick={() => setSelectedId(id)} onKeyDown={(event) => moveWell(event, index)}><strong>{well}</strong><small title={String(embryo.embryoCode ?? '')}>{String(embryo.embryoCode ?? '')}</small><span><b aria-hidden="true">{state === 'saved' ? '✓' : state === 'exception' ? '!' : state === 'unreviewed' ? '○' : state === 'queued' ? '↺' : '•'}</b> {stateLabel(state)}</span></button></div>
+          return <div role="gridcell" aria-selected={id === selectedId} key={id}><button ref={(button) => { wellButtons.current[id] = button }} id={wellButtonId(id)} data-well={well} type="button" className={`well-cell well-cell--${state}${id === selectedId ? ' well-cell--selected' : ''}`} aria-label={`${thai ? 'หลุม' : 'Well'} ${well}, ${String(embryo.embryoCode ?? '')}, ${stateLabel(state)}${id === selectedId ? `, ${thai ? 'กำลังเลือก' : 'selected'}` : ''}`} aria-pressed={id === selectedId} tabIndex={id === selectedId || (!selectedId && index === 0) ? 0 : -1} onClick={() => selectWell(id, true)} onKeyDown={(event) => moveWell(event, index)}><strong>{well}</strong><small title={String(embryo.embryoCode ?? '')}>{String(embryo.embryoCode ?? '')}</small><span><b aria-hidden="true">{state === 'saved' ? '✓' : state === 'exception' ? '!' : state === 'unreviewed' ? '○' : state === 'queued' ? '↺' : '•'}</b> {stateLabel(state)}</span></button></div>
         })}</div>}
       </section>
       <aside className="checkpoint-editor" aria-labelledby="checkpoint-editor-heading">{activeEmbryo ? <>
-        <div className="checkpoint-editor__heading" aria-live="polite"><p className="eyebrow">{thai ? 'หลุมที่เลือก' : 'Selected well'}</p><h2 id="checkpoint-editor-heading">{activeWell}</h2><p className="checkpoint-editor__code" title={String(activeEmbryo.embryoCode ?? '')}>{String(activeEmbryo.embryoCode ?? '')}</p>{activeEmbryo.priorStageCode != null && <p className="muted">{thai ? 'ครั้งก่อน' : 'Previous'}: {String(priorStage?.stageLabel ?? '—')}{activeEmbryo.priorOutcome ? ` · ${outcomeLabel(String(activeEmbryo.priorOutcome) as EmbryoOutcome, thai)}` : ''}</p>}</div>
+        <div className="checkpoint-editor__heading" aria-live="polite"><p className="eyebrow">{thai ? 'หลุมที่เลือก' : 'Selected well'}</p><h2 ref={editorHeading} id="checkpoint-editor-heading">{activeWell}</h2><p className="checkpoint-editor__code" title={String(activeEmbryo.embryoCode ?? '')}>{String(activeEmbryo.embryoCode ?? '')}</p>{activeEmbryo.priorStageCode != null && <p className="muted">{thai ? 'ครั้งก่อน' : 'Previous'}: {String(priorStage?.stageLabel ?? '—')}{activeEmbryo.priorOutcome ? ` · ${outcomeLabel(String(activeEmbryo.priorOutcome) as EmbryoOutcome, thai)}` : ''}</p>}</div>
         <fieldset className="checkpoint-editor__fields"><legend>{thai ? `ผลการตรวจ ${activeWell}` : `Observation for ${activeWell}`}</legend><label htmlFor="active-stage">{thai ? 'ระยะที่เห็น' : 'Observed stage'}<select id="active-stage" aria-label={`${thai ? 'ระยะของหลุม' : 'Stage for well'} ${activeWell}`} value={stageCodes[activeId] ?? ''} disabled={Boolean(savedIds[activeId] || queuedIds[activeId])} onChange={(event) => setStageCodes((current) => ({ ...current, [activeId]: event.target.value }))}><option value="">{thai ? 'ยังไม่เลือกระยะ' : 'Select observed stage'}</option>{stages.map((stage) => <option key={String(stage.stageCode)} value={String(stage.stageCode)}>{String(stage.stageLabel)}</option>)}</select></label><label htmlFor="active-outcome">{thai ? 'สถานะ' : 'Outcome'}<select id="active-outcome" aria-label={`${thai ? 'สถานะของหลุม' : 'Outcome for well'} ${activeWell}`} value={embryoOutcomes[activeId] ?? 'ALIVE'} onChange={(event) => setEmbryoOutcomes((current) => ({ ...current, [activeId]: event.target.value as EmbryoOutcome }))}>{outcomes.map((outcome) => <option key={outcome} value={outcome}>{outcomeLabel(outcome, thai)}</option>)}</select></label><label htmlFor="active-condition">{thai ? 'สภาพ' : 'Condition'}<select id="active-condition" aria-label={`${thai ? 'สภาพของหลุม' : 'Condition for well'} ${activeWell}`} value={embryoConditions[activeId] ?? 'NORMAL'} onChange={(event) => setEmbryoConditions((current) => ({ ...current, [activeId]: event.target.value }))}>{conditions.map((condition) => <option key={condition} value={condition}>{conditionLabel(condition, thai)}</option>)}</select></label></fieldset>
         <details className="checkpoint-notes"><summary>{notes[activeId] ? (thai ? 'แก้ไขหมายเหตุ' : 'Edit notes') : (thai ? 'เพิ่มหมายเหตุ (ไม่บังคับ)' : 'Add notes (optional)')}</summary><label htmlFor="active-notes">{thai ? 'หมายเหตุ' : 'Notes'}<textarea id="active-notes" rows={4} value={notes[activeId] ?? ''} onChange={(event) => setNotes((current) => ({ ...current, [activeId]: event.target.value }))} /></label></details>
         <details className="checkpoint-override"><summary>{thai ? 'ต้องระบุเหตุผลกรณีข้อยกเว้นหรือไม่?' : 'Need an override reason?'}</summary><p className="muted">{thai ? 'ใช้เมื่อบันทึกผลรอดหลังมีเหตุการณ์ออกจากการทดลอง' : 'Use when recording ALIVE after an exit event.'}</p><label htmlFor="override-reason">{thai ? 'เหตุผลข้อยกเว้น' : 'Override reason'}<input id="override-reason" value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} /></label></details>
         {activeEmbryo.firstAbnormalStageLabel && <p className="checkpoint-warning"><span aria-hidden="true">!</span>{thai ? `เคยพบความผิดปกติที่ระยะ ${String(activeEmbryo.firstAbnormalStageLabel)}` : `Abnormality was first recorded at ${String(activeEmbryo.firstAbnormalStageLabel)}.`}</p>}
         {savedCount > 0 && <form className="checkpoint-correction" onSubmit={(event) => { event.preventDefault(); void correct() }}><h3>{thai ? 'แก้ไขผลที่บันทึกแล้ว' : 'Correct saved results'}</h3><label htmlFor="correction-reason">{thai ? 'เหตุผลที่แก้ไข' : 'Correction reason'}<input id="correction-reason" required value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} /></label><div className="button-row"><button className="button button--secondary" disabled={saving}>{thai ? 'บันทึกการแก้ไข' : 'Save correction'}</button>{lastSavedIds.length > 0 && undoUntil >= Date.now() && <button className="button button--secondary" type="button" onClick={() => void undo()}>{thai ? 'ยกเลิกการบันทึกล่าสุด' : 'Undo last save'}</button>}</div></form>}
+        <button className="checkpoint-editor__return button button--secondary" type="button" onClick={() => { const button = wellButtons.current[activeId]; button?.scrollIntoView?.({ behavior: 'smooth', block: 'center' }); button?.focus() }}>{thai ? 'กลับไปที่แผ่นหลุม' : 'Return to plate'}</button>
       </> : <p className="muted">{thai ? 'เลือกหลุมเพื่อเริ่มบันทึก' : 'Select a well to start recording.'}</p>}</aside>
     </div>
     <div className="checkpoint-action-bar" aria-describedby="checkpoint-confirm-explainer"><div><strong>{thai ? 'ยืนยันผลการตรวจ' : 'Confirm observations'}</strong><span id="checkpoint-confirm-explainer">{disabledReason}</span></div><button className="button button--primary" disabled={saving || !entry || pending.length === 0} onClick={() => void save()}>{saving ? t.saving : thai ? `ยืนยัน ${pending.length} รายการ` : `Confirm ${pending.length} observations`}</button></div>

@@ -104,6 +104,45 @@ describe('due and checkpoint workflows', () => {
     root.unmount()
   })
 
+  it('opens the first physical well when the checkpoint API order is unsorted', async () => {
+    const unsortedCheckpoint = { ...checkpoint, embryos: [...checkpoint.embryos].reverse() }
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.includes('/due-checkpoints')) return json({ overdue: [dueItem], upcoming: [], pendingPromotionCount: 0 })
+      if (path.includes('/checkpoints/')) return json(unsortedCheckpoint)
+      return json({ items: [] })
+    }))
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Due t={text.en} />); await Promise.resolve() })
+    await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement).click(); await Promise.resolve() })
+
+    expect(document.querySelector('#checkpoint-editor-heading')?.textContent).toBe('A1')
+    expect(document.querySelector('[data-well="A1"]')?.getAttribute('aria-pressed')).toBe('true')
+    root.unmount()
+  })
+
+  it('counts an abnormal default as unreviewed until its stage is selected while keeping it in exceptions', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = String(input)
+      if (path.includes('/due-checkpoints')) return json({ overdue: [dueItem], upcoming: [], pendingPromotionCount: 0 })
+      if (path.includes('/checkpoints/')) return json(checkpoint)
+      return json({ items: [] })
+    }))
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<Due t={text.en} />); await Promise.resolve() })
+    await act(async () => { (document.querySelector('.list-row') as HTMLButtonElement).click(); await Promise.resolve() })
+
+    const metrics = Array.from(document.querySelectorAll('.checkpoint-metrics > div')).map((metric) => metric.textContent ?? '')
+    expect(metrics[1]).toContain('2')
+    expect(metrics[2]).toContain('1')
+    const filter = document.querySelector('#well-filter') as HTMLSelectElement
+    const setSelect = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set
+    await act(async () => { setSelect?.call(filter, 'exception'); filter.dispatchEvent(new Event('change', { bubbles: true })); await Promise.resolve() })
+    expect(document.querySelectorAll('.checkpoint-grid [data-well]')).toHaveLength(1)
+    expect(document.querySelector('.checkpoint-grid [data-well]')?.getAttribute('data-well')).toBe('A2')
+    root.unmount()
+  })
+
   it('applies one stage to a same-stage round before confirming all embryos', async () => {
     const embryos = Array.from({ length: 15 }, (_, index) => ({
       embryoId: `embryo-${index + 1}`, embryoCode: `B-1_1_${index + 1}`,
