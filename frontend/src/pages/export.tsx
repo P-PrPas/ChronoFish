@@ -14,6 +14,7 @@ import {
   FunnelChart,
   SurvivalChart,
   percent,
+  useDashboardMasterOptions,
 } from "./dashboard";
 
 type PrintableReport = {
@@ -39,6 +40,7 @@ function filterSummary(filters: DashboardFilters): string {
 }
 
 export function Export({ t = text.en }: { t?: AppText } = {}) {
+  const options = useDashboardMasterOptions();
   const [filters, setFilters] = useState<DashboardFilters>(() =>
     analyticsFilters(parseFilters()),
   );
@@ -95,6 +97,7 @@ export function Export({ t = text.en }: { t?: AppText } = {}) {
         </div>
         <FilterBar
           filters={filters}
+          options={options}
           t={t}
           onChange={(next) => {
             setFilters(next);

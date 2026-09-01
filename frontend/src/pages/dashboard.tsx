@@ -3,14 +3,35 @@ import { type ApiItem, get } from "../api/client";
 import {
   type DashboardFilters,
   analyticsFilters,
+  filterQuery,
   parseFilters,
-  updateFilterURL,
   withFilters,
 } from "../filters";
 import { type AppText, type Page, text } from "../types";
 import { ErrorMessage, Metric, ReportPanel, ReportTable } from "../components";
 
-type DashboardTab = "stage1" | "stage2" | "overall";
+export const dashboardTabs = ["stage1", "stage2", "overall"] as const;
+type DashboardTab = (typeof dashboardTabs)[number];
+
+export function parseDashboardTab(search = window.location.search): DashboardTab {
+  const value = new URLSearchParams(search).get("tab");
+  return dashboardTabs.includes(value as DashboardTab) ? (value as DashboardTab) : "stage1";
+}
+
+function dashboardURL(filters: DashboardFilters, tab: DashboardTab): string {
+  const params = new URLSearchParams(filterQuery(analyticsFilters(filters)));
+  params.set("tab", tab);
+  return `${window.location.pathname}?${params.toString()}${window.location.hash}`;
+}
+
+function updateDashboardURL(filters: DashboardFilters, tab: DashboardTab): void {
+  window.history.replaceState(null, "", dashboardURL(filters, tab));
+}
+
+function pushDashboardTab(filters: DashboardFilters, tab: DashboardTab): void {
+  window.history.pushState(null, "", dashboardURL(filters, tab));
+}
+
 type AnalyticsMeta = {
   sampleSize?: number;
   denominators?: Record<string, number>;
@@ -18,6 +39,7 @@ type AnalyticsMeta = {
   missing?: Record<string, number>;
 };
 type DashboardData = {
+  reportMeta: ApiItem | null;
   kpi: ApiItem | null;
   kpiMeta: AnalyticsMeta | null;
   funnel: ApiItem[];
@@ -34,6 +56,14 @@ type DashboardData = {
   gapsMeta: AnalyticsMeta | null;
   pipeline: ApiItem[];
   pipelineMeta: AnalyticsMeta | null;
+};
+
+type DashboardMasterOptions = {
+  sites: ApiItem[];
+  operators: ApiItem[];
+  treatments: ApiItem[];
+  donors: ApiItem[];
+  batches: ApiItem[];
 };
 
 function responseMeta(response: ApiItem): AnalyticsMeta {
@@ -63,27 +93,107 @@ function useMasterOptions(resource: string): ApiItem[] {
   return items;
 }
 
+export function useDashboardMasterOptions(): DashboardMasterOptions {
+  return {
+    sites: useMasterOptions("sites"),
+    operators: useMasterOptions("operators"),
+    treatments: useMasterOptions("treatment-groups"),
+    donors: useMasterOptions("donor-cell-lines"),
+    batches: useMasterOptions("batches"),
+  };
+}
+
+function masterLabel(items: ApiItem[], id: string, fallback: string): string {
+  const item = items.find((candidate) => String(candidate.id) === id);
+  return String(item?.name ?? item?.code ?? item?.batchCode ?? item?.strain ?? fallback);
+}
+
+function generatedAtLabel(value: unknown, thai: boolean): string {
+  if (!value) return thai ? "กำลังรอเวลา" : "Waiting for timestamp";
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.valueOf())) return thai ? "ไม่ทราบเวลา" : "Unknown time";
+  return `${new Intl.DateTimeFormat(thai ? "th-TH" : "en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Bangkok",
+  }).format(parsed)} (${thai ? "เวลาไทย" : "Bangkok time"})`;
+}
+
+type ScopeBarProps = {
+  filters: DashboardFilters;
+  options: DashboardMasterOptions;
+  reportMeta: ApiItem | null;
+  thai: boolean;
+  onClear: () => void;
+  onEdit: () => void;
+};
+
+function ScopeBar({ filters, options, reportMeta, thai, onClear, onEdit }: ScopeBarProps) {
+  const labels: Record<string, string> = {
+    siteId: thai ? "สถานที่" : "Site",
+    operatorId: thai ? "ผู้ปฏิบัติงาน" : "Operator",
+    treatmentGroupId: thai ? "กลุ่มทดลอง" : "Treatment",
+    donorCellLineId: thai ? "เซลล์ผู้ให้" : "Donor",
+    batchId: thai ? "รอบทดลอง" : "Batch",
+    strain: thai ? "สายพันธุ์" : "Strain",
+    dateFrom: thai ? "ตั้งแต่" : "From",
+    dateTo: thai ? "ถึง" : "To",
+  };
+  const optionLists: Record<string, ApiItem[]> = {
+    siteId: options.sites,
+    operatorId: options.operators,
+    treatmentGroupId: options.treatments,
+    donorCellLineId: options.donors,
+    batchId: options.batches,
+  };
+  const chips = Object.entries(filters).map(([key, value]) => {
+    const display = optionLists[key]
+      ? masterLabel(optionLists[key], String(value), String(value))
+      : String(value);
+    return <span className="scope-chip" key={key}><strong>{labels[key] ?? key}</strong><span>{display}</span></span>;
+  });
+  const versions = ((reportMeta?.timingProfileVersions as number[] | undefined) ?? []).join(", ");
+  return (
+    <section className="analysis-scope" aria-label={thai ? "ขอบเขตข้อมูลผลการทดลอง" : "Research result analysis scope"}>
+      <div className="analysis-scope__heading">
+        <div>
+          <p className="eyebrow">{thai ? "ขอบเขตการวิเคราะห์" : "ANALYSIS SCOPE"}</p>
+          <h2>{thai ? "ข้อมูลที่กำลังสรุป" : "Records in view"}</h2>
+        </div>
+        <div className="button-row">
+          <button type="button" className="button button--secondary" onClick={onEdit}>{thai ? "แก้ตัวกรอง" : "Edit filters"}</button>
+          {chips.length > 0 && <button type="button" className="button button--secondary" onClick={onClear}>{thai ? "ล้างตัวกรอง" : "Clear filters"}</button>}
+        </div>
+      </div>
+      <div className="analysis-scope__chips" aria-live="polite">
+        {chips.length > 0 ? chips : <span className="scope-chip scope-chip--all">{thai ? "ทุกข้อมูลที่มีสิทธิ์ดู" : "All available records"}</span>}
+      </div>
+      <dl className="analysis-scope__meta">
+        <div><dt>{thai ? "สร้างผลเมื่อ" : "Generated"}</dt><dd><time dateTime={reportMeta?.generatedAt ? String(reportMeta.generatedAt) : undefined}>{generatedAtLabel(reportMeta?.generatedAt, thai)}</time></dd></div>
+        <div><dt>{thai ? "รุ่น timing profile" : "Timing profile version(s)"}</dt><dd>{versions || (thai ? "ไม่ระบุ" : "Not specified")}</dd></div>
+      </dl>
+    </section>
+  );
+}
+
 export function FilterBar({
   filters,
   onChange,
+  options,
   t = text.en,
 }: {
   filters: DashboardFilters;
   onChange: (filters: DashboardFilters) => void;
+  options: DashboardMasterOptions;
   t?: AppText;
 }) {
-  const sites = useMasterOptions("sites");
-  const operators = useMasterOptions("operators");
-  const treatments = useMasterOptions("treatment-groups");
-  const donors = useMasterOptions("donor-cell-lines");
-  const batches = useMasterOptions("batches");
   const thai = t === text.th;
   const activeCount = Object.values(filters).filter(Boolean).length;
   const update = (key: keyof DashboardFilters, value: string) =>
     onChange({ ...filters, [key]: value || undefined });
   return (
-    <details className="filter-disclosure">
-      <summary>{thai ? "ตัวกรองข้อมูล" : "Filter data"}{activeCount ? ` · ${activeCount} ${thai ? "รายการ" : "active"}` : ` · ${thai ? "ทั้งหมด" : "All records"}`}</summary>
+    <details id="dashboard-filter-disclosure" className="filter-disclosure">
+      <summary id="dashboard-filter-summary">{thai ? "ตัวกรองข้อมูล" : "Filter data"}{activeCount ? ` · ${activeCount} ${thai ? "รายการ" : "active"}` : ` · ${thai ? "ทั้งหมด" : "All records"}`}</summary>
       <fieldset className="filter-bar">
       <legend>{thai ? "เลือกเฉพาะข้อมูลที่ต้องการวิเคราะห์" : "Choose records to analyse"}</legend>
       <label>
@@ -93,7 +203,7 @@ export function FilterBar({
           onChange={(event) => update("siteId", event.target.value)}
         >
           <option value="">{thai ? "ทุกสถานที่" : "All sites"}</option>
-          {sites.map((item) => (
+          {options.sites.map((item) => (
             <option key={String(item.id)} value={String(item.id)}>
               {String(item.name ?? item.code)}
             </option>
@@ -107,7 +217,7 @@ export function FilterBar({
           onChange={(event) => update("operatorId", event.target.value)}
         >
           <option value="">{thai ? "ทุกคน" : "All operators"}</option>
-          {operators.map((item) => (
+          {options.operators.map((item) => (
             <option key={String(item.id)} value={String(item.id)}>
               {String(item.name)}
             </option>
@@ -121,7 +231,7 @@ export function FilterBar({
           onChange={(event) => update("treatmentGroupId", event.target.value)}
         >
           <option value="">{thai ? "ทุกกลุ่ม" : "All treatments"}</option>
-          {treatments.map((item) => (
+          {options.treatments.map((item) => (
             <option key={String(item.id)} value={String(item.id)}>
               {String(item.code ?? item.name)}
             </option>
@@ -135,7 +245,7 @@ export function FilterBar({
           onChange={(event) => update("donorCellLineId", event.target.value)}
         >
           <option value="">{thai ? "ทุกสาย" : "All donors"}</option>
-          {donors.map((item) => (
+          {options.donors.map((item) => (
             <option key={String(item.id)} value={String(item.id)}>
               {String(item.strain ?? item.batchCode)}
             </option>
@@ -149,7 +259,7 @@ export function FilterBar({
           onChange={(event) => update("batchId", event.target.value)}
         >
           <option value="">{thai ? "ทุกรอบ" : "All batches"}</option>
-          {batches.map((item) => (
+          {options.batches.map((item) => (
             <option key={String(item.id)} value={String(item.id)}>
               {String(item.batchCode)}
             </option>
@@ -310,6 +420,51 @@ function BarSummary({ points, label, value }: { points: ApiItem[]; label: (point
   return <div className="bar-summary" role="img" aria-label={points.map((point) => `${label(point)} ${value(point)}`).join(', ')}>{points.map((point, index) => <div className="bar-summary__row" key={`${label(point)}-${index}`}><span>{label(point)}</span><span className="bar-summary__track" aria-hidden="true"><span style={{ width: `${Math.max(2, value(point) / max * 100)}%` }} /></span><strong>{value(point).toLocaleString()}</strong></div>)}</div>
 }
 
+function TabMetrics({ tab, stage1, stage2, pipeline, thai }: { tab: DashboardTab; stage1?: ApiItem; stage2?: ApiItem; pipeline: ApiItem[]; thai: boolean }) {
+  const alivePromoted = pipeline.find((point) => point.step === "Alive Fish")?.count;
+  const metrics = tab === "stage1"
+    ? [
+        [thai ? "ตัวอ่อนที่เริ่มติดตาม" : "Activated embryos", Number(stage1?.nActivated ?? 0)],
+        [thai ? "ถึงระยะ Shield" : "Reached Shield", Number(stage1?.nReachedShield ?? 0)],
+        [thai ? "ถึง Day 1" : "Reached Day 1", Number(stage1?.nReachedDay1 ?? 0)],
+        [thai ? "เลื่อนเป็นปลาโคลน" : "Promoted fish", Number(stage1?.nPromoted ?? 0)],
+      ]
+    : tab === "stage2"
+      ? [
+          [thai ? "ปลาทั้งหมดในทะเบียน" : "All fish in registry", Number(stage2?.nFish ?? 0)],
+          [thai ? "ปลาที่ยังอยู่ในทะเบียน" : "Alive fish in registry", Number(stage2?.nAlive ?? 0)],
+          [thai ? "ปลาที่ตาย" : "Dead fish", Number(stage2?.nDead ?? 0)],
+          [thai ? "แช่แข็งหรือคัดออก" : "Frozen or discarded", Number(stage2?.nFrozen ?? 0) + Number(stage2?.nDiscarded ?? 0)],
+        ]
+      : [
+          [thai ? "ตัวอ่อนที่เริ่มติดตาม" : "Activated embryos", Number(stage1?.nActivated ?? 0)],
+          [thai ? "เลื่อนเป็นปลาโคลน" : "Promoted fish", Number(stage1?.nPromoted ?? 0)],
+          [thai ? "ปลาที่รอดจากตัวอ่อนที่เลื่อนขั้น" : "Alive promoted fish", Number(alivePromoted ?? 0)],
+          [thai ? "รอบทดลองในขอบเขต" : "Batches in scope", Number(stage1?.nBatches ?? 0)],
+        ];
+  return <div className="metric-grid metric-grid--tab">{metrics.map(([label, value]) => <Metric key={String(label)} label={String(label)} value={value as number} />)}</div>;
+}
+
+function ObservationGapSummary({ gaps, meta, thai, loading, onNavigate }: { gaps: ApiItem[]; meta: AnalyticsMeta | null; thai: boolean; loading: boolean; onNavigate: (page: Page) => void }) {
+  const count = gaps.length;
+  const missing = meta?.missing?.observation ?? 0;
+  if (loading) {
+    return <section className="data-quality-alert data-quality-alert--ok" aria-label={thai ? "กำลังตรวจคุณภาพข้อมูลการติดตามปลา" : "Checking fish follow-up data quality"}><div className="data-quality-alert__icon" aria-hidden="true">…</div><div><h2>{thai ? "กำลังตรวจช่วงขาดการติดตาม" : "Checking follow-up coverage"}</h2><p>{thai ? "กำลังโหลดข้อมูลการตรวจปลาล่าสุด" : "Loading the latest fish checks for this filter."}</p></div></section>;
+  }
+  return (
+    <section className={count ? "data-quality-alert" : "data-quality-alert data-quality-alert--ok"} aria-label={thai ? "คุณภาพข้อมูลการติดตามปลา" : "Fish follow-up data quality"}>
+      <div className="data-quality-alert__icon" aria-hidden="true">{count ? "!" : "✓"}</div>
+      <div>
+        <h2>{count ? (thai ? `พบปลาขาดการติดตาม ${count} ตัว` : `${count} fish need a follow-up check`) : (thai ? "ไม่พบช่วงขาดการติดตาม" : "No follow-up gaps found")}</h2>
+        <p>{count
+          ? (thai ? `ข้อมูลสรุปมีปลาที่ยังอยู่แต่ขาดการตรวจ ${missing ? `และไม่มีผลตรวจเลย ${missing} ตัว` : ""}` : `The filtered set has ${count} active fish with a missed check${missing ? `; ${missing} have no observation yet` : ""}.`)
+          : (thai ? "ชุดข้อมูลที่กรองมีประวัติการติดตามเพียงพอสำหรับวันนี้" : "The filtered set has current follow-up coverage.")}</p>
+        {count > 0 && <button type="button" className="inline-action" onClick={() => onNavigate("fish")}>{thai ? "ไปตรวจปลาประจำวัน" : "Open daily fish check"}</button>}
+      </div>
+    </section>
+  );
+}
+
 export function Dashboard({
   onNavigate,
   t,
@@ -317,13 +472,15 @@ export function Dashboard({
   onNavigate: (page: Page) => void;
   t: AppText;
 }) {
+  const options = useDashboardMasterOptions();
   const [filters, setFilters] = useState<DashboardFilters>(() =>
     analyticsFilters(parseFilters()),
   );
-  const [tab, setTab] = useState<DashboardTab>("stage1");
+  const [tab, setTab] = useState<DashboardTab>(() => parseDashboardTab());
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DashboardData>({
+    reportMeta: null,
     kpi: null,
     kpiMeta: null,
     funnel: [],
@@ -355,6 +512,7 @@ export function Dashboard({
         const gaps = bundle.observationGaps as ApiItem;
         const pipeline = bundle.pipeline as ApiItem;
         setData({
+          reportMeta: (bundle.reportMeta as ApiItem | undefined) ?? null,
           kpi,
           kpiMeta: responseMeta(kpi),
           funnel: funnel.items ?? [],
@@ -377,15 +535,24 @@ export function Dashboard({
       .finally(() => setLoading(false));
   }, [filters]);
   useEffect(() => {
-    updateFilterURL(filters);
+    updateDashboardURL(filters, tab);
+  }, [filters, tab]);
+  useEffect(() => {
     load();
   }, [filters, load]);
+  useEffect(() => {
+    const onPopState = () => {
+      setFilters(analyticsFilters(parseFilters()));
+      setTab(parseDashboardTab());
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
   const changeFilters = (next: DashboardFilters) => {
-    setFilters(next);
-    updateFilterURL(next);
+    setFilters(analyticsFilters(next));
   };
   const openSource = (page: Page) => {
-    updateFilterURL(filters);
+    updateDashboardURL(filters, tab);
     onNavigate(page);
   };
   const stage1 = data.kpi?.stage1 as ApiItem | undefined;
@@ -395,14 +562,24 @@ export function Dashboard({
   const lowestEmbryoSurvival = data.survival.reduce<ApiItem | undefined>((lowest, point) => !lowest || Number(point.surv ?? 1) < Number(lowest.surv ?? 1) ? point : lowest, undefined);
   const highestEmbryoLoss = data.funnel.reduce<ApiItem | undefined>((highest, point) => !highest || Number(point.nDead ?? 0) > Number(highest.nDead ?? 0) ? point : highest, undefined);
   const lowestFishSurvival = data.fishSurvival.reduce<ApiItem | undefined>((lowest, point) => !lowest || Number(point.surv ?? 1) < Number(lowest.surv ?? 1) ? point : lowest, undefined);
+  const selectTab = (nextTab: DashboardTab) => {
+    if (nextTab === tab) return;
+    pushDashboardTab(filters, nextTab);
+    setTab(nextTab);
+  };
   const moveTab = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
-    const tabs: DashboardTab[] = ['stage1', 'stage2', 'overall']
-    const index = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (tabs.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
-    setTab(tabs[index])
-    requestAnimationFrame(() => document.getElementById(`dashboard-tab-${tabs[index]}`)?.focus())
+    const index = event.key === 'Home' ? 0 : event.key === 'End' ? dashboardTabs.length - 1 : (dashboardTabs.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : -1) + dashboardTabs.length) % dashboardTabs.length
+    const nextTab = dashboardTabs[index];
+    selectTab(nextTab);
+    requestAnimationFrame(() => document.getElementById(`dashboard-tab-${nextTab}`)?.focus());
   }
+  const editFilters = () => {
+    const disclosure = document.getElementById("dashboard-filter-disclosure") as HTMLDetailsElement | null;
+    disclosure?.setAttribute("open", "");
+    requestAnimationFrame(() => document.getElementById("dashboard-filter-summary")?.focus());
+  };
   return (
     <section>
       <div className="page-heading">
@@ -421,33 +598,10 @@ export function Dashboard({
           {loading ? t.loading : t.refresh}
         </button>
       </div>
-      <FilterBar filters={filters} onChange={changeFilters} t={t} />
+      <ScopeBar filters={filters} options={options} reportMeta={data.reportMeta} thai={thai} onClear={() => changeFilters({})} onEdit={editFilters} />
+      <FilterBar filters={filters} onChange={changeFilters} options={options} t={t} />
       {loading && <p className="table-note dashboard-status" role="status">{thai ? "กำลังคำนวณภาพรวม…" : "Loading dashboard analytics…"}</p>}
       {error && <ErrorMessage message={error} />}
-      {data.kpi && !loading && (
-        <>
-          <div className="metric-grid metric-grid--primary">
-            <Metric label={thai ? "ตัวอ่อนที่เริ่มติดตาม" : "Activated embryos"} value={Number(stage1?.nActivated ?? 0)} />
-            <Metric label={thai ? "ถึงระยะ Shield" : "Reached Shield"} value={Number(stage1?.nReachedShield ?? 0)} />
-            <Metric label={thai ? "เลื่อนเข้าอนุบาล" : "Promoted fish"} value={Number(stage1?.nPromoted ?? 0)} />
-            <Metric label={thai ? "ปลาที่ยังอยู่" : "Alive fish"} value={Number(stage2?.nAlive ?? 0)} />
-          </div>
-          <details className="metric-disclosure">
-            <summary>{thai ? "ดูตัวชี้วัดเพิ่มเติม" : "View additional indicators"}</summary>
-            <div className="metric-grid">
-              <Metric label={thai ? "ถึงวันที่ 1" : "Reached Day 1"} value={Number(stage1?.nReachedDay1 ?? 0)} />
-              <Metric label={thai ? "สภาพปกติ" : "Normal"} value={percent(stage1?.pctNormal)} />
-              <Metric label={thai ? "ปลาทั้งหมด" : "All fish"} value={Number(stage2?.nFish ?? 0)} />
-              <Metric label={thai ? "แช่แข็ง" : "Frozen"} value={Number(stage2?.nFrozen ?? 0)} />
-              <Metric label={thai ? "ตาย" : "Dead"} value={Number(stage2?.nDead ?? 0)} />
-              <Metric label={thai ? "คัดออก" : "Discarded"} value={Number(stage2?.nDiscarded ?? 0)} />
-              <Metric label={thai ? "ปลาสภาพปกติ" : "Normal fish"} value={Number(stage2?.nNormal ?? 0)} />
-              <Metric label={thai ? "ปลาที่พบความผิดปกติ" : "Abnormal fish"} value={Number(stage2?.nAbnormal ?? 0)} />
-              <Metric label={thai ? "อายุเฉลี่ยของปลาที่ยังอยู่" : "Mean age (alive)"} value={stage2?.meanAgeDaysAlive == null ? (thai ? "ไม่มีข้อมูล" : "Unknown") : `${Number(stage2.meanAgeDaysAlive).toLocaleString(thai ? "th-TH" : "en-US", { maximumFractionDigits: 1 })} ${thai ? "วัน" : "days"}`} />
-            </div>
-          </details>
-        </>
-      )}
       <div className="tabs" role="tablist" aria-label={thai ? "ช่วงของผลการทดลอง" : "Dashboard stage"}>
         <button
           id="dashboard-tab-stage1"
@@ -456,7 +610,7 @@ export function Dashboard({
           aria-selected={tab === "stage1"}
           tabIndex={tab === 'stage1' ? 0 : -1}
           className={tab === "stage1" ? "tab tab--active" : "tab"}
-          onClick={() => setTab("stage1")}
+          onClick={() => selectTab("stage1")}
           onKeyDown={moveTab}
         >
           {thai ? "ระยะตัวอ่อน" : "Stage 1"}
@@ -468,7 +622,7 @@ export function Dashboard({
           aria-selected={tab === "stage2"}
           tabIndex={tab === 'stage2' ? 0 : -1}
           className={tab === "stage2" ? "tab tab--active" : "tab"}
-          onClick={() => setTab("stage2")}
+          onClick={() => selectTab("stage2")}
           onKeyDown={moveTab}
         >
           {thai ? "ระยะปลา" : "Stage 2"}
@@ -480,7 +634,7 @@ export function Dashboard({
           aria-selected={tab === "overall"}
           tabIndex={tab === 'overall' ? 0 : -1}
           className={tab === "overall" ? "tab tab--active" : "tab"}
-          onClick={() => setTab("overall")}
+          onClick={() => selectTab("overall")}
           onKeyDown={moveTab}
         >
           {thai ? "ภาพรวมกระบวนการ" : "Overview"}
@@ -488,6 +642,7 @@ export function Dashboard({
       </div>
       {tab === "stage1" && (
         <div id="dashboard-panel-stage1" role="tabpanel" aria-labelledby="dashboard-tab-stage1">
+          {data.kpi && !loading && <TabMetrics tab="stage1" stage1={stage1} stage2={stage2} pipeline={data.pipeline} thai={thai} />}
           <ReportPanel title={thai ? "การรอดของตัวอ่อนตามระยะ" : "Stage 1 survival curve"} loading={loading} empty={data.survival.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลการรอดที่ตรงกับตัวกรอง" : "No survival observations match these filters."} sampleSize={data.survivalMeta?.sampleSize} quality={<QualityNote meta={data.survivalMeta} thai={thai} />}>
             <p className="insight-strip">{thai ? `อัตรารอดต่ำสุดในข้อมูลที่กรองคือ ${percent(lowestEmbryoSurvival?.surv)} ที่ระยะ ${String(lowestEmbryoSurvival?.stageLabel ?? lowestEmbryoSurvival?.stageOrder)} · ${String(lowestEmbryoSurvival?.strain ?? "ทุกสายพันธุ์")} · ${String(lowestEmbryoSurvival?.treatmentGroup ?? "ทุกกลุ่ม")} (n=${Number(lowestEmbryoSurvival?.riskSet ?? 0)})` : `Lowest filtered survival is ${percent(lowestEmbryoSurvival?.surv)} at ${String(lowestEmbryoSurvival?.stageLabel ?? lowestEmbryoSurvival?.stageOrder)} · ${String(lowestEmbryoSurvival?.strain ?? "all strains")} · ${String(lowestEmbryoSurvival?.treatmentGroup ?? "all groups")} (n=${Number(lowestEmbryoSurvival?.riskSet ?? 0)}).`}</p>
             <SurvivalChart points={data.survival} thai={thai} />
@@ -590,6 +745,7 @@ export function Dashboard({
       )}
       {tab === "stage2" && (
         <div id="dashboard-panel-stage2" role="tabpanel" aria-labelledby="dashboard-tab-stage2">
+          {data.kpi && !loading && <TabMetrics tab="stage2" stage1={stage1} stage2={stage2} pipeline={data.pipeline} thai={thai} />}
           <ReportPanel title={thai ? "การรอดของปลาตามอายุ" : "Fish survival by age"} loading={loading} empty={data.fishSurvival.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลการรอดของปลาที่ตรงกับตัวกรอง" : "No fish survival observations match these filters."} sampleSize={data.fishSurvivalMeta?.sampleSize} quality={<QualityNote meta={data.fishSurvivalMeta} thai={thai} />}>
             <p className="insight-strip">{thai ? `อัตรารอดของปลาต่ำสุดในข้อมูลที่กรองคือ ${percent(lowestFishSurvival?.surv)} เมื่ออายุ ${Number(lowestFishSurvival?.ageDays ?? 0)} วัน · ${String(lowestFishSurvival?.strain ?? "ทุกสายพันธุ์")} · ${String(lowestFishSurvival?.treatmentGroup ?? "ทุกกลุ่ม")} (n=${Number(lowestFishSurvival?.atRisk ?? 0)})` : `Lowest filtered fish survival is ${percent(lowestFishSurvival?.surv)} at age ${Number(lowestFishSurvival?.ageDays ?? 0)} days · ${String(lowestFishSurvival?.strain ?? "all strains")} · ${String(lowestFishSurvival?.treatmentGroup ?? "all groups")} (n=${Number(lowestFishSurvival?.atRisk ?? 0)}).`}</p>
             <FishSurvivalChart points={data.fishSurvival} thai={thai} />
@@ -614,23 +770,12 @@ export function Dashboard({
             />
             <p className="table-note">{thai ? "ตรวจข้อมูลต้นทาง:" : "Source records:"} <button type="button" className="inline-action" onClick={() => openSource("fish")}>{thai ? "เปิดทะเบียนปลาตามตัวกรอง" : "Open filtered fish registry"}</button></p>
           </ReportPanel>
-          <ReportPanel title={thai ? "ปลาที่ขาดการตรวจติดตาม" : "Observation gaps"} loading={loading} empty={data.gaps.length === 0} emptyMessage={thai ? "ไม่พบปลาที่ขาดการตรวจติดตาม" : "No fish observation gaps for this filter."} sampleSize={data.gapsMeta?.sampleSize} quality={<QualityNote meta={data.gapsMeta} thai={thai} />}>
-            <ReportTable
-              collapsed summary={thai ? "ดูปลาที่ขาดการติดตาม" : "View fish with missing checks"}
-              caption={thai ? "ช่วงที่ขาดการตรวจติดตามปลา" : "Fish observation gaps"}
-              headers={thai ? ["ปลา", "ตรวจล่าสุด", "ขาดการตรวจ (วัน)"] : ["Fish", "Last observed", "Missed days"]}
-              rows={data.gaps.map((point) => [
-                String(point.fishCode ?? "—"),
-                String(point.lastObservedOn ?? "—"),
-                Number(point.missedDays ?? 0),
-              ])}
-            />
-            <p className="table-note">{thai ? "ตรวจข้อมูลต้นทาง:" : "Source records:"} <button type="button" className="inline-action" onClick={() => openSource("fish")}>{thai ? "เปิดทะเบียนปลา" : "Open fish records"}</button></p>
-          </ReportPanel>
+          <ObservationGapSummary gaps={data.gaps} meta={data.gapsMeta} thai={thai} loading={loading} onNavigate={onNavigate} />
         </div>
       )}
       {tab === "overall" && (
         <div id="dashboard-panel-overall" role="tabpanel" aria-labelledby="dashboard-tab-overall">
+          {data.kpi && !loading && <TabMetrics tab="overall" stage1={stage1} stage2={stage2} pipeline={data.pipeline} thai={thai} />}
           <ReportPanel title={thai ? "ผลลัพธ์ตลอดกระบวนการ" : "Pipeline conversion"} loading={loading} empty={data.pipelineMeta?.sampleSize === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลกระบวนการที่ตรงกับตัวกรอง" : "No pipeline records match these filters."} sampleSize={data.pipelineMeta?.sampleSize} quality={<QualityNote meta={data.pipelineMeta} thai={thai} />}>
             <BarSummary points={data.pipeline} label={(point) => String(point.step)} value={(point) => Number(point.count ?? 0)} />
             <ReportTable
@@ -645,21 +790,6 @@ export function Dashboard({
               ])}
             />
             <p className="table-note">{thai ? "ตรวจข้อมูลต้นทาง:" : "Source records:"} <button type="button" className="inline-action" onClick={() => openSource("batches")}>{thai ? "เปิดการทดลอง" : "Open batches"}</button><button type="button" className="inline-action" onClick={() => openSource("fish")}>{thai ? "เปิดทะเบียนปลา" : "Open fish registry"}</button></p>
-          </ReportPanel>
-          <ReportPanel title={thai ? "หลักฐานเวลาเบี่ยงเบน" : "Timing deviation evidence"} loading={loading} empty={data.deviation.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลเวลาเบี่ยงเบนที่ตรงกับตัวกรอง" : "No timing deviations match these filters."} sampleSize={data.deviationMeta?.sampleSize} quality={<QualityNote meta={data.deviationMeta} thai={thai} />}>
-            <ReportTable
-              collapsed summary={thai ? "ดูหลักฐานเวลาเบี่ยงเบน" : "View timing evidence"}
-              caption={thai ? "หลักฐานเวลาเบี่ยงเบน" : "Timing deviation evidence"}
-              headers={thai ? ["ระยะ", "จำนวน", "เฉลี่ย (ชม.)", "SD (ชม.)"] : ["Stage", "n", "Mean H", "SD H"]}
-              rows={data.deviation.map((point) => [
-                String(point.stageLabel ?? point.stageOrder),
-                Number(point.n ?? 0),
-                Number(point.meanDeviationH ?? 0).toFixed(4),
-                point.sdDeviationH == null
-                  ? "—"
-                  : Number(point.sdDeviationH).toFixed(4),
-              ])}
-            />
           </ReportPanel>
         </div>
       )}

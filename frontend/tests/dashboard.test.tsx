@@ -2,7 +2,7 @@
 import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Dashboard, FishSurvivalChart } from '../src/pages/dashboard'
+import { Dashboard, FishSurvivalChart, parseDashboardTab } from '../src/pages/dashboard'
 import { text } from '../src/types'
 
 const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { 'Content-Type': 'application/json' } })
@@ -16,14 +16,16 @@ describe('analytics dashboard', () => {
     const navigate = vi.fn()
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input)
+      if (path.endsWith('/sites')) return json({ items: [{ id: 'site-1', name: 'North Lab' }] })
       if (path.includes('/analytics/dashboard')) return json({
+        reportMeta: { generatedAt: '2026-08-24T03:00:00Z', timingProfileVersions: [1, 2] },
         kpi: { stage1: { nActivated: 3, nReachedShield: 2, nReachedDay1: 2, nPromoted: 1, pctNormal: null, controlComparison: [] }, stage2: { nFish: 1, nAlive: 1, nDead: 0, nFrozen: 0, nDiscarded: 0, nNormal: 1, nAbnormal: 0, meanAgeDaysAlive: 4 }, meta: meta(4, { unknown: { fishSex: 1 }, missing: { latestEmbryoObservation: 1 } }) },
         funnel: { items: [{ stageOrder: 1, stageLabel: '1-cell', alive: 3, riskSet: 3, nDead: 0, pctOfActivated: 1 }], meta: meta() },
         survival: { items: [{ stageOrder: 1, stageLabel: '1-cell', siteId: 'site-1', strain: 'AB', treatmentGroup: 'SCNT', riskSet: 3, alive: 3, surv: 1 }], meta: meta() },
         timingDeviation: { items: [{ stageOrder: 1, stageLabel: '1-cell', n: 3, meanDeviationH: 0, medianDeviationH: 0, q1DeviationH: 0, q3DeviationH: 0, minDeviationH: 0, maxDeviationH: 0 }], meta: meta() },
         abnormalityOnset: { items: [{ stageOrder: 1, stageLabel: '1-cell', count: 1 }], meta: meta() },
         fishSurvival: { items: [{ ageDays: 0, atRisk: 1, alive: 1, surv: 1, condition: 'NORMAL', strain: 'AB', treatmentGroup: 'SCNT' }], meta: meta(1) },
-        observationGaps: { items: [], meta: meta(1) },
+        observationGaps: { items: [{ fishCode: 'F-01', lastObservedOn: '2026-08-22', missedDays: 2 }], meta: meta(1, { missing: { observation: 1 } }) },
         pipeline: { items: [{ step: 'Activated', count: 3, pctOfPrevious: 1, pctOfStart: 1 }], meta: meta() },
       })
       return json({ items: [] })
@@ -35,6 +37,13 @@ describe('analytics dashboard', () => {
     const analyticsCalls = fetchMock.mock.calls.filter(([input]) => String(input).includes('/analytics/'))
     expect(analyticsCalls).toHaveLength(1)
     expect(analyticsCalls.every(([input]) => String(input).includes('siteId=site-1') && String(input).includes('dateFrom=2026-08-20'))).toBe(true)
+    expect(window.location.search).toContain('tab=stage1')
+    expect(document.body.textContent).toContain('Records in view')
+    expect(document.body.textContent).toContain('North Lab')
+    expect(document.body.textContent).toContain('Bangkok time')
+    expect(document.body.textContent).toContain('Timing profile version(s)')
+    expect(document.body.textContent).toContain('Activated embryos')
+    expect(document.body.textContent).not.toContain('All fish in registry')
     expect(document.body.textContent).toContain('(n=3)')
     expect(document.body.textContent).toContain('Data quality')
     expect(document.body.textContent).toContain('Lowest filtered survival is 100.00% at 1-cell')
@@ -48,14 +57,40 @@ describe('analytics dashboard', () => {
     await act(async () => { stage1Tab.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })); await Promise.resolve() })
     expect(document.getElementById('dashboard-tab-stage2')?.getAttribute('aria-selected')).toBe('true')
     expect(document.getElementById('dashboard-panel-stage2')).not.toBeNull()
+    expect(new URLSearchParams(window.location.search).get('tab')).toBe('stage2')
+    expect(new URLSearchParams(window.location.search).get('siteId')).toBe('site-1')
+    expect(document.body.textContent).toContain('All fish in registry')
+    expect(document.body.textContent).toContain('1 fish need a follow-up check')
+    expect(document.body.textContent).toContain('Open daily fish check')
     expect(document.body.textContent).toContain('Lowest filtered fish survival is 100.00% at age 0 days')
+    const dailyFishCheck = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Open daily fish check')
+    await act(async () => { dailyFishCheck?.click(); await Promise.resolve() })
+    expect(navigate).toHaveBeenCalledWith('fish')
     await act(async () => { document.getElementById('dashboard-tab-stage2')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })); await Promise.resolve() })
 
     const openBatches = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Open filtered batches')
     await act(async () => { openBatches?.click(); await Promise.resolve() })
     expect(navigate).toHaveBeenCalledWith('batches')
     expect(window.location.search).toContain('siteId=site-1')
+    const editFilters = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Edit filters')
+    const filterDisclosure = document.getElementById('dashboard-filter-disclosure') as HTMLDetailsElement
+    expect(filterDisclosure.open).toBe(false)
+    await act(async () => { editFilters?.click(); await Promise.resolve() })
+    expect(filterDisclosure.open).toBe(true)
+    const clearFilters = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Clear filters')
+    await act(async () => { clearFilters?.click(); await Promise.resolve(); await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(window.location.search).not.toContain('siteId=site-1')
+    window.history.replaceState(null, '', '/?siteId=site-1&dateFrom=2026-08-20&tab=overall#dashboard')
+    await act(async () => { window.dispatchEvent(new PopStateEvent('popstate')); await Promise.resolve() })
+    expect(document.getElementById('dashboard-tab-overall')?.getAttribute('aria-selected')).toBe('true')
+    expect(window.location.search).toContain('siteId=site-1')
+    expect(window.location.search).toContain('tab=overall')
     root.unmount()
+  })
+
+  it('falls back to Stage 1 for an invalid URL tab', () => {
+    expect(parseDashboardTab('?tab=not-a-dashboard-tab')).toBe('stage1')
+    expect(parseDashboardTab('?tab=stage2')).toBe('stage2')
   })
 
   it('uses high-contrast fish series with non-color line patterns', async () => {

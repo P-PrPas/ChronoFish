@@ -174,3 +174,70 @@ Focused validation completed:
 - SQL integration against a large production/demo dataset still needs a data
   quality review for malformed dates, missing lineage, and expected follow-up
   coverage. User-owned demo seed files were not modified.
+
+## Phase 1 — Information architecture
+
+### Objective
+
+Make `ผลการทดลอง` / Research results answer one analysis question at a time:
+show the records in scope, keep the selected stage stable in the URL, and put
+the relevant evidence and quality action in that stage's panel. This phase
+changes presentation and navigation only; Phase 0 API semantics remain intact.
+
+### IA decisions and component breakdown
+
+- `ScopeBar` is the first context surface. It renders readable filter chips
+  (master names when available), generated time in Bangkok time, and timing
+  profile versions, with explicit Edit and Clear actions.
+- The three-stage tab list is a real URL state (`?tab=stage1|stage2|overall`).
+  Tab changes push history; filter changes replace the current URL while
+  preserving the tab. `popstate` restores both values, and invalid tabs fall
+  back to Stage 1.
+- `TabMetrics` replaces the duplicated global KPI strip. Stage 1 emphasizes
+  embryo checkpoints, Stage 2 fish registry status, and Overview pipeline
+  counts. Statistical small-n guarding remains Phase 2 work.
+- `ObservationGapSummary` replaces the Results-page gap table with a compact
+  quality alert and a direct link to daily fish checks. Detailed records stay
+  in the source workflow.
+- Timing evidence remains available in Stage 1's secondary analysis and is no
+  longer repeated in Overview.
+
+### Files changed
+
+- `frontend/src/pages/dashboard.tsx` — scope context, URL tab state, per-tab
+  KPIs, compact gap summary, master-name lookup, and navigation behavior.
+- `frontend/src/pages/export.tsx` — passes the shared master-option hook to
+  the existing filter bar after its options became explicit.
+- `frontend/src/styles.css` — scope/quality surfaces, readable metadata, and
+  responsive 320px+ layout rules using existing tokens.
+- `frontend/tests/dashboard.test.tsx` — URL/filter preservation and popstate,
+  invalid-tab fallback, per-tab KPI context, readable scope metadata, filter
+  disclosure actions, and compact observation-gap navigation.
+- `docs/RESEARCH_RESULTS_REDESIGN_REPORT.md` — this Phase 1 record.
+
+### Accessibility and responsive behavior
+
+Tabs use `role=tablist`, `role=tab`, `aria-selected`, `aria-controls`, and
+roving `tabIndex`; Arrow Left/Right/Home/End move between tabs and announce
+the selected panel through the native selected state. Scope and quality
+summaries use live regions/status text, so color is not the only signal.
+Existing focus outlines and 44px button targets are retained. Scope controls
+stack on narrow screens, metadata collapses to one column at 430px, and chips
+wrap with overflow-safe text so the layout remains usable from 320px upward.
+
+### Tests and validation
+
+- `npm.cmd exec -- vitest run tests/dashboard.test.tsx` — 3 passed.
+- `npm.cmd run build` — TypeScript check and production Vite build passed.
+- `npm.cmd test` — 16 test files and 66 tests passed (including the build).
+- `git diff --check` — passed.
+
+### Known limitations and follow-ups
+
+- Master labels are initially ID fallbacks until the existing master requests
+  resolve; failed master lookups remain safe and readable as IDs.
+- Browser-native back/forward is represented by `popstate` restoration; the
+  App-level hash navigation remains unchanged.
+- Phase 2 should add small-sample headline guards and decide whether CI fields
+  deserve a chart affordance; this phase intentionally does not reinterpret
+  any analytical value.
