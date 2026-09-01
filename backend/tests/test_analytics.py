@@ -476,26 +476,51 @@ def test_fish_supporting_analysis_reports_composition_age_and_box_boundaries(cli
 
 
 def test_fish_supporting_day5_reports_eligibility_and_condition_denominator(client, store):
-    today = datetime.now(BANGKOK).date()
+    now = datetime.now(UTC).replace(microsecond=0)
+    today = now.astimezone(BANGKOK).date()
+    old_activation = (now - timedelta(days=2)).isoformat().replace("+00:00", "Z")
+    future_activation = (now + timedelta(days=1)).isoformat().replace("+00:00", "Z")
     with store.lock:
         store.state.entities["batches"] = {
             "old-batch": {
-                "id": "old-batch", "batchCode": "OLD", "experimentDate": (today - timedelta(days=10)).isoformat(),
-                "active": True, "deletedAt": None,
+                "id": "old-batch", "batchCode": "OLD", "experimentDate": (today - timedelta(days=100)).isoformat(),
+                "timingProfileId": "day5-profile", "active": True, "deletedAt": None,
             },
             "future-batch": {
-                "id": "future-batch", "batchCode": "FUTURE", "experimentDate": (today - timedelta(days=2)).isoformat(),
-                "active": True, "deletedAt": None,
+                "id": "future-batch", "batchCode": "FUTURE",
+                "experimentDate": (today + timedelta(days=100)).isoformat(),
+                "timingProfileId": "day5-profile", "active": True, "deletedAt": None,
+            },
+            "not-ready-batch": {
+                "id": "not-ready-batch", "batchCode": "NOT-READY",
+                "experimentDate": (today - timedelta(days=100)).isoformat(),
+                "timingProfileId": "day5-profile", "active": True, "deletedAt": None,
+            },
+        }
+        store.state.entities["timing-profiles"] = {
+            "day5-profile": {
+                "id": "day5-profile",
+                "entries": [{"stageCode": "stage_26_5D", "expectedHpa": 24}],
+                "active": True,
+                "deletedAt": None,
             },
         }
         store.state.entities["injection-lots"] = {
             "old-lot": {
                 "id": "old-lot", "batchId": "old-batch", "donorCellLineId": "donor",
-                "activatedAt": f"{today}T00:00:00Z", "active": True, "deletedAt": None,
+                "activatedAt": old_activation, "active": True, "deletedAt": None,
             },
             "future-lot": {
-                "id": "future-lot", "batchId": "future-batch", "donorCellLineId": "donor",
-                "activatedAt": f"{today}T00:00:00Z", "active": True, "deletedAt": None,
+                "id": "future-lot", "batchId": "old-batch", "donorCellLineId": "donor",
+                "activatedAt": future_activation, "active": True, "deletedAt": None,
+            },
+            "future-batch-lot": {
+                "id": "future-batch-lot", "batchId": "future-batch", "donorCellLineId": "donor",
+                "activatedAt": old_activation, "active": True, "deletedAt": None,
+            },
+            "not-ready-lot": {
+                "id": "not-ready-lot", "batchId": "not-ready-batch", "donorCellLineId": "donor",
+                "activatedAt": future_activation, "active": True, "deletedAt": None,
             },
         }
         store.state.entities["embryos"] = {
@@ -505,6 +530,10 @@ def test_fish_supporting_day5_reports_eligibility_and_condition_denominator(clie
             "future-missing": {
                 "id": "future-missing", "injectionLotId": "future-lot", "active": True, "deletedAt": None,
             },
+            "future-batch-missing": {
+                "id": "future-batch-missing", "injectionLotId": "future-batch-lot", "active": True, "deletedAt": None,
+            },
+            "not-ready": {"id": "not-ready", "injectionLotId": "not-ready-lot", "active": True, "deletedAt": None},
         }
         store.state.observations = {
             "day5-normal": {
@@ -525,8 +554,13 @@ def test_fish_supporting_day5_reports_eligibility_and_condition_denominator(clie
         "batchId": "old-batch", "batchCode": "OLD", "status": "ELIGIBLE", "eligible": True,
         "n": 2, "denominator": 2, "nNormal": 1, "nAbnormal": 1, "missingEmbryos": 1, "pctNormal": 0.5,
     }
-    assert rows["FUTURE"]["status"] == "NOT_ELIGIBLE"
+    assert rows["FUTURE"]["status"] == "MISSING"
+    assert rows["FUTURE"]["missingEmbryos"] == 1
     assert rows["FUTURE"]["pctNormal"] is None
+    assert rows["NOT-READY"]["status"] == "NOT_ELIGIBLE"
+    assert rows["NOT-READY"]["missingEmbryos"] == 0
+    definition = client.get("/api/v1/analytics/fish-survival").json()["supporting"]["day5Definition"]
+    assert "activatedAt" in definition and "expectedHpa" in definition
 
 
 def test_nullable_egg_count_is_reported_without_breaking_kpi(client, write_headers):

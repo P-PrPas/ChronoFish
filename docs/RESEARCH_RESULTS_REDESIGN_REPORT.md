@@ -451,3 +451,17 @@ text warnings, and comparison query values are validated before use.
   contract decision.
 - Supporting summaries intentionally show a compact subset while their full
   tables remain available through disclosure controls.
+
+### Phase 3 review correction
+
+- Day 5 eligibility now uses each lot's `activatedAt` plus the timing-profile
+  `expectedHpa` for protocol stage 26, compared with `utc_now()`. An observed
+  Day 5 result is retained even when it was recorded before due; future,
+  unobserved embryos are excluded from the due denominator and
+  `missingEmbryos`. Contradictory experiment dates are covered by regression
+  tests.
+- Changing either comparison control now pushes a URL history entry while
+  preserving tab, filters, and the other comparison. `popstate` restores the
+  prior comparison instead of only replacing the current URL.
+- API definitions remain English for the contract, while Thai UI renders
+  explicit Thai definitions for age and Day 5 due semantics.

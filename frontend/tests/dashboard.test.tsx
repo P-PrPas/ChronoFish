@@ -70,8 +70,15 @@ describe('analytics dashboard', () => {
     expect(document.body.textContent).toContain('no lowest/best fish-survival headline is reported')
     const stage2Comparison = Array.from(document.querySelectorAll('select')).find((select) => select.getAttribute('aria-label') === 'Chart comparison dimension') as HTMLSelectElement
     expect(Array.from(stage2Comparison.options).map((option) => option.value)).toEqual(['overall', 'abnormalityGroup', 'strain', 'treatmentGroup'])
+    const beforeComparisonURL = window.location.href
+    const pushState = vi.spyOn(window.history, 'pushState')
     await act(async () => { stage2Comparison.value = 'strain'; stage2Comparison.dispatchEvent(new Event('change', { bubbles: true })); await Promise.resolve() })
     expect(new URLSearchParams(window.location.search).get('stage2Compare')).toBe('strain')
+    expect(pushState).toHaveBeenCalledWith(null, '', expect.stringContaining('stage2Compare=strain'))
+    window.history.replaceState(null, '', beforeComparisonURL)
+    await act(async () => { window.dispatchEvent(new PopStateEvent('popstate')); await Promise.resolve() })
+    const restoredComparison = Array.from(document.querySelectorAll('select')).find((select) => select.getAttribute('aria-label') === 'Chart comparison dimension') as HTMLSelectElement
+    expect(restoredComparison.value).toBe('overall')
     const dailyFishCheck = Array.from(document.querySelectorAll('button')).find((button) => button.textContent === 'Open daily fish check')
     await act(async () => { dailyFishCheck?.click(); await Promise.resolve() })
     expect(navigate).toHaveBeenCalledWith('fish')
@@ -212,8 +219,10 @@ describe('analytics dashboard', () => {
       <StackedComposition rows={[{ status: 'ALIVE', n: 3, pct: .6 }, { status: 'DEAD', n: 2, pct: .4 }]} field="status" thai={false} />
       <StackedComposition rows={[{ sex: 'M', n: 2, pct: .5 }, { sex: 'F', n: 1, pct: .25 }, { sex: 'UNKNOWN', n: 1, pct: .25 }]} field="sex" thai={false} />
       <AgeDistributionSummary rows={[{ bin: '0-6', n: 2, pct: .5 }, { bin: '7-13', n: 2, pct: .5 }]} definition="Age in days at current follow-up date." thai={false} />
+      <AgeDistributionSummary rows={[{ bin: '0-6', n: 2, pct: .5 }]} definition="Age in days at current follow-up date." thai />
       <BoxCensusSummary rows={[{ boxCode: 'B1', n: 4, pct: 1, empty: false, statusCounts: { ALIVE: 4, DEAD: 0, FROZEN: 0, DISCARDED: 0, UNKNOWN: 0 } }]} meta={{ nBoxes: 1, emptyBoxes: 0 }} thai={false} />
       <BatchPerformanceSummary rows={[{ batchId: 'b1', batchCode: 'B1', status: 'ELIGIBLE', denominator: 2, n: 2, pctNormal: .5 }, { batchId: 'b2', batchCode: 'B2', status: 'MISSING', denominator: 0, n: 0 }]} definition="Day 5 denominator is known condition." thai={false} />
+      <BatchPerformanceSummary rows={[{ batchId: 'b1', batchCode: 'B1', status: 'NOT_ELIGIBLE', denominator: 0, n: 0 }]} definition="Day 5 denominator is known condition." thai />
       <ControlSummary points={[{ armType: 'SCNT', stageOrder: 3, n: 4, nNormal: 3, pctNormal: .75 }, { armType: 'IVF', stageOrder: 3, n: 0, nNormal: 0, pctNormal: null }]} thai={false} />
       <TimingSummary rows={[{ stageOrder: 1, stageLabel: '1-cell', medianDeviationH: -1.2, q1DeviationH: -2, q3DeviationH: .25 }]} thai={false} />
     </>); await Promise.resolve() })
@@ -226,6 +235,8 @@ describe('analytics dashboard', () => {
     expect(document.body.textContent).toContain('denominator below 5')
     expect(document.body.textContent).toContain('Unknown (n=0)')
     expect(document.body.textContent).toContain('Median −1 hr 12 min')
+    expect(document.body.textContent).toContain('อายุเป็นวัน ณ วันที่ติดตามล่าสุด')
+    expect(document.body.textContent).toContain('Day 5 ใช้เวลา due ของแต่ละล็อต')
     root.unmount()
   })
 })

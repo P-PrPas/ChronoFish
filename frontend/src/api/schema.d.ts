@@ -4237,6 +4237,7 @@ export interface operations {
                                 missingEmbryos: number;
                                 pctNormal: number | null;
                             }[];
+                            /** @description Day 5 due is calculated per lot from activatedAt plus timing-profile expectedHpa for protocol stage order 26; future embryos without observations are excluded from missing counts. */
                             day5Definition: string;
                             missingExitDate?: number;
                         };

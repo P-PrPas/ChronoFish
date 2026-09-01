@@ -1747,7 +1747,9 @@ paths:
                             nAbnormal: { type: integer, minimum: 0 }
                             missingEmbryos: { type: integer, minimum: 0 }
                             pctNormal: { type: [number, 'null'], minimum: 0, maximum: 1 }
-                      day5Definition: { type: string }
+                      day5Definition:
+                        type: string
+                        description: Day 5 due is calculated per lot from activatedAt plus timing-profile expectedHpa for protocol stage order 26; future embryos without observations are excluded from missing counts.
                       missingExitDate: { type: integer, minimum: 0 }
 
   /analytics/observation-gaps:

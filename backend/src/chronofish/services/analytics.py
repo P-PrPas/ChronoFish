@@ -817,11 +817,13 @@ class Analytics:
             lot = self.lots.get(str(embryo.get("injectionLotId")))
             if lot and lot.get("batchId") in self.batches:
                 by_batch[str(lot["batchId"])].append(embryo)
-        today = datetime.now(BANGKOK).date()
+        now = utc_now()
         batch_rows = []
         for batch_id, batch in sorted(self.batches.items(), key=lambda item: str(item[1].get("batchCode") or item[0])):
             day5_observations = []
+            due_embryos = 0
             for embryo in by_batch.get(batch_id, []):
+                lot = self.lots.get(str(embryo.get("injectionLotId")))
                 observations = [
                     item
                     for item in self.observations.get(str(embryo.get("id")), [])
@@ -829,14 +831,14 @@ class Analytics:
                 ]
                 if observations:
                     day5_observations.append(max(observations, key=lambda item: str(item.get("observedAt", ""))))
+                    due_embryos += 1
+                elif lot and lot.get("activatedAt") and self._due_at(lot, DAY5_STAGE_ORDER) <= now:
+                    due_embryos += 1
             n_normal = sum(item.get("condition") == "NORMAL" for item in day5_observations)
             n_abnormal = sum(item.get("condition") == "ABNORMAL" for item in day5_observations)
             denominator = n_normal + n_abnormal
-            embryo_count = len(by_batch.get(batch_id, []))
-            experiment_date = _as_date(batch.get("experimentDate"))
-            day5_date = experiment_date + timedelta(days=5) if experiment_date else None
             if not day5_observations:
-                status = "NOT_ELIGIBLE" if day5_date and today < day5_date else "MISSING"
+                status = "MISSING" if due_embryos else "NOT_ELIGIBLE"
             elif denominator == 0:
                 status = "MISSING_CONDITION"
             else:
@@ -851,7 +853,7 @@ class Analytics:
                     "denominator": denominator,
                     "nNormal": n_normal,
                     "nAbnormal": n_abnormal,
-                    "missingEmbryos": max(embryo_count - len(day5_observations), 0),
+                    "missingEmbryos": max(due_embryos - len(day5_observations), 0),
                     "pctNormal": n_normal / denominator if denominator else None,
                 }
             )
@@ -881,8 +883,9 @@ class Analytics:
             "boxMeta": {"nBoxes": len(box_rows), "emptyBoxes": sum(row["empty"] for row in box_rows)},
             "batchPerformance": batch_rows,
             "day5Definition": (
-                "Day 5 is protocol stage order 26; performance is pct normal among "
-                "embryos with known Day 5 condition."
+                "Day 5 uses each lot's activatedAt plus timing-profile expectedHpa "
+                "for protocol stage order 26; future embryos are not missing. "
+                "Performance is pct normal among embryos with known Day 5 condition."
             ),
             "missingExitDate": missing_exit_date,
         }
