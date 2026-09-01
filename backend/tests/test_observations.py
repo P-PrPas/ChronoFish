@@ -60,11 +60,9 @@ def test_due_and_checkpoint_read_models_track_original_and_surviving_embryos(cli
         "DEAD",
         "stage_02_2C",
     )
-    assert {
-        (item["priorOutcome"], item["priorStageCode"])
-        for item in entry["embryos"]
-        if not item["isDead"]
-    } == {("ALIVE", "stage_02_2C")}
+    assert {(item["priorOutcome"], item["priorStageCode"]) for item in entry["embryos"] if not item["isDead"]} == {
+        ("ALIVE", "stage_02_2C")
+    }
 
     second_observed = (datetime.fromisoformat(activated.replace("Z", "+00:00")) + timedelta(hours=2)).isoformat()
     second_checkpoint = client.post(

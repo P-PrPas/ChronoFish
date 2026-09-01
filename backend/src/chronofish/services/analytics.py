@@ -45,12 +45,7 @@ def group_dimensions(values: list[str] | None, default: tuple[str, ...]) -> tupl
 def fish_group_dimensions(values: list[str] | None, split_by_condition: bool) -> tuple[str, ...]:
     if values is None:
         return ("condition", "strain", "treatmentGroup") if split_by_condition else ()
-    dimensions = [
-        part
-        for value in values
-        for part in value.split(",")
-        if part in FISH_GROUP_DIMENSIONS
-    ]
+    dimensions = [part for value in values for part in value.split(",") if part in FISH_GROUP_DIMENSIONS]
     return tuple(dict.fromkeys(dimensions))
 
 
@@ -200,9 +195,7 @@ class Analytics:
     def _embryo_abnormality(self, embryo: dict[str, Any]) -> tuple[int | None, bool, bool]:
         values = self.observations.get(str(embryo["id"]), [])
         observed_orders = [
-            stage_number(str(item.get("stageCode", "")))
-            for item in values
-            if item.get("condition") == "ABNORMAL"
+            stage_number(str(item.get("stageCode", ""))) for item in values if item.get("condition") == "ABNORMAL"
         ]
         marker = stage_number(str(embryo.get("firstAbnormalStageCode", "")))
         first_order = marker or min(observed_orders, default=0)
@@ -219,9 +212,7 @@ class Analytics:
     def _fish_abnormality_group(self, fish: dict[str, Any]) -> str:
         values = self.state.fish_observations.values()
         observations = [
-            item
-            for item in values
-            if item.get("cloneFishId") == fish.get("id") and item.get("deletedAt") is None
+            item for item in values if item.get("cloneFishId") == fish.get("id") and item.get("deletedAt") is None
         ]
         ever_abnormal = bool(
             fish.get("firstAbnormalOn")
@@ -709,9 +700,7 @@ class Analytics:
                 "aliveFish": sum(item.get("status") == "ALIVE" for item in self.fish.values()),
             },
             {
-                "condition": sum(
-                    item.get("condition") not in {"NORMAL", "ABNORMAL"} for item in self.fish.values()
-                ),
+                "condition": sum(item.get("condition") not in {"NORMAL", "ABNORMAL"} for item in self.fish.values()),
                 "sex": sum(item.get("sex") not in {"M", "F"} for item in self.fish.values()),
             },
             {"exitDate": missing_exit_date},
@@ -727,8 +716,7 @@ class Analytics:
     def _fish_supporting(self, prepared: list[dict[str, Any]], missing_exit_date: int) -> dict[str, Any]:
         total = len(self.fish)
         status_counts = {
-            status: sum(item.get("status") == status for item in self.fish.values())
-            for status in FISH_STATUS_ORDER
+            status: sum(item.get("status") == status for item in self.fish.values()) for status in FISH_STATUS_ORDER
         }
         unknown_status = total - sum(status_counts.values())
         status_rows = [
@@ -746,8 +734,7 @@ class Analytics:
         }
         sex_counts["UNKNOWN"] = total - sex_counts["M"] - sex_counts["F"]
         sex_rows = [
-            {"sex": sex, "n": count, "pct": count / total if total else None}
-            for sex, count in sex_counts.items()
+            {"sex": sex, "n": count, "pct": count / total if total else None} for sex, count in sex_counts.items()
         ]
 
         ages = [max(int(item.get("endAge", 0)), 0) for item in prepared]
