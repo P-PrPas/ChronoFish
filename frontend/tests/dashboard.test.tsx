@@ -188,15 +188,31 @@ describe('analytics dashboard', () => {
     root.unmount()
   })
 
-  it('stacks direct end labels when series share an endpoint', async () => {
+  it('connects coincident end labels to distinct collision-safe lane positions', async () => {
     const points = ['AB', 'NHGRI', 'TU'].map((strain) => ({ stageOrder: 1, stageLabel: '1-cell', site: 'North', strain, surv: 1, riskSet: 5 }))
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
     await act(async () => { root.render(<SurvivalChart points={points} />); await Promise.resolve() })
     const labels = Array.from(document.querySelectorAll<SVGTextElement>('.chart-end-label'))
+    const leaders = Array.from(document.querySelectorAll<SVGLineElement>('.chart-end-leader'))
     expect(labels).toHaveLength(3)
     expect(new Set(labels.map((label) => label.getAttribute('y'))).size).toBe(3)
-    expect(new Set(labels.map((label) => label.getAttribute('x'))).size).toBe(3)
+    expect(new Set(labels.map((label) => label.getAttribute('x'))).size).toBe(1)
+    expect(leaders).toHaveLength(3)
+    expect(leaders.every((leader) => leader.getAttribute('x1') !== leader.getAttribute('x2'))).toBe(true)
+    expect(leaders.filter((leader) => leader.getAttribute('stroke-dasharray')).length).toBe(2)
     root.unmount()
+  })
+
+  it('uses a taller, wider mobile chart geometry with fewer axis ticks', async () => {
+    const previousWidth = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 })
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<SurvivalChart points={[{ stageOrder: 1, stageLabel: '1-cell', site: 'North', strain: 'AB', surv: 1, riskSet: 5 }, { stageOrder: 26, stageLabel: 'Day 5', site: 'North', strain: 'AB', surv: 0.5, riskSet: 5 }]} />); await Promise.resolve() })
+    const chart = document.querySelector('svg.chart')
+    expect(chart?.getAttribute('viewBox')).toBe('0 0 500 330')
+    expect(chart?.querySelectorAll('text')).toHaveLength(11)
+    root.unmount()
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: previousWidth })
   })
 
   it('uses readable selected dimensions in visible chart summaries', async () => {

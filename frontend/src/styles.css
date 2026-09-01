@@ -222,6 +222,7 @@ button.list-row:hover { border-color: #a9bbb6; background: #fdfefd; box-shadow: 
 .chart-point { cursor: pointer; }
 .chart-point:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
 .chart-end-label { font-size: 13px; font-weight: 600; }
+.chart-end-leader { fill: none; pointer-events: none; }
 .chart-ci { pointer-events: none; }
 .chart-censor { stroke-linecap: round; }
 .chart-event { pointer-events: none; }
@@ -591,7 +592,11 @@ tbody tr:hover td { background: #f8fbf9; }
   .batch-performance__row { grid-template-columns: minmax(105px, 1fr) auto; gap: 8px; font-size: .88rem; }
   .batch-performance__row > strong { grid-column: 2; grid-row: 1; }
   .chart-mini-table { min-width: 390px; }
-  .chart text, .chart-end-label { font-size: 34px; }
+  .chart text, .chart-end-label { font-size: 23px; }
+}
+
+@media (max-width: 340px) {
+  .chart text, .chart-end-label { font-size: 27px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -481,9 +481,11 @@ comparison controls, disclosures, chart interactions, Thai/English labels,
 keyboard navigation, and reflow from desktop to a 320px viewport. The
 repository's browser connector was not available in this environment, so the
 local Vite app was exercised with the installed headless Playwright Chromium
-fallback. Requests were routed to the existing seeded API without changing
-the API or compose configuration. No screenshot or browser artifact is part
-of the commit; evidence is retained under `.tmp/` only.
+fallback. The initial evidence pass used a stale seeded API and is superseded
+by the correction evidence below. The correction ran the API image built from
+the current working tree on `127.0.0.1:8083` and Vite on `127.0.0.1:5175`,
+without changing compose or user-owned seed files. Screenshots and metrics are
+retained under `.tmp/` only.
 
 ### QA matrix and findings
 
@@ -496,7 +498,7 @@ of the commit; evidence is retained under `.tmp/` only.
 | Well/control target size | 44px+ | 44px+ | 44px+ | 44px+ | 44px+ |
 | Supporting tables | Inline/local scroll only | Inline/local scroll only | Local scroll only | Local scroll only | Local scroll only |
 
-The browser pass found two presentation defects and one data-density defect:
+The first pass found two presentation defects and one data-density defect:
 
 1. Fixed-size SVG view boxes made the old 12px chart labels render at roughly
    4.3–6px on narrow screens. The chart text token is now 13px, with a narrow
@@ -506,12 +508,39 @@ The browser pass found two presentation defects and one data-density defect:
    corresponding 320px area), creating intrinsic tab overflow. Tabs now share
    available width, allow two-line labels, and retain a 44px-height target.
 3. Multiple series ending at the same survival value placed direct labels on
-   top of each other. End labels now use deterministic collision-safe vertical
-   positions and horizontal offsets within the plot; the regression test
-   asserts unique x/y positions for coincident endpoints. The observed labels
-   are not clipped at desktop or mobile widths.
+   top of each other. End labels now use a reserved right-side lane and a
+   leader line from each actual endpoint, with the same color and dash pattern
+   as its series; the regression test asserts unique collision-safe positions
+   and non-zero leaders for coincident endpoints. The observed labels are not
+   clipped at desktop or mobile widths.
+4. The first geometry correction still allowed the dense Stage 1 attrition
+   rows and axis captions to touch at narrow/desktop scales. Funnel rows now
+   reserve responsive vertical spacing, survival charts reserve a wider
+   plotting gutter and endpoint lane, and the x-axis tick density/spacing is
+   bounded. The integrated pass reports zero measured text overlaps.
 
-Measured result artifacts:
+The final layout probe measured effective SVG text at 14.68px (1440px),
+13.86px (768px), 12.69px (375px), and 12.10px (320px) for Stage 1; the
+corresponding Stage 2 minima were 14.68px, 14.49px, 14.21px, and 13.72px.
+All sampled end labels had zero clipping, and every visible end label had a
+matching non-zero leader line. The Stage 2 interaction probe selected
+`strain`, rendered three deterministic series and a `Fish survival by strain
+and age` table caption, then returned to the overall series.
+
+The initial artifact names below are retained for historical audit only; they
+must not be used as release evidence because they were captured against the
+stale API. Current release evidence is:
+
+- `.tmp/phase4-integrated-browser-metrics.json` — 36 current-working-tree
+  runs with HTTP statuses, API marker, tab/control/supporting checks, text
+  overlap, and page overflow metrics.
+- `.tmp/phase4-integrated-layout-metrics.json` — effective SVG font sizes,
+  label clipping, and endpoint/leader counts at 1440/768/375/320px.
+- `.tmp/phase4-integrated-{th,en}-{stage1,stage2,overall}-{1440,768,375,320,200pct,400pct}.png`
+  — 36 current Thai/English screenshots across the requested viewports and
+  zoom-equivalent reflows.
+
+Historical artifacts from the superseded pass:
 
 - `.tmp/phase4-final-metrics.json` — viewport, effective SVG text, overflow,
   tab-strip, and target-size measurements.
@@ -526,7 +555,7 @@ Measured result artifacts:
 - `.tmp/phase4-stage1-chart-labels-375.png` — focused end-label visual;
   collision positions are also asserted by the dashboard regression test.
 
-The fallback harness also verified that focusing a roving chart point scrolls
+The current integrated harness also verified that focusing a roving chart point scrolls
 it below the sticky header, that the skip link reaches `main-content`, tab
 Arrow navigation changes the selected panel, legend controls toggle with
 keyboard, supporting tables have captions and scoped headers, and every chart
@@ -563,8 +592,9 @@ These checks map to WCAG 2.2 success criteria as follows:
 
 ### Validation
 
-- Targeted dashboard test: 9 passed, including coincident end-label layout.
-- Full frontend test/build: 16 test files and 72 tests passed; TypeScript and
+- Targeted dashboard test: 10 passed, including coincident end-label layout
+  and narrow chart geometry.
+- Full frontend test/build: 16 test files and 73 tests passed; TypeScript and
   Vite production build passed.
 - Backend analytics test: 15 passed. Full backend suite: 90 passed, 5
   skipped (SQL integration unavailable). Ruff passed for `src` and `tests`.
@@ -582,11 +612,11 @@ WCAG certification:
 | Visual | 8.8/10 |
 | Information architecture | 9.2/10 |
 | Ease of use | 8.8/10 |
-| Chart readability | 8.7/10 |
+| Chart readability | 9.0/10 |
 | Analytical integrity | 9.4/10 |
 | Accessibility | 8.8/10 |
-| Responsive behavior | 9.2/10 |
-| Overall | 8.99/10 |
+| Responsive behavior | 9.3/10 |
+| Overall | 9.08/10 |
 
 ### Final limitations and follow-ups
 
@@ -595,9 +625,10 @@ WCAG certification:
 - 200% and 400% were represented by 720px and 360px CSS viewports in the
   fallback harness. A browser with OS/page zoom should be checked before
   release.
-- The seeded Docker API available to the browser is an older stack and omits
-  the optional fish-supporting payload, so its browser disclosure remains an
-  unavailable state; supporting-data rendering is covered by frontend tests.
+- The current QA API image includes the optional fish-supporting payload and
+  was verified to return one overall Stage 2 series and the current `supporting`
+  marker. The stale-API limitation from the initial pass is superseded; a
+  release environment should still run the same image/version checks.
 - No axe/contrast scanner is installed in this repository. Contrast was
   reviewed against the existing token palette and semantic/text cues; a
   dedicated automated audit remains a useful follow-up.

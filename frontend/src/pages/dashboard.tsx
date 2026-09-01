@@ -406,33 +406,62 @@ function chartPalette(index: number): { color: string; dash?: string } {
   return palette[index % palette.length];
 }
 
-function chartEndLabelPositions(series: Array<[string, ApiItem[]]>, y: (value: number) => number, xKey: string, plotTop: number, plotBottom: number, width: number): Map<string, { x: number; y: number }> {
-  const entries = series.map(([label, points]) => {
-    const last = [...points].sort((left, right) => Number(left[xKey] ?? 0) - Number(right[xKey] ?? 0)).at(-1);
-    return { label, base: last ? y(Number(last.surv ?? 0)) - 6 : plotTop + 24 };
-  }).sort((left, right) => left.base - right.base || left.label.localeCompare(right.label));
-  if (entries.length === 0) return new Map();
-  const gap = 38;
-  const minY = plotTop + 24;
-  const maxY = plotBottom - 4;
-  const maxStart = Math.max(minY, maxY - gap * (entries.length - 1));
-  const start = Math.min(Math.max(entries[0].base, minY), maxStart);
-  return new Map(entries.map((entry, index) => [entry.label, { x: width - 24 - index * 150, y: start + index * gap }]));
+type ChartGeometry = {
+  width: number;
+  height: number;
+  plotLeft: number;
+  plotRight: number;
+  plotTop: number;
+  plotBottom: number;
+  tickCount: number;
+};
+
+const wideChartGeometry: ChartGeometry = { width: 620, height: 230, plotLeft: 78, plotRight: 150, plotTop: 18, plotBottom: 182, tickCount: 7 };
+const narrowChartGeometry: ChartGeometry = { width: 500, height: 330, plotLeft: 82, plotRight: 160, plotTop: 30, plotBottom: 245, tickCount: 5 };
+
+function useChartGeometry(): ChartGeometry {
+  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.innerWidth <= 430);
+  useEffect(() => {
+    const update = () => setNarrow(window.innerWidth <= 430);
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return narrow ? narrowChartGeometry : wideChartGeometry;
 }
 
-function ChartAxis({ width, height, min, max, xLabel, thai }: { width: number; height: number; min: number; max: number; xLabel: string; thai: boolean }) {
-  const plotTop = 18;
-  const plotBottom = height - 48;
-  const x = (value: number) => 54 + ((value - min) / Math.max(1, max - min)) * (width - 76);
+function chartEndLabelPositions(series: Array<[string, ApiItem[]]>, x: (value: number) => number, y: (value: number) => number, xKey: string, plotTop: number, plotBottom: number, width: number): Map<string, { x: number; y: number; endpointX: number; endpointY: number }> {
+  const entries = series.map(([label, points]) => {
+    const last = [...points].sort((left, right) => Number(left[xKey] ?? 0) - Number(right[xKey] ?? 0)).at(-1);
+    return {
+      label,
+      base: last ? y(Number(last.surv ?? 0)) - 6 : plotTop + 24,
+      endpointX: last ? x(Number(last[xKey] ?? 0)) : width - 160,
+      endpointY: last ? y(Number(last.surv ?? 0)) : plotTop + 24,
+    };
+  }).sort((left, right) => left.base - right.base || left.label.localeCompare(right.label));
+  if (entries.length === 0) return new Map();
+  const minY = plotTop + 42;
+  const maxY = plotBottom - 6;
+  const gap = entries.length > 1 ? Math.min(44, (maxY - minY) / (entries.length - 1)) : 44;
+  const maxStart = Math.max(minY, maxY - gap * (entries.length - 1));
+  const start = Math.min(Math.max(entries[0].base, minY), maxStart);
+  return new Map(entries.map((entry, index) => [entry.label, { x: width - 8, y: start + index * gap, endpointX: entry.endpointX, endpointY: entry.endpointY }]));
+}
+
+function ChartAxis({ geometry, min, max, xLabel, thai }: { geometry: ChartGeometry; min: number; max: number; xLabel: string; thai: boolean }) {
+  const { width, height, plotLeft, plotRight, plotTop, plotBottom, tickCount } = geometry;
+  const x = (value: number) => plotLeft + ((value - min) / Math.max(1, max - min)) * (width - plotLeft - plotRight);
   return <>
-    {[0, .5, 1].map((value) => <g key={value}><line x1="54" y1={plotBottom - value * (plotBottom - plotTop)} x2={width - 22} y2={plotBottom - value * (plotBottom - plotTop)} stroke="currentColor" opacity=".14" /><text x="8" y={plotBottom + 4 - value * (plotBottom - plotTop)}>{value * 100}%</text></g>)}
-    <text x={width / 2} y={height - 6} textAnchor="middle">{xLabel}</text>
-    <text x="10" y={height / 2} textAnchor="middle" transform={`rotate(-90 10 ${height / 2})`}>{thai ? "อัตรารอด (%)" : "Survival (%)"}</text>
-    <line x1="54" y1={plotBottom} x2={width - 22} y2={plotBottom} stroke="currentColor" opacity=".35" />
-    <line x1="54" y1={plotTop} x2="54" y2={plotBottom} stroke="currentColor" opacity=".35" />
-    {Array.from({ length: Math.min(7, Math.max(1, max - min + 1)) }, (_, index) => {
-      const value = min + (max - min) * index / Math.max(1, Math.min(6, max - min));
-      return <text key={index} x={x(value)} y={plotBottom + 18} textAnchor={index === 0 ? "start" : index === Math.min(6, max - min) ? "end" : "middle"}>{String(Math.round(value))}</text>;
+    {[0, .5, 1].map((value) => <g key={value}><line x1={plotLeft} y1={plotBottom - value * (plotBottom - plotTop)} x2={width - plotRight} y2={plotBottom - value * (plotBottom - plotTop)} stroke="currentColor" opacity=".14" /><text x={plotLeft - 18} y={plotBottom + 4 - value * (plotBottom - plotTop)} textAnchor="end">{value * 100}%</text></g>)}
+    <text x={(plotLeft + width - plotRight) / 2} y={height - 8} textAnchor="middle">{xLabel}</text>
+    {plotLeft > 60
+      ? <text x={width - 8} y={plotTop - 8} textAnchor="end">{thai ? "อัตรารอด (%)" : "Survival (%)"}</text>
+      : <text x="10" y={height / 2} textAnchor="middle" transform={`rotate(-90 10 ${height / 2})`}>{thai ? "อัตรารอด (%)" : "Survival (%)"}</text>}
+    <line x1={plotLeft} y1={plotBottom} x2={width - plotRight} y2={plotBottom} stroke="currentColor" opacity=".35" />
+    <line x1={plotLeft} y1={plotTop} x2={plotLeft} y2={plotBottom} stroke="currentColor" opacity=".35" />
+    {Array.from({ length: tickCount }, (_, index) => {
+      const value = min + (max - min) * index / Math.max(1, tickCount - 1);
+      return <text key={index} x={x(value)} y={plotBottom + 16} textAnchor={index === 0 ? "start" : index === tickCount - 1 ? "end" : "middle"}>{String(Math.round(value))}</text>;
     })}
   </>;
 }
@@ -504,9 +533,9 @@ function StageRiskSummary({ points, comparison, operators, thai, site }: { point
 export function SurvivalChart({ points, thai = false, comparison = "strain", operators = [] }: { points: ApiItem[]; thai?: boolean; comparison?: Stage1Comparison; operators?: ApiItem[] }) {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [activePoints, setActivePoints] = useState<Record<string, number>>({});
+  const geometry = useChartGeometry();
   if (points.length === 0) return null;
-  const width = 620;
-  const height = 230;
+  const { width, height, plotLeft, plotRight, plotTop, plotBottom } = geometry;
   const facets = new Map<string, Map<string, ApiItem[]>>();
   for (const point of points) {
     const site = String(point.site ?? point.siteId ?? "All sites");
@@ -519,9 +548,7 @@ export function SurvivalChart({ points, thai = false, comparison = "strain", ope
   const stageValues = points.map((point) => Number(point.stageOrder ?? 0));
   const minStage = Math.min(...stageValues);
   const maxStage = Math.max(...stageValues);
-  const plotTop = 18;
-  const plotBottom = height - 48;
-  const x = (stage: number) => 54 + ((stage - minStage) / Math.max(1, maxStage - minStage)) * (width - 76);
+  const x = (stage: number) => plotLeft + ((stage - minStage) / Math.max(1, maxStage - minStage)) * (width - plotLeft - plotRight);
   const y = (survival: number) => plotBottom - Math.max(0, Math.min(1, survival)) * (plotBottom - plotTop);
   const visibleSeries = facetEntries.reduce((total, [, groups]) => total + Math.min(4, groups.size), 0);
   const totalSeries = facetEntries.reduce((total, [, groups]) => total + groups.size, 0);
@@ -529,7 +556,7 @@ export function SurvivalChart({ points, thai = false, comparison = "strain", ope
     {facetEntries.map(([site, groups]) => {
       const series = [...groups.entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
       const shown = series.slice(0, 4);
-      const endLabelPositions = chartEndLabelPositions(shown, y, "stageOrder", plotTop, plotBottom, width);
+      const endLabelPositions = chartEndLabelPositions(shown, x, y, "stageOrder", plotTop, plotBottom, width);
       return <section className="chart-facet" key={site}>
         <h3>{thai ? `สถานที่: ${site}` : `Site: ${site}`}</h3>
         <div className="chart-legend" aria-label={thai ? `เลือกเส้นข้อมูลของ ${site}` : `Toggle series for ${site}`}>
@@ -540,7 +567,7 @@ export function SurvivalChart({ points, thai = false, comparison = "strain", ope
           })}
         </div>
         <svg className="chart chart--survival" role="group" aria-label={thai ? `กราฟเส้นขั้นบันไดอัตรารอดตัวอ่อน ${site}` : `Stage 1 step survival chart for ${site}`} viewBox={`0 0 ${width} ${height}`}>
-          <ChartAxis width={width} height={height} min={minStage} max={maxStage} xLabel={thai ? "ระยะการพัฒนา" : "Development checkpoint"} thai={thai} />
+          <ChartAxis geometry={geometry} min={minStage} max={maxStage} xLabel={thai ? "ระยะการพัฒนา" : "Development checkpoint"} thai={thai} />
           {shown.map(([label, groupPoints], index) => {
             const key = `${site}::${label}`;
             const { color, dash } = chartPalette(index);
@@ -552,7 +579,10 @@ export function SurvivalChart({ points, thai = false, comparison = "strain", ope
               <g data-chart-series={key}>
                 {sorted.map((point, pointIndex) => <circle className="chart-point" key={`${key}-${point.stageOrder}-${pointIndex}`} cx={x(Number(point.stageOrder ?? 0))} cy={y(Number(point.surv ?? 0))} r="4" fill={color} tabIndex={activePoint === pointIndex ? 0 : -1} role="img" aria-label={chartPointLabel(point, label, thai)} onFocus={() => setActivePoints((current) => ({ ...current, [key]: pointIndex }))} onKeyDown={(event) => chartPointKeyDown(event, pointIndex, sorted.length, (next) => setActivePoints((current) => ({ ...current, [key]: next })))}><title>{chartPointLabel(point, label, thai)}</title></circle>)}
               </g>
-              {last && <text className="chart-end-label" x={endLabelPositions.get(label)?.x} y={endLabelPositions.get(label)?.y} fill={color} textAnchor="end">{label}</text>}
+              {last && endLabelPositions.get(label) && <>
+                <line className="chart-end-leader" x1={endLabelPositions.get(label)?.endpointX} y1={endLabelPositions.get(label)?.endpointY} x2={(endLabelPositions.get(label)?.x ?? width - 8) - 6} y2={endLabelPositions.get(label)?.y} stroke={color} strokeDasharray={dash} strokeWidth="2" aria-hidden="true" />
+                <text className="chart-end-label" x={endLabelPositions.get(label)?.x} y={endLabelPositions.get(label)?.y} fill={color} textAnchor="end">{label}</text>
+              </>}
             </g>;
           })}
         </svg>
@@ -565,8 +595,10 @@ export function SurvivalChart({ points, thai = false, comparison = "strain", ope
 }
 
 export function FunnelChart({ points, thai = false }: { points: ApiItem[]; thai?: boolean }) {
+  const geometry = useChartGeometry();
   if (points.length === 0) return null;
   const width = 560;
+  const rowHeight = geometry === narrowChartGeometry ? 48 : 32;
   const shown = [...points].sort((left, right) => {
     const leftRate = Number(left.riskSet ?? 0) ? Number(left.nDead ?? 0) / Number(left.riskSet) : -1;
     const rightRate = Number(right.riskSet ?? 0) ? Number(right.nDead ?? 0) / Number(right.riskSet) : -1;
@@ -578,7 +610,7 @@ export function FunnelChart({ points, thai = false }: { points: ApiItem[]; thai?
       className="chart chart--funnel"
       role="img"
       aria-label={thai ? "อัตราการสูญเสียตัวอ่อนแยกตามระยะ" : "Embryo loss rate by checkpoint"}
-      viewBox={`0 0 ${width} ${Math.max(150, shown.length * 27 + 12)}`}
+      viewBox={`0 0 ${width} ${Math.max(150, shown.length * rowHeight + 12)}`}
     >
       {shown.map((point, index) => {
         const dead = Number(point.nDead ?? 0);
@@ -586,10 +618,10 @@ export function FunnelChart({ points, thai = false }: { points: ApiItem[]; thai?
         const lossRate = riskSet ? dead / riskSet : null;
         const barWidth = lossRate == null || lossRate === 0 ? 0 : Math.max(3, (lossRate / maxRate) * (width - 190));
         return <g key={`${String(point.stageOrder)}-${index}`}>
-          <text x="4" y={index * 27 + 17}>{String(point.stageLabel ?? point.stageOrder)}</text>
-          <rect x="126" y={index * 27 + 5} width={width - 176} height="16" rx="8" fill="#e7efec" />
-          <rect x="126" y={index * 27 + 5} width={barWidth} height="16" rx="8" fill="#0b6761" />
-          <text x={width - 4} y={index * 27 + 17} textAnchor="end">{dead} / {riskSet} ({lossRate == null ? "—" : `${Math.round(lossRate * 100)}%`})</text>
+          <text x="4" y={index * rowHeight + 17}>{String(point.stageLabel ?? point.stageOrder)}</text>
+          <rect x="126" y={index * rowHeight + 5} width={width - 176} height="16" rx="8" fill="#e7efec" />
+          <rect x="126" y={index * rowHeight + 5} width={barWidth} height="16" rx="8" fill="#0b6761" />
+          <text x={width - 4} y={index * rowHeight + 17} textAnchor="end">{dead} / {riskSet} ({lossRate == null ? "—" : `${Math.round(lossRate * 100)}%`})</text>
         </g>;
       })}
     </svg>
@@ -665,9 +697,9 @@ function FishRiskSummary({ points, comparison, thai }: { points: ApiItem[]; comp
 export function FishSurvivalChart({ points, thai = false, comparison = "overall" }: { points: ApiItem[]; thai?: boolean; comparison?: Stage2Comparison }) {
   const [hidden, setHidden] = useState<Set<string>>(new Set());
   const [activePoints, setActivePoints] = useState<Record<string, number>>({});
+  const geometry = useChartGeometry();
   if (points.length === 0) return null;
-  const width = 620;
-  const height = 230;
+  const { width, height, plotLeft, plotRight, plotTop, plotBottom } = geometry;
   const maxAge = Math.max(1, ...points.map((point) => Number(point.ageDays ?? 0)));
   const groups = new Map<string, ApiItem[]>();
   for (const point of points) {
@@ -676,11 +708,9 @@ export function FishSurvivalChart({ points, thai = false, comparison = "overall"
   }
   const series = [...groups.entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
   const shown = series.slice(0, 4);
-  const plotTop = 18;
-  const plotBottom = height - 48;
-  const x = (age: number) => 54 + age / maxAge * (width - 76);
+  const x = (age: number) => plotLeft + age / maxAge * (width - plotLeft - plotRight);
   const y = (survival: number) => plotBottom - Math.max(0, Math.min(1, survival)) * (plotBottom - plotTop);
-  const endLabelPositions = chartEndLabelPositions(shown, y, "ageDays", plotTop, plotBottom, width);
+  const endLabelPositions = chartEndLabelPositions(shown, x, y, "ageDays", plotTop, plotBottom, width);
   return <div className="chart-block">
     <div className="chart-legend" aria-label={thai ? "เลือกกลุ่มปลาที่ต้องการแสดง" : "Toggle fish survival series"}>
       {shown.map(([label], index) => {
@@ -690,7 +720,7 @@ export function FishSurvivalChart({ points, thai = false, comparison = "overall"
       })}
     </div>
     <svg className="chart chart--survival" role="group" aria-label={thai ? "กราฟ Kaplan–Meier อัตรารอดของปลาตามอายุ" : "Kaplan-Meier fish survival step chart by age"} viewBox={`0 0 ${width} ${height}`}>
-      <ChartAxis width={width} height={height} min={0} max={maxAge} xLabel={thai ? "อายุ (วัน)" : "Age (days)"} thai={thai} />
+      <ChartAxis geometry={geometry} min={0} max={maxAge} xLabel={thai ? "อายุ (วัน)" : "Age (days)"} thai={thai} />
       {shown.map(([label, groupPoints], index) => {
         const key = label;
         const { color, dash } = chartPalette(index);
@@ -707,7 +737,10 @@ export function FishSurvivalChart({ points, thai = false, comparison = "overall"
             {Number(point.nEvents ?? 0) > 0 && <circle className="chart-event" cx={x(Number(point.ageDays ?? 0))} cy={y(Number(point.surv ?? 0))} r="7" fill="none" stroke={color} strokeWidth="2"><title>{thai ? `เหตุการณ์ ${Number(point.nEvents)}` : `${Number(point.nEvents)} death events`}</title></circle>}
           </g>)}
           </g>
-          {last && <text className="chart-end-label" x={endLabelPositions.get(label)?.x} y={endLabelPositions.get(label)?.y} fill={color} textAnchor="end">{label}</text>}
+          {last && endLabelPositions.get(label) && <>
+            <line className="chart-end-leader" x1={endLabelPositions.get(label)?.endpointX} y1={endLabelPositions.get(label)?.endpointY} x2={(endLabelPositions.get(label)?.x ?? width - 8) - 6} y2={endLabelPositions.get(label)?.y} stroke={color} strokeDasharray={dash} strokeWidth="2" aria-hidden="true" />
+            <text className="chart-end-label" x={endLabelPositions.get(label)?.x} y={endLabelPositions.get(label)?.y} fill={color} textAnchor="end">{label}</text>
+          </>}
         </g>;
       })}
     </svg>
