@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Query, Request
 
 from ...domain.rules import (
+    DAY5_STAGE_ORDER,
     condition_valid,
     default_expected_hpa,
     deviation_label,
@@ -35,7 +36,13 @@ def _latest_embryo_observation(state: State, embryo_id: str) -> dict[str, Any] |
         for item in state.observations.values()
         if item.get("embryoId") == embryo_id and item.get("deletedAt") is None
     ]
-    return max(values, key=lambda item: str(item.get("observedAt", "")), default=None)
+    # Stage order breaks ties so two observations recorded at the same instant
+    # do not resolve on dict order.
+    return max(
+        values,
+        key=lambda item: (str(item.get("observedAt", "")), stage_number(str(item.get("stageCode", "")))),
+        default=None,
+    )
 
 
 def _terminal_embryo_observation(state: State, embryo_id: str) -> dict[str, Any] | None:
@@ -340,7 +347,7 @@ def build_observations_router(store: Store) -> APIRouter:
                 "stageOrder": item_order,
                 "expectedHpa": _expected_hpa(state, lot, stage_code(item_order)),
             }
-            for item_order in range(1, 27)
+            for item_order in range(1, DAY5_STAGE_ORDER + 1)
         ]
         return {
             "injectionLotId": lot_id,
