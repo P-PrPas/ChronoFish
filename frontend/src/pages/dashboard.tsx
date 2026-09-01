@@ -779,13 +779,17 @@ function batchPerformanceLabel(status: string, thai: boolean): string {
 
 export function BatchPerformanceSummary({ rows, definition, thai }: { rows: ApiItem[]; definition?: string; thai: boolean }) {
   if (rows.length === 0) return <p className="table-note">{thai ? "ยังไม่มีแบตช์สำหรับเปรียบเทียบ Day 5" : "No batches are available for Day 5 comparison."}</p>;
+  const partialCount = rows.filter((row) => Number(row.missingEmbryos ?? 0) > 0).length;
   return <div className="batch-performance" role="group" aria-label={thai ? "ประสิทธิภาพแบตช์ที่ Day 5" : "Batch performance at Day 5"}>
     <p className="table-note">{day5DefinitionText(definition, thai)}</p>
     {rows.slice(0, 8).map((row) => {
       const denominator = Number(row.denominator ?? 0);
+      const missingDue = Math.max(0, Number(row.missingEmbryos ?? 0));
       const eligible = String(row.status) === "ELIGIBLE" && denominator > 0;
-      return <div className="batch-performance__row" key={String(row.batchId)}><span><strong>{String(row.batchCode)}</strong><small>{batchPerformanceLabel(String(row.status), thai)}</small></span><span>{eligible ? `${percent(row.pctNormal)} ${thai ? "ปกติ" : "normal"}` : (thai ? "ไม่ใช้เป็นศูนย์ — ตรวจข้อมูล" : "Not scored — check data")}</span><strong>{eligible ? `n=${denominator}` : `n=${Number(row.n ?? 0)}`}</strong></div>;
+      const coverage = thai ? `รู้ผล ${denominator} · ขาดผลตาม due ${missingDue}` : `known ${denominator} · missing due ${missingDue}`;
+      return <div className="batch-performance__row" key={String(row.batchId)}><span><strong>{String(row.batchCode)}</strong><small>{batchPerformanceLabel(String(row.status), thai)}{missingDue > 0 ? ` · ${thai ? "ข้อมูลบางส่วน" : "partial data"}` : ""}</small></span><span>{eligible ? `${percent(row.pctNormal)} ${thai ? "ปกติ" : "normal"}` : (thai ? "ไม่ใช้เป็นศูนย์ — ตรวจข้อมูล" : "Not scored — check data")}<small className={`batch-performance__coverage${missingDue > 0 ? " batch-performance__partial" : ""}`}>{coverage}</small></span><strong>{eligible ? `n=${denominator}` : `n=${Number(row.n ?? 0)}`}</strong></div>;
     })}
+    {partialCount > 0 && <p className="small-n-note data-quality-note" role="status">{thai ? `คำเตือนคุณภาพข้อมูล: ${partialCount} แบตช์ยังขาดผลตาม due; ร้อยละคำนวณจากข้อมูลสภาพที่ทราบเท่านั้น` : `Data-quality warning: ${partialCount} batch${partialCount === 1 ? " has" : "es have"} due observations missing; percentages use known conditions only.`}</p>}
     {rows.some((row) => String(row.status) === "ELIGIBLE" && Number(row.denominator ?? 0) < 5) && <p className="small-n-note" role="status">{thai ? "แบตช์ที่มีตัวหารน้อยกว่า 5 เป็นข้อมูลเชิงสำรวจเท่านั้น" : "Batches with a Day 5 denominator below 5 are exploratory only."}</p>}
     {rows.length > 8 && <p className="table-note">{thai ? `แสดง 8 จาก ${rows.length} แบตช์; ดูตารางเต็มด้านล่าง` : `Showing 8 of ${rows.length} batches; see the full table below.`}</p>}
   </div>;
@@ -1279,7 +1283,7 @@ export function Dashboard({
                 <section className="supporting-analysis__section">
                   <h3>{thai ? "ประสิทธิภาพแบตช์ที่ Day 5" : "Batch performance at Day 5"}</h3>
                   <BatchPerformanceSummary rows={data.fishSupporting.batchPerformance ?? []} definition={data.fishSupporting.day5Definition} thai={thai} />
-                  <ReportTable collapsed summary={thai ? "ดูตารางประสิทธิภาพทุกแบตช์" : "View all batch performance"} caption={thai ? "ประสิทธิภาพแบตช์ที่ Day 5" : "Batch performance at Day 5"} headers={thai ? ["แบตช์", "สถานะ", "n", "ตัวหาร", "% ปกติ"] : ["Batch", "Status", "n", "Denominator", "Normal %"]} rows={(data.fishSupporting.batchPerformance ?? []).map((row) => [String(row.batchCode), batchPerformanceLabel(String(row.status), thai), Number(row.n ?? 0), Number(row.denominator ?? 0), row.pctNormal == null ? (thai ? "ไม่ทราบ" : "Unknown") : percent(row.pctNormal)])} />
+                  <ReportTable collapsed summary={thai ? "ดูตารางประสิทธิภาพทุกแบตช์" : "View all batch performance"} caption={thai ? "ประสิทธิภาพแบตช์ที่ Day 5" : "Batch performance at Day 5"} headers={thai ? ["แบตช์", "สถานะ", "n", "ตัวหาร", "ขาดตาม due", "% ปกติ"] : ["Batch", "Status", "n", "Denominator", "Missing due", "Normal %"]} rows={(data.fishSupporting.batchPerformance ?? []).map((row) => [String(row.batchCode), batchPerformanceLabel(String(row.status), thai), Number(row.n ?? 0), Number(row.denominator ?? 0), Number(row.missingEmbryos ?? 0), row.pctNormal == null ? (thai ? "ไม่ทราบ" : "Unknown") : percent(row.pctNormal)])} />
                 </section>
               </div>}
           </details>

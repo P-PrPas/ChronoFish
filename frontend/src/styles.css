@@ -257,10 +257,13 @@ button.list-row:hover { border-color: #a9bbb6; background: #fdfefd; box-shadow: 
 .batch-performance__row { display: grid; grid-template-columns: minmax(160px, 1fr) auto auto; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .batch-performance__row span { display: grid; gap: 2px; }
 .batch-performance__row small { color: var(--muted); font-size: .85rem; }
+.batch-performance__coverage { display: block; font-size: .82rem; line-height: 1.35; }
+.batch-performance__partial { color: var(--danger); font-weight: 600; }
 .box-census__status { display: block; margin-top: 2px; color: var(--muted); font-size: .78rem; line-height: 1.35; }
 .timing-summary__row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .comparison-note { margin: 10px 0; padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); color: #704b1f; font-size: .9rem; line-height: 1.55; }
 .small-n-note { padding: 10px 12px; border-left: 3px solid var(--accent); background: var(--accent-soft); color: #704b1f; }
+.data-quality-note { border-left-color: var(--danger); background: var(--danger-soft); color: #702a25; }
 .histogram { display: grid; gap: 9px; margin: 12px 0 18px; }
 .histogram__row { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(110px, 3fr) auto; align-items: center; gap: 12px; font-size: .9rem; }
 .histogram__track, .pipeline-summary__track { height: 14px; overflow: hidden; border-radius: 999px; background: var(--surface-soft); }

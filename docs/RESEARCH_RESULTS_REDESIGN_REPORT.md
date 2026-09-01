@@ -465,3 +465,8 @@ text warnings, and comparison query values are validated before use.
   prior comparison instead of only replacing the current URL.
 - API definitions remain English for the contract, while Thai UI renders
   explicit Thai definitions for age and Day 5 due semantics.
+- Day 5 batch summaries now expose `known` versus `missing due` coverage in
+  each visual row and the full table. Partial batches are explicitly labeled
+  and receive a data-quality warning separate from the small-n exploratory
+  warning, so a percentage based on known conditions is not presented as
+  complete coverage.

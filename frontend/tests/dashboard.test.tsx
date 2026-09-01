@@ -221,7 +221,7 @@ describe('analytics dashboard', () => {
       <AgeDistributionSummary rows={[{ bin: '0-6', n: 2, pct: .5 }, { bin: '7-13', n: 2, pct: .5 }]} definition="Age in days at current follow-up date." thai={false} />
       <AgeDistributionSummary rows={[{ bin: '0-6', n: 2, pct: .5 }]} definition="Age in days at current follow-up date." thai />
       <BoxCensusSummary rows={[{ boxCode: 'B1', n: 4, pct: 1, empty: false, statusCounts: { ALIVE: 4, DEAD: 0, FROZEN: 0, DISCARDED: 0, UNKNOWN: 0 } }]} meta={{ nBoxes: 1, emptyBoxes: 0 }} thai={false} />
-      <BatchPerformanceSummary rows={[{ batchId: 'b1', batchCode: 'B1', status: 'ELIGIBLE', denominator: 2, n: 2, pctNormal: .5 }, { batchId: 'b2', batchCode: 'B2', status: 'MISSING', denominator: 0, n: 0 }]} definition="Day 5 denominator is known condition." thai={false} />
+      <BatchPerformanceSummary rows={[{ batchId: 'b1', batchCode: 'B1', status: 'ELIGIBLE', denominator: 2, n: 2, missingEmbryos: 1, pctNormal: .5 }, { batchId: 'b2', batchCode: 'B2', status: 'MISSING', denominator: 0, n: 0 }]} definition="Day 5 denominator is known condition." thai={false} />
       <BatchPerformanceSummary rows={[{ batchId: 'b1', batchCode: 'B1', status: 'NOT_ELIGIBLE', denominator: 0, n: 0 }]} definition="Day 5 denominator is known condition." thai />
       <ControlSummary points={[{ armType: 'SCNT', stageOrder: 3, n: 4, nNormal: 3, pctNormal: .75 }, { armType: 'IVF', stageOrder: 3, n: 0, nNormal: 0, pctNormal: null }]} thai={false} />
       <TimingSummary rows={[{ stageOrder: 1, stageLabel: '1-cell', medianDeviationH: -1.2, q1DeviationH: -2, q3DeviationH: .25 }]} thai={false} />
@@ -232,6 +232,9 @@ describe('analytics dashboard', () => {
     expect(document.body.textContent).toContain('B1')
     expect(document.body.textContent).toContain('ALIVE 4')
     expect(document.body.textContent).toContain('50.00% normal')
+    expect(document.body.textContent).toContain('known 2 · missing due 1')
+    expect(document.body.textContent).toContain('partial data')
+    expect(document.body.textContent).toContain('Data-quality warning: 1 batch has due observations missing')
     expect(document.body.textContent).toContain('denominator below 5')
     expect(document.body.textContent).toContain('Unknown (n=0)')
     expect(document.body.textContent).toContain('Median −1 hr 12 min')
