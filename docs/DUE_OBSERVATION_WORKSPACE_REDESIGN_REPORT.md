@@ -66,7 +66,7 @@ The first browser review identified five details that were addressed in the foll
 - An `ABNORMAL` default with no selected stage was visually an exception but still unreviewed work; progress now counts it as unreviewed until stage selection, while the exception metric/filter continues to expose it for review.
 - At 1440 px the prior flexible grid could produce 43.406 px wells; the 44 px grid/cell floor and 360 px editor column keep each target at least 44 × 44 px without horizontal overflow.
 - Well code/status metadata was cramped at roughly 11–12 px desktop and 10–11 px mobile; it now uses 12.8 px desktop and 12 px narrow mobile, with explicit status wording.
-- On 375 px, the editor no longer follows all 72 wells. It is ordered before the four-column plate, well clicks scroll to the editor, and the Return to plate action restores spatial review. Well/editor focus targets also have scroll margins so the sticky confirmation bar does not obscure keyboard focus.
+- On 375 px, the editor no longer follows all 72 wells. It is ordered before the four-column plate, well clicks scroll the editor heading container into view, and the Return to plate action restores spatial review. The heading target has a 150 px scroll margin to clear the approximately 135 px sticky mobile header; well/editor focus targets also have scroll margins so sticky UI does not obscure keyboard focus.
 
 ## Tests and results
 

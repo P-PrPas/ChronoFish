@@ -280,7 +280,7 @@ tbody tr:hover td { background: #f8fbf9; }
 .well-cell--exception strong, .well-cell--exception > span { color: var(--danger); }
 .well-cell--queued { background: var(--accent-soft); }
 .well-cell--unreviewed { background: var(--surface); }
-.checkpoint-editor__heading { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--line); scroll-margin-block: 120px; }
+.checkpoint-editor__heading { margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid var(--line); scroll-margin-block: 150px; }
 .checkpoint-editor__heading .eyebrow { margin-bottom: 4px; }
 .checkpoint-editor__heading h2 { margin-bottom: 2px; font-size: 1.65rem; }
 .checkpoint-editor__code { margin: 0; color: var(--muted); font-size: .86rem; overflow-wrap: anywhere; }
