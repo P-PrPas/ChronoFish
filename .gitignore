@@ -21,3 +21,5 @@ __pycache__/
 Thumbs.db
 .idea/
 .vscode/
+.agents/
+.tmp/
