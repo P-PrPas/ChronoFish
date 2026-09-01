@@ -120,7 +120,7 @@ function QualityNote({ meta, thai = false }: { meta: AnalyticsMeta | null; thai?
   const unknown = Object.entries(meta.unknown ?? {}).map(([key, value]) => `${thai ? labels[key] ?? key : key}: ${value}`);
   const missing = Object.entries(meta.missing ?? {}).map(([key, value]) => `${thai ? labels[key] ?? key : key}: ${value}`);
   if (unknown.length === 0 && missing.length === 0) return null;
-  return <p className="table-note" role="status">{thai ? `ความครบถ้วนของข้อมูล — ไม่ระบุ: ${unknown.join(", ") || "ไม่มี"}; ขาดข้อมูล: ${missing.join(", ") || "ไม่มี"}` : `Data quality — unknown: ${unknown.join(", ") || "none"}; missing: ${missing.join(", ") || "none"}.`}</p>;
+  return <p className="table-note">{thai ? `ความครบถ้วนของข้อมูล — ไม่ระบุ: ${unknown.join(", ") || "ไม่มี"}; ขาดข้อมูล: ${missing.join(", ") || "ไม่มี"}` : `Data quality — unknown: ${unknown.join(", ") || "none"}; missing: ${missing.join(", ") || "none"}.`}</p>;
 }
 
 function useMasterOptions(resource: string): ApiItem[] {
@@ -585,11 +585,11 @@ export function SurvivalChart({ points, thai = false, comparison = "strain", ope
             </g>;
           })}
         </svg>
-        <p className="chart-summary" role="status">{thai ? `${shown.length} เส้นแสดงในแผงนี้ แยกตาม${comparison === "strain" ? "สายพันธุ์" : comparison === "operator" ? "ผู้ปฏิบัติงาน" : "กลุ่มทดลอง"}; จุดข้อมูลมีอัตรารอดและ risk set` : `${shown.length} series shown in this site facet, compared by ${comparison === "strain" ? "strain" : comparison === "operator" ? "operator" : "treatment"}; focus a point for survival and risk-set details.`}</p>
+        <p className="chart-summary">{thai ? `${shown.length} เส้นแสดงในแผงนี้ แยกตาม${comparison === "strain" ? "สายพันธุ์" : comparison === "operator" ? "ผู้ปฏิบัติงาน" : "กลุ่มทดลอง"}; จุดข้อมูลมีอัตรารอดและ risk set` : `${shown.length} series shown in this site facet, compared by ${comparison === "strain" ? "strain" : comparison === "operator" ? "operator" : "treatment"}; focus a point for survival and risk-set details.`}</p>
         <StageRiskSummary points={shown.flatMap(([, groupPoints]) => groupPoints)} comparison={comparison} operators={operators} thai={thai} site={site} />
       </section>;
     })}
-    {totalSeries > visibleSeries && <p className="chart-limit-note" role="status">{thai ? `แสดงไม่เกิน 4 เส้นต่อสถานที่ (${visibleSeries} จาก ${totalSeries} เส้น) ดูข้อมูลทั้งหมดในตารางประกอบด้านล่าง` : `Showing at most 4 series per site (${visibleSeries} of ${totalSeries}); the supporting table below contains every series.`}</p>}
+    {totalSeries > visibleSeries && <p className="chart-limit-note">{thai ? `แสดงไม่เกิน 4 เส้นต่อสถานที่ (${visibleSeries} จาก ${totalSeries} เส้น) ดูข้อมูลทั้งหมดในตารางประกอบด้านล่าง` : `Showing at most 4 series per site (${visibleSeries} of ${totalSeries}); the supporting table below contains every series.`}</p>}
   </div>;
 }
 
@@ -743,10 +743,10 @@ export function FishSurvivalChart({ points, thai = false, comparison = "overall"
         </g>;
       })}
     </svg>
-    <p className="chart-summary" role="status">{thai ? `${shown.length} เส้น Kaplan–Meier แสดงตาม${comparison === "overall" ? "ภาพรวม" : comparison === "abnormalityGroup" ? "กลุ่มความผิดปกติ" : comparison === "strain" ? "สายพันธุ์" : "กลุ่มทดลอง"}; ขีดแนวตั้งคือ censored และวงกลมคือเหตุการณ์` : `${shown.length} Kaplan-Meier series shown by ${comparison === "overall" ? "overall" : comparison === "abnormalityGroup" ? "abnormality group" : comparison === "strain" ? "strain" : "treatment"}; vertical marks are censored and rings are events.`}</p>
+    <p className="chart-summary">{thai ? `${shown.length} เส้น Kaplan–Meier แสดงตาม${comparison === "overall" ? "ภาพรวม" : comparison === "abnormalityGroup" ? "กลุ่มความผิดปกติ" : comparison === "strain" ? "สายพันธุ์" : "กลุ่มทดลอง"}; ขีดแนวตั้งคือ censored และวงกลมคือเหตุการณ์` : `${shown.length} Kaplan-Meier series shown by ${comparison === "overall" ? "overall" : comparison === "abnormalityGroup" ? "abnormality group" : comparison === "strain" ? "strain" : "treatment"}; vertical marks are censored and rings are events.`}</p>
     <FishRiskSummary points={shown.flatMap(([, groupPoints]) => groupPoints)} comparison={comparison} thai={thai} />
     {comparison !== "overall" && <p className="chart-limit-note">{thai ? "ไม่แสดงแถบ CI เพื่อให้กราฟเปรียบเทียบอ่านง่าย; ดูค่า CI ในตารางประกอบ" : "CI bands are suppressed for comparison readability; the supporting table contains CI values."}</p>}
-    {series.length > shown.length && <p className="chart-limit-note" role="status">{thai ? `แสดง 4 จาก ${series.length} กลุ่ม ดูข้อมูลทั้งหมดในตารางประกอบ` : `Showing 4 of ${series.length} groups; the supporting table below contains every group.`}</p>}
+    {series.length > shown.length && <p className="chart-limit-note">{thai ? `แสดง 4 จาก ${series.length} กลุ่ม ดูข้อมูลทั้งหมดในตารางประกอบ` : `Showing 4 of ${series.length} groups; the supporting table below contains every group.`}</p>}
   </div>;
 }
 
@@ -837,8 +837,8 @@ export function BatchPerformanceSummary({ rows, definition, thai }: { rows: ApiI
       const coverage = thai ? `รู้ผล ${denominator} · ขาดผลตาม due ${missingDue}` : `known ${denominator} · missing due ${missingDue}`;
       return <div className="batch-performance__row" key={String(row.batchId)}><span><strong>{String(row.batchCode)}</strong><small>{batchPerformanceLabel(String(row.status), thai)}{missingDue > 0 ? ` · ${thai ? "ข้อมูลบางส่วน" : "partial data"}` : ""}</small></span><span>{eligible ? `${percent(row.pctNormal)} ${thai ? "ปกติ" : "normal"}` : (thai ? "ไม่ใช้เป็นศูนย์ — ตรวจข้อมูล" : "Not scored — check data")}<small className={`batch-performance__coverage${missingDue > 0 ? " batch-performance__partial" : ""}`}>{coverage}</small></span><strong>{eligible ? `n=${denominator}` : `n=${Number(row.n ?? 0)}`}</strong></div>;
     })}
-    {partialCount > 0 && <p className="small-n-note data-quality-note" role="status">{thai ? `คำเตือนคุณภาพข้อมูล: ${partialCount} แบตช์ยังขาดผลตาม due; ร้อยละคำนวณจากข้อมูลสภาพที่ทราบเท่านั้น` : `Data-quality warning: ${partialCount} batch${partialCount === 1 ? " has" : "es have"} due observations missing; percentages use known conditions only.`}</p>}
-    {rows.some((row) => String(row.status) === "ELIGIBLE" && Number(row.denominator ?? 0) < 5) && <p className="small-n-note" role="status">{thai ? "แบตช์ที่มีตัวหารน้อยกว่า 5 เป็นข้อมูลเชิงสำรวจเท่านั้น" : "Batches with a Day 5 denominator below 5 are exploratory only."}</p>}
+    {partialCount > 0 && <p className="small-n-note data-quality-note">{thai ? `คำเตือนคุณภาพข้อมูล: ${partialCount} แบตช์ยังขาดผลตาม due; ร้อยละคำนวณจากข้อมูลสภาพที่ทราบเท่านั้น` : `Data-quality warning: ${partialCount} batch${partialCount === 1 ? " has" : "es have"} due observations missing; percentages use known conditions only.`}</p>}
+    {rows.some((row) => String(row.status) === "ELIGIBLE" && Number(row.denominator ?? 0) < 5) && <p className="small-n-note">{thai ? "แบตช์ที่มีตัวหารน้อยกว่า 5 เป็นข้อมูลเชิงสำรวจเท่านั้น" : "Batches with a Day 5 denominator below 5 are exploratory only."}</p>}
     {rows.length > 8 && <p className="table-note">{thai ? `แสดง 8 จาก ${rows.length} แบตช์; ดูตารางเต็มด้านล่าง` : `Showing 8 of ${rows.length} batches; see the full table below.`}</p>}
   </div>;
 }
@@ -871,7 +871,7 @@ export function ControlSummary({ points, thai }: { points: ApiItem[]; thai: bool
       const pctNormal = point.pctNormal == null ? null : Number(point.pctNormal);
       return <div className="control-summary__row" key={`${String(point.armType)}-${String(point.stageOrder)}-${index}`}><span>{String(point.armType)} · {String(point.stageLabel ?? point.stageOrder)}</span><span className="control-summary__track" aria-hidden="true"><span style={{ width: `${Math.max(0, Math.min(1, pctNormal ?? 0)) * 100}%` }} /></span><strong>{pctNormal == null ? (thai ? `ไม่ทราบ (n=${n})` : `Unknown (n=${n})`) : `${(pctNormal * 100).toFixed(1)}% (${Number(point.nNormal ?? 0)}/${n})`}</strong></div>;
     })}
-    {warnings > 0 && <p className="small-n-note" role="status">{thai ? `มี ${warnings} แถวที่ตัวหารน้อยกว่า 5 หรือไม่มีตัวหาร จึงเป็นข้อมูลเชิงสำรวจเท่านั้น` : `${warnings} rows have denominator below 5 or no denominator; treat as exploratory only.`}</p>}
+    {warnings > 0 && <p className="small-n-note">{thai ? `มี ${warnings} แถวที่ตัวหารน้อยกว่า 5 หรือไม่มีตัวหาร จึงเป็นข้อมูลเชิงสำรวจเท่านั้น` : `${warnings} rows have denominator below 5 or no denominator; treat as exploratory only.`}</p>}
   </div>;
 }
 
@@ -903,7 +903,7 @@ export function PipelineSummary({ points, thai }: { points: ApiItem[]; thai: boo
       </div>;
     })}
     {bottleneck && <p className="insight-strip">{thai ? `คอขวดของกระบวนการคือ ${pipelineStepLabel(bottleneck.step, thai)} (${bottleneck.pctOfPrevious == null ? "—" : `${(Number(bottleneck.pctOfPrevious) * 100).toFixed(1)}% จากขั้นก่อนหน้า`})` : `Bottleneck: ${pipelineStepLabel(bottleneck.step, thai)} (${bottleneck.pctOfPrevious == null ? "—" : `${(Number(bottleneck.pctOfPrevious) * 100).toFixed(1)}% of previous step`}).`}</p>}
-    {nonMonotonic && <p className="table-note" role="status">{thai ? "คุณภาพข้อมูล: จำนวนขั้นตอนถัดไปสูงกว่าขั้นก่อนหน้า จึงไม่สรุปเป็นอัตราการเปลี่ยนผ่านที่เชื่อถือได้" : "Data quality: a downstream count exceeds its upstream count, so conversion percentages should be interpreted cautiously."}</p>}
+    {nonMonotonic && <p className="table-note">{thai ? "คุณภาพข้อมูล: จำนวนขั้นตอนถัดไปสูงกว่าขั้นก่อนหน้า จึงไม่สรุปเป็นอัตราการเปลี่ยนผ่านที่เชื่อถือได้" : "Data quality: a downstream count exceeds its upstream count, so conversion percentages should be interpreted cautiously."}</p>}
   </div>;
 }
 
@@ -1158,11 +1158,11 @@ export function Dashboard({
           {data.kpi && !loading && <TabMetrics tab="stage1" stage1={stage1} stage2={stage2} pipeline={data.pipeline} thai={thai} />}
           <ReportPanel title={thai ? "การรอดของตัวอ่อนตามระยะ" : "Stage 1 survival curve"} loading={loading} empty={data.survival.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลการรอดที่ตรงกับตัวกรอง" : "No survival observations match these filters."} quality={<QualityNote meta={data.survivalMeta} thai={thai} />}>
             {!embryoHeadlineReady
-              ? <p className="small-n-note" role="status">{Number(data.survivalMeta?.sampleSize ?? 0) < 5
+              ? <p className="small-n-note">{Number(data.survivalMeta?.sampleSize ?? 0) < 5
                 ? (thai ? `ข้อมูลเชิงสำรวจเท่านั้น: n=${Number(data.survivalMeta?.sampleSize ?? 0)} ยังไม่สรุปว่าอัตรารอดต่ำสุดหรือดีที่สุด` : `Exploratory data only: n=${Number(data.survivalMeta?.sampleSize ?? 0)}; no lowest/best survival headline is reported.`)
                 : (thai ? `ไม่แสดงการจัดอันดับ: จุดที่อัตรารอดต่ำสุดมีกลุ่มเสี่ยง n=${Number(lowestEmbryoSurvival?.riskSet ?? 0)} (<5)` : `No lowest/best survival headline: the candidate checkpoint has risk set n=${Number(lowestEmbryoSurvival?.riskSet ?? 0)} (<5).`)}</p>
               : <p className="insight-strip">{thai ? `อัตรารอดต่ำสุดในข้อมูลที่กรองคือ ${percent(lowestEmbryoSurvival?.surv)} ที่ระยะ ${String(lowestEmbryoSurvival?.stageLabel ?? lowestEmbryoSurvival?.stageOrder)} · ${lowestEmbryoGroup} (n=${Number(lowestEmbryoSurvival?.riskSet ?? 0)})` : `Lowest filtered survival is ${percent(lowestEmbryoSurvival?.surv)} at ${String(lowestEmbryoSurvival?.stageLabel ?? lowestEmbryoSurvival?.stageOrder)} · ${lowestEmbryoGroup} (n=${Number(lowestEmbryoSurvival?.riskSet ?? 0)}).`}</p>}
-            {stage1SmallSeries && <p className="small-n-note" role="status">{stage1SmallSeries}</p>}
+            {stage1SmallSeries && <p className="small-n-note">{stage1SmallSeries}</p>}
             <ComparisonControl kind="stage1" value={stage1Comparison} onChange={(value) => selectStage1Comparison(value as Stage1Comparison)} thai={thai} />
             <SurvivalChart points={data.survival} thai={thai} comparison={stage1Comparison} operators={options.operators} />
             <ReportTable
@@ -1189,7 +1189,7 @@ export function Dashboard({
           </ReportPanel>
           <ReportPanel title={thai ? "ระยะที่สูญเสียและเริ่มพบความผิดปกติ" : "Attrition / abnormality onset"} loading={loading} empty={data.funnelMeta?.sampleSize === 0 && data.abnormality.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลความสูญเสียที่ตรงกับตัวกรอง" : "No attrition or abnormality observations match these filters."} quality={<QualityNote meta={data.funnelMeta} thai={thai} />}>
             {!attritionHeadlineReady
-              ? <p className="small-n-note" role="status">{Number(data.funnelMeta?.sampleSize ?? 0) < 5
+              ? <p className="small-n-note">{Number(data.funnelMeta?.sampleSize ?? 0) < 5
                 ? (thai ? `ข้อมูลเชิงสำรวจเท่านั้น: n=${Number(data.funnelMeta?.sampleSize ?? 0)} ไม่จัดอันดับระยะที่สูญเสียมากที่สุด` : `Exploratory data only: n=${Number(data.funnelMeta?.sampleSize ?? 0)}; no highest-loss ranking is reported.`)
                 : (thai ? `ไม่แสดงการจัดอันดับ: จุดที่มีอัตราสูญเสียสูงสุดมีกลุ่มเสี่ยง n=${Number(highestEmbryoLoss?.riskSet ?? 0)} (<5)` : `No highest-loss ranking: the candidate checkpoint has risk set n=${Number(highestEmbryoLoss?.riskSet ?? 0)} (<5).`)}</p>
               : <p className="insight-strip">{thai ? `ระยะที่สูญเสียมากที่สุดคือ ${String(highestEmbryoLoss?.stageLabel ?? highestEmbryoLoss?.stageOrder)} จำนวน ${Number(highestEmbryoLoss?.nDead ?? 0)} จาก ${Number(highestEmbryoLoss?.riskSet ?? 0)} ฟอง` : `Highest loss occurs at ${String(highestEmbryoLoss?.stageLabel ?? highestEmbryoLoss?.stageOrder)}: ${Number(highestEmbryoLoss?.nDead ?? 0)} of ${Number(highestEmbryoLoss?.riskSet ?? 0)} embryos.`}</p>}
@@ -1276,11 +1276,11 @@ export function Dashboard({
           {data.kpi && !loading && <TabMetrics tab="stage2" stage1={stage1} stage2={stage2} pipeline={data.pipeline} thai={thai} />}
           <ReportPanel title={thai ? "การรอดของปลาตามอายุ" : "Fish survival by age"} loading={loading} empty={data.fishSurvival.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลการรอดของปลาที่ตรงกับตัวกรอง" : "No fish survival observations match these filters."} quality={<QualityNote meta={data.fishSurvivalMeta} thai={thai} />}>
             {!fishHeadlineReady
-              ? <p className="small-n-note" role="status">{Number(data.fishSurvivalMeta?.sampleSize ?? 0) < 5
+              ? <p className="small-n-note">{Number(data.fishSurvivalMeta?.sampleSize ?? 0) < 5
                 ? (thai ? `ข้อมูลเชิงสำรวจเท่านั้น: n=${Number(data.fishSurvivalMeta?.sampleSize ?? 0)} ยังไม่สรุปว่าอัตรารอดต่ำสุดหรือดีที่สุด` : `Exploratory data only: n=${Number(data.fishSurvivalMeta?.sampleSize ?? 0)}; no lowest/best fish-survival headline is reported.`)
                 : (thai ? `ไม่แสดงการจัดอันดับ: จุดที่อัตรารอดต่ำสุดมีกลุ่มเสี่ยง n=${Number(lowestFishSurvival?.atRisk ?? 0)} (<5)` : `No lowest/best fish-survival headline: the candidate age has at-risk n=${Number(lowestFishSurvival?.atRisk ?? 0)} (<5).`)}</p>
               : <p className="insight-strip">{thai ? `อัตรารอดของปลาต่ำสุดในข้อมูลที่กรองคือ ${percent(lowestFishSurvival?.surv)} เมื่ออายุ ${Number(lowestFishSurvival?.ageDays ?? 0)} วัน · ${lowestFishGroup} (n=${Number(lowestFishSurvival?.atRisk ?? 0)})` : `Lowest filtered fish survival is ${percent(lowestFishSurvival?.surv)} at age ${Number(lowestFishSurvival?.ageDays ?? 0)} days · ${lowestFishGroup} (n=${Number(lowestFishSurvival?.atRisk ?? 0)}).`}</p>}
-            {fishSmallSeries && <p className="small-n-note" role="status">{fishSmallSeries}</p>}
+            {fishSmallSeries && <p className="small-n-note">{fishSmallSeries}</p>}
             <ComparisonControl kind="stage2" value={stage2Comparison} onChange={(value) => selectStage2Comparison(value as Stage2Comparison)} thai={thai} />
             {stage2Comparison === "abnormalityGroup" && <p className="comparison-note" role="note">{thai ? "Ever abnormal เทียบกับไม่เคยบันทึกความผิดปกติ เป็นการเปรียบเทียบเชิงสำรวจ ไม่ใช่เหตุผลเชิงสาเหตุ" : "Ever abnormal vs No abnormality recorded is an exploratory comparison, not a causal estimate."}</p>}
             <FishSurvivalChart points={data.fishSurvival} thai={thai} comparison={stage2Comparison} />
@@ -1319,8 +1319,8 @@ export function Dashboard({
                 <section className="supporting-analysis__section">
                   <h3>{thai ? "ความครบถ้วนของเพศ" : "Sex completeness"}</h3>
                   <StackedComposition rows={data.fishSupporting.sexComposition ?? []} field="sex" thai={thai} />
-                  <p className="table-note" role="status">{thai ? `ระบุเพศแล้ว ${Number(data.fishSupporting.sexCompleteness?.known ?? 0)} ตัว · ไม่ทราบ ${Number(data.fishSupporting.sexCompleteness?.unknown ?? 0)} ตัว · ครบถ้วน ${percent(data.fishSupporting.sexCompleteness?.pctComplete)}` : `${Number(data.fishSupporting.sexCompleteness?.known ?? 0)} sex records known · ${Number(data.fishSupporting.sexCompleteness?.unknown ?? 0)} unknown · ${percent(data.fishSupporting.sexCompleteness?.pctComplete)} complete.`}</p>
-                  {Number(data.fishSupporting.sexCompleteness?.unknown ?? 0) > 0 && <p className="small-n-note" role="status">{thai ? "คำเตือน: ข้อมูลเพศยังไม่ครบถ้วน จึงมี Unknown ในการสรุป" : "Completeness warning: unknown sex records remain in this cohort."}</p>}
+                  <p className="table-note">{thai ? `ระบุเพศแล้ว ${Number(data.fishSupporting.sexCompleteness?.known ?? 0)} ตัว · ไม่ทราบ ${Number(data.fishSupporting.sexCompleteness?.unknown ?? 0)} ตัว · ครบถ้วน ${percent(data.fishSupporting.sexCompleteness?.pctComplete)}` : `${Number(data.fishSupporting.sexCompleteness?.known ?? 0)} sex records known · ${Number(data.fishSupporting.sexCompleteness?.unknown ?? 0)} unknown · ${percent(data.fishSupporting.sexCompleteness?.pctComplete)} complete.`}</p>
+                  {Number(data.fishSupporting.sexCompleteness?.unknown ?? 0) > 0 && <p className="small-n-note">{thai ? "คำเตือน: ข้อมูลเพศยังไม่ครบถ้วน จึงมี Unknown ในการสรุป" : "Completeness warning: unknown sex records remain in this cohort."}</p>}
                   <ReportTable collapsed summary={thai ? "ดูตารางเพศ" : "View sex table"} caption={thai ? "องค์ประกอบเพศปลา" : "Fish sex composition"} headers={thai ? ["เพศ", "n", "%"] : ["Sex", "n", "%"]} rows={(data.fishSupporting.sexComposition ?? []).map((row) => [compositionLabel(String(row.sex), thai), Number(row.n ?? 0), percent(row.pct)])} />
                 </section>
                 <section className="supporting-analysis__section">

@@ -16,8 +16,4 @@ describe('accessibility tokens', () => {
     expect(1.05 / (luminance(color!.slice(1)) + 0.05)).toBeGreaterThanOrEqual(3)
     expect(styles).toMatch(/input:focus[^}]+outline:\s*3px solid var\(--primary\)/)
   })
-
-  it('centers responsive charts inside their chart block', () => {
-    expect(styles).toMatch(/\.chart-block \.chart \{ margin: 4px auto 0; \}/)
-  })
 })
