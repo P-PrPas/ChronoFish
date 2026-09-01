@@ -218,10 +218,10 @@ button.list-row:hover { border-color: #a9bbb6; background: #fdfefd; box-shadow: 
 .secondary-analysis[open] { padding: 0 14px 14px; }
 .secondary-analysis[open] > summary { margin: 0 -14px 14px; border-bottom: 1px solid var(--line); }
 .secondary-analysis .report-panel { box-shadow: none; }
-.chart text { fill: var(--muted); font-family: inherit; font-size: 12px; }
+.chart text { fill: var(--muted); font-family: inherit; font-size: 13px; }
 .chart-point { cursor: pointer; }
 .chart-point:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
-.chart-end-label { font-size: 12px; font-weight: 600; }
+.chart-end-label { font-size: 13px; font-weight: 600; }
 .chart-ci { pointer-events: none; }
 .chart-censor { stroke-linecap: round; }
 .chart-event { pointer-events: none; }
@@ -577,7 +577,7 @@ tbody tr:hover td { background: #f8fbf9; }
   .pipeline-summary__percent { grid-column: 1 / -1; }
   .metric { min-height: 98px; }
   .tabs { width: 100%; }
-  .tab { flex: 1; padding-inline: 10px; }
+  .tab { min-width: 0; flex: 1; padding-inline: 6px; white-space: normal; line-height: 1.3; }
   .report-panel { padding: 16px; border-radius: var(--radius); }
   .checkpoint-plate, .checkpoint-editor { padding: 14px; }
   .checkpoint-section-heading { display: grid; gap: 4px; }
@@ -591,6 +591,7 @@ tbody tr:hover td { background: #f8fbf9; }
   .batch-performance__row { grid-template-columns: minmax(105px, 1fr) auto; gap: 8px; font-size: .88rem; }
   .batch-performance__row > strong { grid-column: 2; grid-row: 1; }
   .chart-mini-table { min-width: 390px; }
+  .chart text, .chart-end-label { font-size: 34px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

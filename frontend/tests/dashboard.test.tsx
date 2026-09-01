@@ -188,6 +188,17 @@ describe('analytics dashboard', () => {
     root.unmount()
   })
 
+  it('stacks direct end labels when series share an endpoint', async () => {
+    const points = ['AB', 'NHGRI', 'TU'].map((strain) => ({ stageOrder: 1, stageLabel: '1-cell', site: 'North', strain, surv: 1, riskSet: 5 }))
+    const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
+    await act(async () => { root.render(<SurvivalChart points={points} />); await Promise.resolve() })
+    const labels = Array.from(document.querySelectorAll<SVGTextElement>('.chart-end-label'))
+    expect(labels).toHaveLength(3)
+    expect(new Set(labels.map((label) => label.getAttribute('y'))).size).toBe(3)
+    expect(new Set(labels.map((label) => label.getAttribute('x'))).size).toBe(3)
+    root.unmount()
+  })
+
   it('uses readable selected dimensions in visible chart summaries', async () => {
     const rootElement = document.createElement('div'); document.body.append(rootElement); const root = createRoot(rootElement)
     await act(async () => { root.render(<SurvivalChart points={[{ stageOrder: 1, stageLabel: '1-cell', site: 'North', operatorId: 'op-1', riskSet: 5, alive: 5, surv: 1 }]} comparison="operator" operators={[{ id: 'op-1', name: 'Dr Somchai' }]} />); await Promise.resolve() })

@@ -406,6 +406,20 @@ function chartPalette(index: number): { color: string; dash?: string } {
   return palette[index % palette.length];
 }
 
+function chartEndLabelPositions(series: Array<[string, ApiItem[]]>, y: (value: number) => number, xKey: string, plotTop: number, plotBottom: number, width: number): Map<string, { x: number; y: number }> {
+  const entries = series.map(([label, points]) => {
+    const last = [...points].sort((left, right) => Number(left[xKey] ?? 0) - Number(right[xKey] ?? 0)).at(-1);
+    return { label, base: last ? y(Number(last.surv ?? 0)) - 6 : plotTop + 24 };
+  }).sort((left, right) => left.base - right.base || left.label.localeCompare(right.label));
+  if (entries.length === 0) return new Map();
+  const gap = 38;
+  const minY = plotTop + 24;
+  const maxY = plotBottom - 4;
+  const maxStart = Math.max(minY, maxY - gap * (entries.length - 1));
+  const start = Math.min(Math.max(entries[0].base, minY), maxStart);
+  return new Map(entries.map((entry, index) => [entry.label, { x: width - 24 - index * 150, y: start + index * gap }]));
+}
+
 function ChartAxis({ width, height, min, max, xLabel, thai }: { width: number; height: number; min: number; max: number; xLabel: string; thai: boolean }) {
   const plotTop = 18;
   const plotBottom = height - 48;
@@ -515,6 +529,7 @@ export function SurvivalChart({ points, thai = false, comparison = "strain", ope
     {facetEntries.map(([site, groups]) => {
       const series = [...groups.entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
       const shown = series.slice(0, 4);
+      const endLabelPositions = chartEndLabelPositions(shown, y, "stageOrder", plotTop, plotBottom, width);
       return <section className="chart-facet" key={site}>
         <h3>{thai ? `สถานที่: ${site}` : `Site: ${site}`}</h3>
         <div className="chart-legend" aria-label={thai ? `เลือกเส้นข้อมูลของ ${site}` : `Toggle series for ${site}`}>
@@ -537,7 +552,7 @@ export function SurvivalChart({ points, thai = false, comparison = "strain", ope
               <g data-chart-series={key}>
                 {sorted.map((point, pointIndex) => <circle className="chart-point" key={`${key}-${point.stageOrder}-${pointIndex}`} cx={x(Number(point.stageOrder ?? 0))} cy={y(Number(point.surv ?? 0))} r="4" fill={color} tabIndex={activePoint === pointIndex ? 0 : -1} role="img" aria-label={chartPointLabel(point, label, thai)} onFocus={() => setActivePoints((current) => ({ ...current, [key]: pointIndex }))} onKeyDown={(event) => chartPointKeyDown(event, pointIndex, sorted.length, (next) => setActivePoints((current) => ({ ...current, [key]: next })))}><title>{chartPointLabel(point, label, thai)}</title></circle>)}
               </g>
-              {last && <text className="chart-end-label" x={width - 24} y={y(Number(last.surv ?? 0)) - 6} fill={color} textAnchor="end">{label}</text>}
+              {last && <text className="chart-end-label" x={endLabelPositions.get(label)?.x} y={endLabelPositions.get(label)?.y} fill={color} textAnchor="end">{label}</text>}
             </g>;
           })}
         </svg>
@@ -665,6 +680,7 @@ export function FishSurvivalChart({ points, thai = false, comparison = "overall"
   const plotBottom = height - 48;
   const x = (age: number) => 54 + age / maxAge * (width - 76);
   const y = (survival: number) => plotBottom - Math.max(0, Math.min(1, survival)) * (plotBottom - plotTop);
+  const endLabelPositions = chartEndLabelPositions(shown, y, "ageDays", plotTop, plotBottom, width);
   return <div className="chart-block">
     <div className="chart-legend" aria-label={thai ? "เลือกกลุ่มปลาที่ต้องการแสดง" : "Toggle fish survival series"}>
       {shown.map(([label], index) => {
@@ -691,7 +707,7 @@ export function FishSurvivalChart({ points, thai = false, comparison = "overall"
             {Number(point.nEvents ?? 0) > 0 && <circle className="chart-event" cx={x(Number(point.ageDays ?? 0))} cy={y(Number(point.surv ?? 0))} r="7" fill="none" stroke={color} strokeWidth="2"><title>{thai ? `เหตุการณ์ ${Number(point.nEvents)}` : `${Number(point.nEvents)} death events`}</title></circle>}
           </g>)}
           </g>
-          {last && <text className="chart-end-label" x={width - 24} y={y(Number(last.surv ?? 0)) - 6} fill={color} textAnchor="end">{label}</text>}
+          {last && <text className="chart-end-label" x={endLabelPositions.get(label)?.x} y={endLabelPositions.get(label)?.y} fill={color} textAnchor="end">{label}</text>}
         </g>;
       })}
     </svg>

@@ -470,3 +470,136 @@ text warnings, and comparison query values are validated before use.
   and receive a data-quality warning separate from the small-n exploratory
   warning, so a percentage based on known conditions is not presented as
   complete coverage.
+
+## Phase 4 — WCAG, responsive, and browser QA
+
+### Objective and QA setup
+
+Phase 4 validates the complete Research results workspace after the analytical
+and information-architecture changes. The checks covered all three tabs,
+comparison controls, disclosures, chart interactions, Thai/English labels,
+keyboard navigation, and reflow from desktop to a 320px viewport. The
+repository's browser connector was not available in this environment, so the
+local Vite app was exercised with the installed headless Playwright Chromium
+fallback. Requests were routed to the existing seeded API without changing
+the API or compose configuration. No screenshot or browser artifact is part
+of the commit; evidence is retained under `.tmp/` only.
+
+### QA matrix and findings
+
+| Surface | 1440px | 768px | 375px | 320px | 200% / 400% reflow |
+|---|---|---|---|---|---|
+| Stage 1, Stage 2, Overall | Pass | Pass | Pass | Pass | Pass at 720px / 360px CSS viewport |
+| Page-level horizontal overflow | None | None | None | None | None |
+| Tab strip | Full width | Full width | Wrapped, no intrinsic overflow | Wrapped, no intrinsic overflow | Full width after reflow |
+| Chart text | 13px+ effective | 13px+ effective | 12px+ effective | 12px+ effective | 12px+ effective |
+| Well/control target size | 44px+ | 44px+ | 44px+ | 44px+ | 44px+ |
+| Supporting tables | Inline/local scroll only | Inline/local scroll only | Local scroll only | Local scroll only | Local scroll only |
+
+The browser pass found two presentation defects and one data-density defect:
+
+1. Fixed-size SVG view boxes made the old 12px chart labels render at roughly
+   4.3–6px on narrow screens. The chart text token is now 13px, with a narrow
+   viewport SVG compensation rule; DOM/layout measurements are at least 12px
+   at 320px, 375px, 768px, 1440px, and the reflow checks.
+2. The tab labels were wider than the 341px content area at 375px (and the
+   corresponding 320px area), creating intrinsic tab overflow. Tabs now share
+   available width, allow two-line labels, and retain a 44px-height target.
+3. Multiple series ending at the same survival value placed direct labels on
+   top of each other. End labels now use deterministic collision-safe vertical
+   positions and horizontal offsets within the plot; the regression test
+   asserts unique x/y positions for coincident endpoints. The observed labels
+   are not clipped at desktop or mobile widths.
+
+Measured result artifacts:
+
+- `.tmp/phase4-final-metrics.json` — viewport, effective SVG text, overflow,
+  tab-strip, and target-size measurements.
+- `.tmp/phase4-keyboard-semantics.json` — skip link, tabs, disclosure, legend,
+  chart-point roving focus, table semantics, heading order, and language checks.
+- `.tmp/phase4-final4-stage1-1440x900.png`,
+  `.tmp/phase4-final4-stage2-1440x900.png`, and
+  `.tmp/phase4-final4-overall-1440x900.png` — final desktop captures.
+- `.tmp/phase4-final4-stage1-375x812.png`,
+  `.tmp/phase4-final4-stage2-375x812.png`, and
+  `.tmp/phase4-final4-overall-375x812.png` — final mobile captures.
+- `.tmp/phase4-stage1-chart-labels-375.png` — focused end-label visual;
+  collision positions are also asserted by the dashboard regression test.
+
+The fallback harness also verified that focusing a roving chart point scrolls
+it below the sticky header, that the skip link reaches `main-content`, tab
+Arrow navigation changes the selected panel, legend controls toggle with
+keyboard, supporting tables have captions and scoped headers, and every chart
+point has an accessible label and title. Supporting tables keep overflow on
+their own scroll container rather than widening the page.
+
+### Accessibility and language mapping
+
+The page keeps one `h1`, a logical `h2`/`h3` hierarchy, linked tab/tabpanel
+semantics, named `details` disclosures, table captions and headers, and
+textual chart summaries in addition to SVG marks. Chart points use one roving
+tab stop per series and Arrow/Home/End navigation; legends are real buttons.
+Focus remains visible and the sticky controls do not obscure the focused
+control. Status, event, censor, small-n, and missing-data states have text or
+symbols in addition to color, while decorative chart marks remain
+non-interactive.
+
+The Thai language pass confirmed translated tab, filter, comparison, KPI,
+chart, pipeline, timing, status, and data-quality labels. API definition text
+continues to be English for the contract, while the UI uses explicit Thai
+wording for age and Day 5 definitions. The English round trip exposes the
+corresponding English labels without leaking Thai-only definitions.
+
+These checks map to WCAG 2.2 success criteria as follows:
+
+| Check | WCAG mapping |
+|---|---|
+| Chart labels, summaries, status text, table captions | 1.1.1, 1.3.1 |
+| Keyboard skip, tabs, disclosures, legends, chart points | 2.1.1, 2.4.3 |
+| Visible focus and sticky-header clearance | 2.4.7, 2.4.11 |
+| Text, symbols, line dashes, and non-color status cues | 1.4.3, 1.4.11 |
+| 320px reflow and local table scrolling | 1.4.10 |
+| 44px touch targets | 2.5.8 |
+
+### Validation
+
+- Targeted dashboard test: 9 passed, including coincident end-label layout.
+- Full frontend test/build: 16 test files and 72 tests passed; TypeScript and
+  Vite production build passed.
+- Backend analytics test: 15 passed. Full backend suite: 90 passed, 5
+  skipped (SQL integration unavailable). Ruff passed for `src` and `tests`.
+- OpenAPI validation passed (52 paths, 71 operations); `git diff --check`
+  passed (with only existing CRLF normalization warnings for protected dirty
+  files).
+
+### Final score breakdown
+
+This is a review score based on the measured QA evidence, not an automated
+WCAG certification:
+
+| Dimension | Score |
+|---|---:|
+| Visual | 8.8/10 |
+| Information architecture | 9.2/10 |
+| Ease of use | 8.8/10 |
+| Chart readability | 8.7/10 |
+| Analytical integrity | 9.4/10 |
+| Accessibility | 8.8/10 |
+| Responsive behavior | 9.2/10 |
+| Overall | 8.99/10 |
+
+### Final limitations and follow-ups
+
+- Playwright was used because the in-app browser connector was unavailable;
+  actual device/assistive-technology combinations still merit release QA.
+- 200% and 400% were represented by 720px and 360px CSS viewports in the
+  fallback harness. A browser with OS/page zoom should be checked before
+  release.
+- The seeded Docker API available to the browser is an older stack and omits
+  the optional fish-supporting payload, so its browser disclosure remains an
+  unavailable state; supporting-data rendering is covered by frontend tests.
+- No axe/contrast scanner is installed in this repository. Contrast was
+  reviewed against the existing token palette and semantic/text cues; a
+  dedicated automated audit remains a useful follow-up.
+- Very long future series labels may need a richer label-placement policy;
+  the collision-safe placement is verified against the current cohort data.
