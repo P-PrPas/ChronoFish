@@ -1157,7 +1157,7 @@ export function Dashboard({
       {tab === "stage1" && (
         <div id="dashboard-panel-stage1" role="tabpanel" aria-labelledby="dashboard-tab-stage1">
           {data.kpi && !loading && <TabMetrics tab="stage1" stage1={stage1} stage2={stage2} pipeline={data.pipeline} thai={thai} />}
-          <ReportPanel title={thai ? "การรอดของตัวอ่อนตามระยะ" : "Stage 1 survival curve"} loading={loading} empty={data.survival.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลการรอดที่ตรงกับตัวกรอง" : "No survival observations match these filters."} sampleSize={data.survivalMeta?.sampleSize} quality={<QualityNote meta={data.survivalMeta} thai={thai} />}>
+          <ReportPanel title={thai ? "การรอดของตัวอ่อนตามระยะ" : "Stage 1 survival curve"} loading={loading} empty={data.survival.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลการรอดที่ตรงกับตัวกรอง" : "No survival observations match these filters."} quality={<QualityNote meta={data.survivalMeta} thai={thai} />}>
             {!embryoHeadlineReady
               ? <p className="small-n-note" role="status">{Number(data.survivalMeta?.sampleSize ?? 0) < 5
                 ? (thai ? `ข้อมูลเชิงสำรวจเท่านั้น: n=${Number(data.survivalMeta?.sampleSize ?? 0)} ยังไม่สรุปว่าอัตรารอดต่ำสุดหรือดีที่สุด` : `Exploratory data only: n=${Number(data.survivalMeta?.sampleSize ?? 0)}; no lowest/best survival headline is reported.`)
@@ -1188,7 +1188,7 @@ export function Dashboard({
             />
             <p className="table-note">{thai ? "ตรวจข้อมูลต้นทาง:" : "Source records:"} <button type="button" className="inline-action" onClick={() => openSource("batches")}>{thai ? "เปิดการทดลองตามตัวกรอง" : "Open filtered batches"}</button><button type="button" className="inline-action" onClick={() => openSource("due")}>{thai ? "เปิดผลตรวจตัวอ่อน" : "Open embryo checkpoints"}</button></p>
           </ReportPanel>
-          <ReportPanel title={thai ? "ระยะที่สูญเสียและเริ่มพบความผิดปกติ" : "Attrition / abnormality onset"} loading={loading} empty={data.funnelMeta?.sampleSize === 0 && data.abnormality.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลความสูญเสียที่ตรงกับตัวกรอง" : "No attrition or abnormality observations match these filters."} sampleSize={data.funnelMeta?.sampleSize} quality={<QualityNote meta={data.funnelMeta} thai={thai} />}>
+          <ReportPanel title={thai ? "ระยะที่สูญเสียและเริ่มพบความผิดปกติ" : "Attrition / abnormality onset"} loading={loading} empty={data.funnelMeta?.sampleSize === 0 && data.abnormality.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลความสูญเสียที่ตรงกับตัวกรอง" : "No attrition or abnormality observations match these filters."} quality={<QualityNote meta={data.funnelMeta} thai={thai} />}>
             {!attritionHeadlineReady
               ? <p className="small-n-note" role="status">{Number(data.funnelMeta?.sampleSize ?? 0) < 5
                 ? (thai ? `ข้อมูลเชิงสำรวจเท่านั้น: n=${Number(data.funnelMeta?.sampleSize ?? 0)} ไม่จัดอันดับระยะที่สูญเสียมากที่สุด` : `Exploratory data only: n=${Number(data.funnelMeta?.sampleSize ?? 0)}; no highest-loss ranking is reported.`)
@@ -1226,7 +1226,7 @@ export function Dashboard({
             <QualityNote meta={data.abnormalityMeta} thai={thai} />
           </ReportPanel>
           <details className="secondary-analysis"><summary>{thai ? "ดูการวิเคราะห์เวลาและกลุ่มควบคุมเพิ่มเติม" : "View timing and control analysis"}</summary>
-          <ReportPanel title={thai ? "เวลาเร็ว–ช้าเมื่อเทียบค่ามาตรฐาน" : "Timing deviation / group comparison"} loading={loading} empty={data.deviation.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลเวลาเบี่ยงเบนที่ตรงกับตัวกรอง" : "No timing deviations match these filters."} sampleSize={data.deviationMeta?.sampleSize} quality={<QualityNote meta={data.deviationMeta} thai={thai} />}>
+          <ReportPanel title={thai ? "เวลาเร็ว–ช้าเมื่อเทียบค่ามาตรฐาน" : "Timing deviation / group comparison"} loading={loading} empty={data.deviation.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลเวลาเบี่ยงเบนที่ตรงกับตัวกรอง" : "No timing deviations match these filters."} quality={<QualityNote meta={data.deviationMeta} thai={thai} />}>
             <p className="insight-strip">{thai ? "ค่าใกล้ศูนย์หมายถึงเวลาใกล้มาตรฐาน ค่าบวกคือช้ากว่า และค่าลบคือเร็วกว่ามาตรฐาน" : "Values near zero match the timing standard; positive values are later and negative values are earlier."}</p>
             <TimingSummary rows={data.deviation} thai={thai} />
             <ReportTable
@@ -1253,7 +1253,7 @@ export function Dashboard({
             />
             <p className="table-note">{thai ? "ตรวจข้อมูลต้นทาง:" : "Source records:"} <button type="button" className="inline-action" onClick={() => openSource("batches")}>{thai ? "เปิดการทดลองตามตัวกรอง" : "Open filtered batches"}</button></p>
           </ReportPanel>
-          <ReportPanel title={thai ? "เปรียบเทียบ SCNT กับกลุ่มควบคุม" : "SCNT / control comparison"} loading={loading} empty={data.kpiMeta?.denominators?.stage1Condition === 0 && comparison.every((point) => Number(point.n ?? 0) === 0)} emptyMessage={thai ? "ยังไม่มีข้อมูลกลุ่มควบคุมที่ตรงกับตัวกรอง" : "No SCNT or control-arm counts match these filters."} sampleSize={data.kpiMeta?.sampleSize} quality={<QualityNote meta={data.kpiMeta} thai={thai} />}>
+          <ReportPanel title={thai ? "เปรียบเทียบ SCNT กับกลุ่มควบคุม" : "SCNT / control comparison"} loading={loading} empty={data.kpiMeta?.denominators?.stage1Condition === 0 && comparison.every((point) => Number(point.n ?? 0) === 0)} emptyMessage={thai ? "ยังไม่มีข้อมูลกลุ่มควบคุมที่ตรงกับตัวกรอง" : "No SCNT or control-arm counts match these filters."} quality={<QualityNote meta={data.kpiMeta} thai={thai} />}>
             <ControlSummary points={comparison} thai={thai} />
             <ReportTable
               collapsed summary={thai ? "ดูผลเปรียบเทียบรายระยะ" : "View comparison by stage"}
@@ -1275,7 +1275,7 @@ export function Dashboard({
       {tab === "stage2" && (
         <div id="dashboard-panel-stage2" role="tabpanel" aria-labelledby="dashboard-tab-stage2">
           {data.kpi && !loading && <TabMetrics tab="stage2" stage1={stage1} stage2={stage2} pipeline={data.pipeline} thai={thai} />}
-          <ReportPanel title={thai ? "การรอดของปลาตามอายุ" : "Fish survival by age"} loading={loading} empty={data.fishSurvival.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลการรอดของปลาที่ตรงกับตัวกรอง" : "No fish survival observations match these filters."} sampleSize={data.fishSurvivalMeta?.sampleSize} quality={<QualityNote meta={data.fishSurvivalMeta} thai={thai} />}>
+          <ReportPanel title={thai ? "การรอดของปลาตามอายุ" : "Fish survival by age"} loading={loading} empty={data.fishSurvival.length === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลการรอดของปลาที่ตรงกับตัวกรอง" : "No fish survival observations match these filters."} quality={<QualityNote meta={data.fishSurvivalMeta} thai={thai} />}>
             {!fishHeadlineReady
               ? <p className="small-n-note" role="status">{Number(data.fishSurvivalMeta?.sampleSize ?? 0) < 5
                 ? (thai ? `ข้อมูลเชิงสำรวจเท่านั้น: n=${Number(data.fishSurvivalMeta?.sampleSize ?? 0)} ยังไม่สรุปว่าอัตรารอดต่ำสุดหรือดีที่สุด` : `Exploratory data only: n=${Number(data.fishSurvivalMeta?.sampleSize ?? 0)}; no lowest/best fish-survival headline is reported.`)
@@ -1342,7 +1342,7 @@ export function Dashboard({
       {tab === "overall" && (
         <div id="dashboard-panel-overall" role="tabpanel" aria-labelledby="dashboard-tab-overall">
           {data.kpi && !loading && <TabMetrics tab="overall" stage1={stage1} stage2={stage2} pipeline={data.pipeline} thai={thai} />}
-          <ReportPanel title={thai ? "ผลลัพธ์ตลอดกระบวนการ" : "Pipeline conversion"} loading={loading} empty={data.pipelineMeta?.sampleSize === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลกระบวนการที่ตรงกับตัวกรอง" : "No pipeline records match these filters."} sampleSize={data.pipelineMeta?.sampleSize} quality={<QualityNote meta={data.pipelineMeta} thai={thai} />}>
+          <ReportPanel title={thai ? "ผลลัพธ์ตลอดกระบวนการ" : "Pipeline conversion"} loading={loading} empty={data.pipelineMeta?.sampleSize === 0} emptyMessage={thai ? "ยังไม่มีข้อมูลกระบวนการที่ตรงกับตัวกรอง" : "No pipeline records match these filters."} quality={<QualityNote meta={data.pipelineMeta} thai={thai} />}>
             <PipelineSummary points={data.pipeline} thai={thai} />
             <ReportTable
               collapsed summary={thai ? "ดูอัตราเปลี่ยนผ่านทุกขั้น" : "View conversion by step"}

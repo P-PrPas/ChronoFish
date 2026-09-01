@@ -47,7 +47,7 @@ describe('analytics dashboard', () => {
     expect(document.body.textContent).toContain('Timing profile version(s)')
     expect(document.body.textContent).toContain('Activated embryos')
     expect(document.body.textContent).not.toContain('All fish in registry')
-    expect(document.body.textContent).toContain('(n=3)')
+    expect(Array.from(document.querySelectorAll('h2')).every((heading) => !heading.textContent?.includes('(n='))).toBe(true)
     expect(document.body.textContent).toContain('Data quality')
     expect(document.body.textContent).toContain('Exploratory data only: n=3')
     expect(document.body.textContent).not.toContain('Lowest filtered survival is 100.00% at 1-cell')

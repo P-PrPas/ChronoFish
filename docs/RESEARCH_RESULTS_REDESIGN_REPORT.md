@@ -634,3 +634,15 @@ WCAG certification:
   dedicated automated audit remains a useful follow-up.
 - Very long future series labels may need a richer label-placement policy;
   the collision-safe placement is verified against the current cohort data.
+
+### Continuation correction — chart alignment and heading polish
+
+Follow-up review found that `.chart-block .chart` overrode the base chart's
+auto horizontal margins with `margin: 4px 0 0`, leaving Stage 1 facet charts
+left-aligned. The override now preserves vertical spacing while using
+`margin: 4px auto 0`; current Playwright measurements show a 0px center delta
+at 1440px, 375px, and 320px with no page overflow. `ReportPanel` no longer
+appends `(n=…)` to section headings; sample sizes remain in the warnings,
+insights, tables, and data rows where they are analytically useful. Evidence
+is retained in `.tmp/phase4-continuation-chart-layout.json` and the matching
+`phase4-continuation-stage1-{1440,375,320}.png` screenshots.

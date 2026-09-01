@@ -4,10 +4,10 @@ export function Metric({ label, value }: { label: string; value: number | string
   return <div className="metric"><span>{label}</span><strong>{value}</strong></div>
 }
 
-export function ReportPanel({ title, children, loading = false, loadingMessage, empty = false, emptyMessage = 'No data', sampleSize, quality }: { title: string; children: ReactNode; loading?: boolean; loadingMessage?: string; empty?: boolean; emptyMessage?: string; sampleSize?: number; quality?: ReactNode }) {
+export function ReportPanel({ title, children, loading = false, loadingMessage, empty = false, emptyMessage = 'No data', quality }: { title: string; children: ReactNode; loading?: boolean; loadingMessage?: string; empty?: boolean; emptyMessage?: string; quality?: ReactNode }) {
   const localizedLoading = loadingMessage ?? (/[฀-๿]/.test(title) ? 'กำลังโหลดข้อมูลวิเคราะห์…' : 'Loading analytics…')
   return <section className="report-panel" aria-busy={loading}>
-    <h2>{title}{sampleSize !== undefined ? ` (n=${sampleSize})` : ''}</h2>
+    <h2>{title}</h2>
     {loading ? <p className="table-note" role="status">{localizedLoading}</p> : empty ? <><p className="table-note">{emptyMessage}</p>{quality}</> : <>{children}{quality}</>}
   </section>
 }
