@@ -40,7 +40,7 @@ The implementation stays in the existing due page rather than adding a component
 - `frontend/src/styles.css` — map/editor layout, 12-column desktop and four-column mobile grid, status treatments, metrics, sticky action bar, and focus scroll margins.
 - `frontend/tests/due-workflow.test.tsx` — updated targeted assertions for the plate map and single editor contract while retaining payload, rejection, correction, and undo coverage.
 
-The requested user-owned dirty paths (`compose.yaml`, `.tmp/`, `backend/db/seeds/postgres/demo_data.sql`, and `docs/example_data/`) were not staged or changed by this work.
+The requested user-owned dirty paths (`compose.yaml`, `.tmp/`, `backend/db/seeds/postgres/demo_data.sql`, and `docs/examples/example_data/`) were not staged or changed by this work.
 
 ## Accessibility behavior
 

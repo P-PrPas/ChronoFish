@@ -3,7 +3,7 @@
 > สถานะเอกสาร: แผนดำเนินงานสำหรับ SRS v1.0
 > วันที่จัดทำ: 20 สิงหาคม 2026
 > ตรวจสอบสถานะล่าสุด: 23 สิงหาคม 2026 (Phase 1 เทียบกับ implementation และ automated tests)
-> แหล่งความจริง: `KUVTH_Zebrafish_LIMS_SRS.md` → `api/openapi.yaml` → implementation
+> แหล่งความจริง: `../requirements/KUVTH_Zebrafish_LIMS_SRS.md` → `api/openapi.yaml` → implementation
 > ฐานข้อมูลหลัก: PostgreSQL 16 และต้องผ่านชุดทดสอบเดียวกันบน MySQL 8
 
 ## 1. วัตถุประสงค์และวิธีใช้เอกสารนี้
@@ -466,7 +466,7 @@ Phase 5 ต้องเสร็จก่อนให้ผู้ใช้บั
 
 **เป้าหมาย:** ปิด NFR, ส่งมอบระบบที่ deploy/restore ได้ และยืนยันกับข้อมูลจริง
 
-> Phase 9 automated slice: SCR-18 now has a localized filter/search/detail UI with cursor pagination and before/after context; the API rejects malformed audit cursors safely; the image has OCI metadata/non-root verification; and the operational/UAT handoff is documented in `docs/OPERATIONS.md` and `docs/PHASE_9_UAT.md`. Production network controls, vulnerability scan result, restore drill, device/browser UAT, five-year performance data, and Excel parallel run remain deployment-owner gates.
+> Phase 9 automated slice: SCR-18 now has a localized filter/search/detail UI with cursor pagination and before/after context; the API rejects malformed audit cursors safely; the image has OCI metadata/non-root verification; and the operational/UAT handoff is documented in `docs/operations/OPERATIONS.md` and `docs/testing/PHASE_9_UAT.md`. Production network controls, vulnerability scan result, restore drill, device/browser UAT, five-year performance data, and Excel parallel run remain deployment-owner gates.
 
 #### Product completeness
 

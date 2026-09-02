@@ -8,7 +8,7 @@ KUVTH Zebrafish LIMS tracks SCNT zebrafish experiments from injection through em
 api/        OpenAPI 3.1 contract (single source of truth)
 backend/    Python API and portable PostgreSQL/MySQL migrations
 frontend/   Static React + TypeScript application
-docs/       Requirements and SRS
+docs/       Project documentation grouped by purpose
 scripts/    Contract and migration checks
 ```
 
@@ -90,4 +90,4 @@ against them — so run it only against a throwaway database, never a real one.
 
 Configuration is documented in [`.env.example`](.env.example). Do not commit real credentials.
 
-Deployment, backup/restore, and upgrade procedures are documented in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+Deployment, backup/restore, and upgrade procedures are documented in [`docs/operations/OPERATIONS.md`](docs/operations/OPERATIONS.md). See [`docs/README.md`](docs/README.md) for the documentation index.

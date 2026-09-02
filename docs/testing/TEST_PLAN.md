@@ -4,7 +4,7 @@
 > วันที่: 2 กันยายน 2026
 > Branch: `test/comprehensive-test-suite` (แตกจาก `main` ที่ `045da0e`)
 > ผู้จัดทำ: Senior Software Tester
-> เอกสารที่เกี่ยวข้อง: [`KUVTH_Zebrafish_LIMS_SRS.md`](KUVTH_Zebrafish_LIMS_SRS.md) · [`DEVELOPMENT_STATUS.md`](DEVELOPMENT_STATUS.md) · [`PHASE_9_UAT.md`](PHASE_9_UAT.md) · [`TEST_CASES_BACKEND.md`](TEST_CASES_BACKEND.md) · [`TEST_CASES_FRONTEND.md`](TEST_CASES_FRONTEND.md)
+> เอกสารที่เกี่ยวข้อง: [`KUVTH_Zebrafish_LIMS_SRS.md`](../requirements/KUVTH_Zebrafish_LIMS_SRS.md) · [`DEVELOPMENT_STATUS.md`](../planning/DEVELOPMENT_STATUS.md) · [`PHASE_9_UAT.md`](PHASE_9_UAT.md) · [`TEST_CASES_BACKEND.md`](TEST_CASES_BACKEND.md) · [`TEST_CASES_FRONTEND.md`](TEST_CASES_FRONTEND.md)
 
 ---
 
@@ -226,7 +226,7 @@ Frontend: สร้าง `frontend/tests/helpers.ts` รวม `stubFetch(route
 | **WP10** | Frontend utilities & client | FE-UTL, FE-API, FE-OFF | ไฟล์เดิม + `types.test.ts` *(ใหม่)* | เร็วและปิดช่องว่างได้เยอะ |
 | **WP11** | Frontend shell & components | FE-APP, FE-CMP | `components.test.tsx` *(ใหม่)*, `browser-workflows.test.tsx` | |
 | **WP12** | Frontend pages | FE-DUE, FE-BAT, FE-FSH, FE-MST, FE-SET, FE-DSH, FE-AUD, FE-EXP | ไฟล์เดิม + แยกไฟล์ตามหน้า | LOC สูงสุด, เสี่ยงสูงสุด |
-| **WP13** | CI gate & รายงาน | อัปเดต `ci.yml`, สรุปผล traceability | `.github/workflows/ci.yml`, `docs/TEST_REPORT.md` | ปิดงาน |
+| **WP13** | CI gate & รายงาน | อัปเดต `ci.yml`, สรุปผล traceability | `.github/workflows/ci.yml`, `docs/testing/TEST_REPORT.md` | ปิดงาน |
 
 **ลำดับ commit ที่แนะนำ:** หนึ่ง WP = หนึ่ง commit เพื่อให้ review ทีละชั้นและ revert ได้อิสระ
 
@@ -331,7 +331,7 @@ npx vitest --watch          # ระหว่างแก้โค้ด
 
 | ไฟล์ | เนื้อหา |
 |---|---|
-| `docs/TEST_PLAN.md` | เอกสารนี้ — กลยุทธ์ ขอบเขต เกณฑ์ แผนงาน |
-| `docs/TEST_CASES_BACKEND.md` | test case ระดับ backend ทั้งหมด พร้อม input/expected/requirement |
-| `docs/TEST_CASES_FRONTEND.md` | test case ระดับ frontend ทั้งหมด |
-| `docs/TEST_REPORT.md` | *(สร้างเมื่อจบ WP13)* ผลรัน coverage และตาราง traceability ที่ปิดครบ |
+| `docs/testing/TEST_PLAN.md` | เอกสารนี้ — กลยุทธ์ ขอบเขต เกณฑ์ แผนงาน |
+| `docs/testing/TEST_CASES_BACKEND.md` | test case ระดับ backend ทั้งหมด พร้อม input/expected/requirement |
+| `docs/testing/TEST_CASES_FRONTEND.md` | test case ระดับ frontend ทั้งหมด |
+| `docs/testing/TEST_REPORT.md` | *(สร้างเมื่อจบ WP13)* ผลรัน coverage และตาราง traceability ที่ปิดครบ |
