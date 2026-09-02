@@ -1,16 +1,10 @@
-import {
-  type ChangeEvent,
-  type FormEvent,
-  useCallback,
-  useEffect,
-  useState,
-} from "react";
+import { type ChangeEvent, type FormEvent, useCallback, useEffect, useState } from "react";
 import { type ApiItem, get, request } from "../api/client";
-import { putQueue, type QueuedWrite } from "../offline";
 import { Empty, ErrorMessage } from "../components";
-import { uuidv7 } from "../uuidv7";
-import { type AppText, text } from "../types";
+import { putQueue, type QueuedWrite } from "../offline";
 import { formatBangkokDateTime } from "../time";
+import { type AppText, text } from "../types";
+import { uuidv7 } from "../uuidv7";
 
 const seedProtocolId = "01900000-0000-7000-8000-000000000001";
 
@@ -62,9 +56,7 @@ function previewCsv(fileName: string, textValue: string, stages: ApiItem[]): Csv
   if ((lines[0] ?? "").trim() !== csvHeader) {
     return { fileName, text: textValue, rows: [], errors: [`Row 1: expected header ${csvHeader}`] };
   }
-  const knownStages = new Map(
-    stages.map((stage) => [String(stage.stageCode ?? stage.code), Number(stage.stageOrder)]),
-  );
+  const knownStages = new Map(stages.map((stage) => [String(stage.stageCode ?? stage.code), Number(stage.stageOrder)]));
   const seen = new Set<string>();
   const rows = lines.slice(1).flatMap((line, index) => {
     if (!line.trim()) return [];
@@ -119,13 +111,15 @@ function changedStages(profile: ApiItem, previous?: ApiItem, thai = false): stri
     (entry) => oldValues.get(String(entry.stageCode ?? entry.code)) !== Number(entry.expectedHpa),
   );
   if (changes.length === 0) return thai ? "ไม่มีค่าเวลาเปลี่ยนแปลง" : "No timing values changed";
-  return changes
-    .slice(0, 3)
-    .map((entry) => {
-      const code = String(entry.stageCode ?? entry.code);
-      return `${code}: ${oldValues.get(code) ?? "—"} → ${Number(entry.expectedHpa)}`;
-    })
-    .join(" · ") + (changes.length > 3 ? ` · +${changes.length - 3} ${thai ? "ระยะ" : "more"}` : "");
+  return (
+    changes
+      .slice(0, 3)
+      .map((entry) => {
+        const code = String(entry.stageCode ?? entry.code);
+        return `${code}: ${oldValues.get(code) ?? "—"} → ${Number(entry.expectedHpa)}`;
+      })
+      .join(" · ") + (changes.length > 3 ? ` · +${changes.length - 3} ${thai ? "ระยะ" : "more"}` : "")
+  );
 }
 
 export function Timing({ t = text.en }: { t?: AppText } = {}) {
@@ -212,9 +206,7 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
   const download = async () => {
     if (!protocolId) return;
     try {
-      const response = await request(
-        `/timing-profiles/csv?protocolId=${protocolId}`,
-      );
+      const response = await request(`/timing-profiles/csv?protocolId=${protocolId}`);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -241,17 +233,23 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
   };
   const importCsv = async () => {
     if (!csvPreview || csvPreview.errors.length || csvPreview.rows.some((row) => row.errors.length)) return;
-    if (!window.confirm(thai ? `นำเข้าข้อมูลเวลา ${csvPreview.rows.length} แถวเป็นเวอร์ชันใหม่หรือไม่?` : `Import ${csvPreview.rows.length} timing rows as a new version?`)) return;
+    if (
+      !window.confirm(
+        thai
+          ? `นำเข้าข้อมูลเวลา ${csvPreview.rows.length} แถวเป็นเวอร์ชันใหม่หรือไม่?`
+          : `Import ${csvPreview.rows.length} timing rows as a new version?`,
+      )
+    )
+      return;
     setImporting(true);
     setError("");
     setMessage("");
     try {
-      const result = await putQueue(
-        `/timing-profiles/csv?protocolId=${protocolId}`,
-        csvPreview.text,
-        "text/csv",
-      );
-      if (result.queued) setMessage(thai ? "รอนำเข้า CSV เวอร์ชันใหม่จะแสดงหลังซิงก์" : "CSV import queued; the new version will appear after sync");
+      const result = await putQueue(`/timing-profiles/csv?protocolId=${protocolId}`, csvPreview.text, "text/csv");
+      if (result.queued)
+        setMessage(
+          thai ? "รอนำเข้า CSV เวอร์ชันใหม่จะแสดงหลังซิงก์" : "CSV import queued; the new version will appear after sync",
+        );
       else {
         setCsvPreview(null);
         await load();
@@ -265,19 +263,28 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
   const save = async (event: FormEvent) => {
     event.preventDefault();
     const oldEntries = new Map(
-      (((profile?.entries as ApiItem[] | undefined) ?? []).map((entry) => [
+      ((profile?.entries as ApiItem[] | undefined) ?? []).map((entry) => [
         String(entry.stageCode ?? entry.code),
         Number(entry.expectedHpa),
-      ])),
+      ]),
     );
     const changed = entries.filter(
       (entry) => oldEntries.get(String(entry.stageCode ?? entry.code)) !== Number(entry.expectedHpa),
     );
     if (changed.length === 0) {
-      setError(thai ? "เปลี่ยนค่า HPA ที่คาดไว้อย่างน้อยหนึ่งระยะก่อนบันทึก" : "Change at least one expected HPA value before saving");
+      setError(
+        thai ? "เปลี่ยนค่า HPA ที่คาดไว้อย่างน้อยหนึ่งระยะก่อนบันทึก" : "Change at least one expected HPA value before saving",
+      );
       return;
     }
-    if (!window.confirm(thai ? `สร้างเวอร์ชันเวลาใหม่จากการเปลี่ยน ${changed.length} ระยะหรือไม่?` : `Create a new timing profile version with ${changed.length} changed stage(s)?`)) return;
+    if (
+      !window.confirm(
+        thai
+          ? `สร้างเวอร์ชันเวลาใหม่จากการเปลี่ยน ${changed.length} ระยะหรือไม่?`
+          : `Create a new timing profile version with ${changed.length} changed stage(s)?`,
+      )
+    )
+      return;
     setSaving(true);
     setError("");
     setMessage("");
@@ -293,7 +300,9 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
       const result = await putQueue("/timing-profiles", payload);
       if (result.queued)
         setMessage(
-          thai ? "รอส่งโปรไฟล์เวลา ระบบจะสร้างเวอร์ชันใหม่เมื่อออนไลน์" : "Timing profile queued; it will create a new version when online",
+          thai
+            ? "รอส่งโปรไฟล์เวลา ระบบจะสร้างเวอร์ชันใหม่เมื่อออนไลน์"
+            : "Timing profile queued; it will create a new version when online",
         );
       else await load();
     } catch (saveError) {
@@ -304,9 +313,7 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
   };
   const updateEntry = (index: number, value: string) =>
     setEntries((current) =>
-      current.map((entry, position) =>
-        position === index ? { ...entry, expectedHpa: Number(value) } : entry,
-      ),
+      current.map((entry, position) => (position === index ? { ...entry, expectedHpa: Number(value) } : entry)),
     );
   const thai = t === text.th;
   return (
@@ -316,7 +323,9 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
           <p className="eyebrow">{thai ? "มาตรฐานเวลาแบบเก็บเวอร์ชัน" : "VERSIONED TIMING STANDARD"}</p>
           <h1>{thai ? "เวลามาตรฐานของแต่ละระยะ" : "Timing standards by stage"}</h1>
           <p className="muted">
-            {thai ? "เลือกโพรโทคอล แล้วปรับเฉพาะระยะที่ต้องการ ระบบจะสร้างเวอร์ชันใหม่โดยไม่เปลี่ยนข้อมูลการทดลองเดิม" : "Choose a protocol and change only the stages you need. Saving creates a new version without changing existing experiments."}
+            {thai
+              ? "เลือกโพรโทคอล แล้วปรับเฉพาะระยะที่ต้องการ ระบบจะสร้างเวอร์ชันใหม่โดยไม่เปลี่ยนข้อมูลการทดลองเดิม"
+              : "Choose a protocol and change only the stages you need. Saving creates a new version without changing existing experiments."}
           </p>
           <label>
             {thai ? "โพรโทคอล" : "Protocol"}
@@ -332,9 +341,7 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
               }}
             >
               <option value="">{thai ? "เลือกโพรโทคอล" : "Select protocol"}</option>
-              {protocols.length === 0 && protocolId && (
-                <option value={protocolId}>Default protocol</option>
-              )}
+              {protocols.length === 0 && protocolId && <option value={protocolId}>Default protocol</option>}
               {protocols.map((item) => (
                 <option key={String(item.id)} value={String(item.id)}>
                   {String(item.name ?? item.code ?? item.id)}
@@ -349,13 +356,7 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
           </button>
           <label className="button button--secondary">
             {importing ? t.importing : t.importCSV}
-            <input
-              className="sr-only"
-              type="file"
-              accept=".csv,text/csv"
-              disabled={importing}
-              onChange={selectCsv}
-            />
+            <input className="sr-only" type="file" accept=".csv,text/csv" disabled={importing} onChange={selectCsv} />
           </label>
         </div>
       </div>
@@ -366,60 +367,66 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
         <>
           <div className="list-row">
             <span>
-              <strong>{thai ? "เวอร์ชันที่ใช้อยู่" : "Current version"} {String(profile.version)}</strong>
-              <small>{String(profile.name)} · {createdAt(profile)} · {thai ? "บันทึกโดย" : "by"} {operatorNames[String(profile.createdByOperatorId)] ?? (thai ? "ไม่ระบุผู้ปฏิบัติงาน" : "Unknown operator")}</small>
+              <strong>
+                {thai ? "เวอร์ชันที่ใช้อยู่" : "Current version"} {String(profile.version)}
+              </strong>
+              <small>
+                {String(profile.name)} · {createdAt(profile)} · {thai ? "บันทึกโดย" : "by"}{" "}
+                {operatorNames[String(profile.createdByOperatorId)] ?? (thai ? "ไม่ระบุผู้ปฏิบัติงาน" : "Unknown operator")}
+              </small>
             </span>
             <span className="pill">{thai ? "กำลังใช้งาน" : "Current"}</span>
           </div>
           <form className="form-card" onSubmit={save}>
             <label>
               {thai ? "ชื่อเวอร์ชันใหม่" : "New version name"}
-              <input
-                required
-                maxLength={200}
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
+              <input required maxLength={200} value={name} onChange={(event) => setName(event.target.value)} />
             </label>
             <details className="workflow-disclosure">
-              <summary>{thai ? `ปรับค่า HPA รายระยะ · ${entries.length} ระยะ` : `Edit HPA by stage · ${entries.length} stages`}</summary>
+              <summary>
+                {thai ? `ปรับค่า HPA รายระยะ · ${entries.length} ระยะ` : `Edit HPA by stage · ${entries.length} stages`}
+              </summary>
               <div className="workflow-disclosure__body table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>{thai ? "ระยะ" : "Stage"}</th>
-                    <th>{thai ? "ชื่อระยะ" : "Label"}</th>
-                    <th>{thai ? "HPA ปัจจุบัน" : "Current HPA"}</th>
-                    <th>{thai ? "HPA ใหม่" : "New HPA"}</th>
-                    <th>{thai ? "ผลต่าง" : "Change"}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((entry, index) => {
-                    const original = Number((profile.entries as ApiItem[])[index]?.expectedHpa);
-                    const updated = Number(entry.expectedHpa);
-                    return (
-                      <tr key={String(entry.id ?? entry.stageCode)}>
-                        <td>{String(entry.stageCode ?? entry.code)}</td>
-                        <td>{String(entry.stageLabel ?? entry.label)}</td>
-                        <td>{original}</td>
-                        <td>
-                          <input
-                            aria-label={`${thai ? "HPA ใหม่ของ" : "New HPA for"} ${String(entry.stageCode ?? index + 1)}`}
-                            type="number"
-                            required
-                            min="0"
-                            step="0.0001"
-                            value={updated}
-                            onChange={(event) => updateEntry(index, event.target.value)}
-                          />
-                        </td>
-                        <td>{updated === original ? "—" : `${updated - original > 0 ? "+" : ""}${(updated - original).toFixed(4)}`}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>{thai ? "ระยะ" : "Stage"}</th>
+                      <th>{thai ? "ชื่อระยะ" : "Label"}</th>
+                      <th>{thai ? "HPA ปัจจุบัน" : "Current HPA"}</th>
+                      <th>{thai ? "HPA ใหม่" : "New HPA"}</th>
+                      <th>{thai ? "ผลต่าง" : "Change"}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {entries.map((entry, index) => {
+                      const original = Number((profile.entries as ApiItem[])[index]?.expectedHpa);
+                      const updated = Number(entry.expectedHpa);
+                      return (
+                        <tr key={String(entry.id ?? entry.stageCode)}>
+                          <td>{String(entry.stageCode ?? entry.code)}</td>
+                          <td>{String(entry.stageLabel ?? entry.label)}</td>
+                          <td>{original}</td>
+                          <td>
+                            <input
+                              aria-label={`${thai ? "HPA ใหม่ของ" : "New HPA for"} ${String(entry.stageCode ?? index + 1)}`}
+                              type="number"
+                              required
+                              min="0"
+                              step="0.0001"
+                              value={updated}
+                              onChange={(event) => updateEntry(index, event.target.value)}
+                            />
+                          </td>
+                          <td>
+                            {updated === original
+                              ? "—"
+                              : `${updated - original > 0 ? "+" : ""}${(updated - original).toFixed(4)}`}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </details>
             <button className="button button--primary" disabled={saving}>
@@ -432,27 +439,51 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
         <section className="form-card" aria-label={thai ? "ตัวอย่าง CSV" : "CSV preview"}>
           <div>
             <h2>{thai ? "ตัวอย่าง CSV" : "CSV preview"}</h2>
-            <p className="muted">{csvPreview.fileName} · {csvPreview.rows.length} {thai ? "แถวพร้อมนำเข้า" : "rows ready"}</p>
+            <p className="muted">
+              {csvPreview.fileName} · {csvPreview.rows.length} {thai ? "แถวพร้อมนำเข้า" : "rows ready"}
+            </p>
           </div>
-          {csvPreview.errors.map((previewError) => <ErrorMessage key={previewError} message={previewError} />)}
+          {csvPreview.errors.map((previewError) => (
+            <ErrorMessage key={previewError} message={previewError} />
+          ))}
           <div className="table-wrap">
             <table>
-              <thead><tr>{(thai ? ["แถว", "ระยะ", "ชื่อระยะ", "HPA ที่คาดไว้", "สถานะ"] : ["Row", "Stage", "Label", "Expected HPA", "Status"]).map((header) => <th key={header}>{header}</th>)}</tr></thead>
+              <thead>
+                <tr>
+                  {(thai
+                    ? ["แถว", "ระยะ", "ชื่อระยะ", "HPA ที่คาดไว้", "สถานะ"]
+                    : ["Row", "Stage", "Label", "Expected HPA", "Status"]
+                  ).map((header) => (
+                    <th key={header}>{header}</th>
+                  ))}
+                </tr>
+              </thead>
               <tbody>
                 {csvPreview.rows.map((row) => (
                   <tr key={row.row}>
-                    <td>{row.row}</td><td>{row.stageCode}</td><td>{row.label}</td><td>{row.expectedHpa}</td>
-                    <td>{row.errors.length ? row.errors.join(" · ") : (thai ? "พร้อม" : "Ready")}</td>
+                    <td>{row.row}</td>
+                    <td>{row.stageCode}</td>
+                    <td>{row.label}</td>
+                    <td>{row.expectedHpa}</td>
+                    <td>{row.errors.length ? row.errors.join(" · ") : thai ? "พร้อม" : "Ready"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <div className="button-row">
-            <button className="button button--primary" disabled={importing || csvPreview.errors.length > 0 || csvPreview.rows.some((row) => row.errors.length > 0)} onClick={() => void importCsv()}>
-              {importing ? t.importing : (thai ? "นำเข้าตัวอย่าง" : "Import preview")}
+            <button
+              className="button button--primary"
+              disabled={
+                importing || csvPreview.errors.length > 0 || csvPreview.rows.some((row) => row.errors.length > 0)
+              }
+              onClick={() => void importCsv()}
+            >
+              {importing ? t.importing : thai ? "นำเข้าตัวอย่าง" : "Import preview"}
             </button>
-            <button className="button button--secondary" onClick={() => setCsvPreview(null)}>{thai ? "ยกเลิก" : "Cancel"}</button>
+            <button className="button button--secondary" onClick={() => setCsvPreview(null)}>
+              {thai ? "ยกเลิก" : "Cancel"}
+            </button>
           </div>
         </section>
       )}
@@ -462,8 +493,14 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
           {history.map((version, index) => (
             <div className="list-row" key={String(version.id)}>
               <span>
-                <strong>{thai ? "เวอร์ชัน" : "Version"} {String(version.version)} · {String(version.name)}</strong>
-                <small>{createdAt(version)} · {thai ? "บันทึกโดย" : "by"} {operatorNames[String(version.createdByOperatorId)] ?? (thai ? "ไม่ระบุผู้ปฏิบัติงาน" : "Unknown operator")} · {changedStages(version, history[index + 1], thai)}</small>
+                <strong>
+                  {thai ? "เวอร์ชัน" : "Version"} {String(version.version)} · {String(version.name)}
+                </strong>
+                <small>
+                  {createdAt(version)} · {thai ? "บันทึกโดย" : "by"}{" "}
+                  {operatorNames[String(version.createdByOperatorId)] ?? (thai ? "ไม่ระบุผู้ปฏิบัติงาน" : "Unknown operator")}{" "}
+                  · {changedStages(version, history[index + 1], thai)}
+                </small>
               </span>
               {Boolean(version.isCurrent) && <span className="pill">{thai ? "กำลังใช้งาน" : "Current"}</span>}
             </div>
@@ -481,9 +518,7 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
   const [queued, setQueued] = useState<string[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [boxes, setBoxes] = useState<ApiItem[]>([]);
-  const [edits, setEdits] = useState<
-    Record<string, { fishCode: string; fishBoxId: string }>
-  >({});
+  const [edits, setEdits] = useState<Record<string, { fishCode: string; fishBoxId: string }>>({});
   const load = useCallback(() => {
     void get("/promotions/pending")
       .then((data) => {
@@ -511,10 +546,7 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
       const detail = (event as CustomEvent<QueuedWrite>).detail;
       if (detail.path === "/promotions") {
         setQueued([]);
-        setMessage(
-          detail.lastError ??
-            t.promotionRejected,
-        );
+        setMessage(detail.lastError ?? t.promotionRejected);
       }
     };
     window.addEventListener("chronofish:queue-drained", refresh);
@@ -533,50 +565,54 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
         promotions: promotions.map((item) => ({
           clientUuid: uuidv7(),
           embryoId: item.embryoId,
-          fishCode:
-            edits[String(item.embryoId)]?.fishCode || item.suggestedFishCode,
+          fishCode: edits[String(item.embryoId)]?.fishCode || item.suggestedFishCode,
           fishBoxId: edits[String(item.embryoId)]?.fishBoxId || null,
         })),
       });
-      if (!result.queued)
-        setItems((current) =>
-          current.filter((entry) => !ids.includes(String(entry.embryoId))),
-        );
+      if (!result.queued) setItems((current) => current.filter((entry) => !ids.includes(String(entry.embryoId))));
     } catch (e) {
       setQueued((current) => current.filter((id) => !ids.includes(id)));
       setMessage((e as Error).message);
     }
   };
   const eligibleSelected = items.filter(
-    (item) =>
-      selected.includes(String(item.embryoId)) &&
-      !queued.includes(String(item.embryoId)),
+    (item) => selected.includes(String(item.embryoId)) && !queued.includes(String(item.embryoId)),
   );
   return (
-    <form onSubmit={(event) => { event.preventDefault(); void promote(eligibleSelected) }}>
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void promote(eligibleSelected);
+      }}
+    >
       <div className="page-heading">
         <div>
           <p className="eyebrow">{t === text.th ? "เปลี่ยนสถานะจากตัวอ่อนเป็นปลา" : "EMBRYO-TO-FISH HANDOFF"}</p>
           <h1>{t === text.th ? "ขึ้นทะเบียนปลาโคลนที่เข้าเกณฑ์" : "Register eligible clone fish"}</h1>
           <p className="muted">
-            {t === text.th ? "ตรวจสายพันธุ์ ระยะแรกที่พบความผิดปกติ และรหัสปลา จากนั้นเลือกหลายรายการเพื่อยืนยันพร้อมกัน" : "Review strain, first abnormality and fish code, then select multiple records to confirm together."}
+            {t === text.th
+              ? "ตรวจสายพันธุ์ ระยะแรกที่พบความผิดปกติ และรหัสปลา จากนั้นเลือกหลายรายการเพื่อยืนยันพร้อมกัน"
+              : "Review strain, first abnormality and fish code, then select multiple records to confirm together."}
           </p>
         </div>
         <div className="button-row">
           <button className="button button--secondary" type="button" onClick={load}>
             {t.refresh}
           </button>
-          <button
-            className="button button--primary"
-            disabled={!eligibleSelected.length}
-          >
+          <button className="button button--primary" disabled={!eligibleSelected.length}>
             {t.confirmSelected} ({eligibleSelected.length})
           </button>
         </div>
       </div>
       {message && <ErrorMessage message={message} />}
       {items.length === 0 ? (
-        <Empty message={t.noEligiblePromotions} actionLabel={t.due} onAction={() => { location.hash = 'due' }} />
+        <Empty
+          message={t.noEligiblePromotions}
+          actionLabel={t.due}
+          onAction={() => {
+            location.hash = "due";
+          }}
+        />
       ) : (
         <div className="list">
           {items.map((item) => {
@@ -595,17 +631,17 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
                     disabled={isQueued}
                     onChange={() =>
                       setSelected((current) =>
-                        current.includes(id)
-                          ? current.filter((value) => value !== id)
-                          : [...current, id],
+                        current.includes(id) ? current.filter((value) => value !== id) : [...current, id],
                       )
                     }
                   />
                   <span>
                     <strong>{String(item.embryoCode)}</strong>
                     <small>
-                      {t === text.th ? "สายพันธุ์" : "Strain"} {String(item.strain ?? "—")} · {t === text.th ? "เกิด" : "DOB"}{" "}
-                      {String(item.dob)} · {t === text.th ? "เริ่มพบความผิดปกติ" : "first abnormality"}{" "}{String(item.firstAbnormalStageLabel ?? "—")}
+                      {t === text.th ? "สายพันธุ์" : "Strain"} {String(item.strain ?? "—")} ·{" "}
+                      {t === text.th ? "เกิด" : "DOB"} {String(item.dob)} ·{" "}
+                      {t === text.th ? "เริ่มพบความผิดปกติ" : "first abnormality"}{" "}
+                      {String(item.firstAbnormalStageLabel ?? "—")}
                     </small>
                   </span>
                 </label>
@@ -682,9 +718,7 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
       .then((data) => {
         const items = data.items ?? [];
         setProtocols(items);
-        setProtocolId(
-          (current) => current || String(items[0]?.id ?? seedProtocolId),
-        );
+        setProtocolId((current) => current || String(items[0]?.id ?? seedProtocolId));
       })
       .catch(() => setProtocolId(seedProtocolId));
   }, []);
@@ -724,11 +758,7 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
       );
   }, [protocolId]);
   const update = (index: number, value: Partial<ControlRow>) =>
-    setRows((current) =>
-      current.map((row, position) =>
-        position === index ? { ...row, ...value } : row,
-      ),
-    );
+    setRows((current) => current.map((row, position) => (position === index ? { ...row, ...value } : row)));
   const totals = rows.reduce(
     (current, row) => ({
       normal: current.normal + row.nNormal,
@@ -769,22 +799,18 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
           <p className="eyebrow">{thai ? "บันทึกข้อมูลเพื่อเปรียบเทียบ" : "COMPARISON EVIDENCE"}</p>
           <h1>{thai ? "ผลกลุ่มเปรียบเทียบ" : "Comparison group results"}</h1>
           <p className="muted">
-            {thai ? "เลือกการทดลองและระยะ แล้วบันทึกจำนวนปกติ–ผิดปกติของกลุ่มผสมธรรมชาติหรือ IVF" : "Choose an experiment and stage, then record normal and abnormal counts for natural-breeding or IVF groups."}
+            {thai
+              ? "เลือกการทดลองและระยะ แล้วบันทึกจำนวนปกติ–ผิดปกติของกลุ่มผสมธรรมชาติหรือ IVF"
+              : "Choose an experiment and stage, then record normal and abnormal counts for natural-breeding or IVF groups."}
           </p>
         </div>
       </div>
       <form className="task-surface form-card control-form" onSubmit={save}>
         <label>
           {thai ? "โพรโทคอล" : "Protocol"}
-          <select
-            required
-            value={protocolId}
-            onChange={(event) => setProtocolId(event.target.value)}
-          >
+          <select required value={protocolId} onChange={(event) => setProtocolId(event.target.value)}>
             <option value="">{thai ? "เลือกโพรโทคอล" : "Select protocol"}</option>
-            {protocols.length === 0 && protocolId && (
-              <option value={protocolId}>Default protocol</option>
-            )}
+            {protocols.length === 0 && protocolId && <option value={protocolId}>Default protocol</option>}
             {protocols.map((protocol) => (
               <option key={String(protocol.id)} value={String(protocol.id)}>
                 {String(protocol.name ?? protocol.code ?? protocol.id)}
@@ -794,11 +820,7 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
         </label>
         <label>
           {thai ? "การทดลอง" : "Batch"}
-          <select
-            required
-            value={batchId}
-            onChange={(event) => setBatchId(event.target.value)}
-          >
+          <select required value={batchId} onChange={(event) => setBatchId(event.target.value)}>
             <option value="">{thai ? "เลือกการทดลอง" : "Select batch"}</option>
             {batches.map((batch) => (
               <option key={String(batch.id)} value={String(batch.id)}>
@@ -825,17 +847,9 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
             </label>
             <label>
               {thai ? "ระยะที่ตรวจ" : "Stage"}
-              <select
-                value={row.stageCode}
-                onChange={(event) =>
-                  update(index, { stageCode: event.target.value })
-                }
-              >
+              <select value={row.stageCode} onChange={(event) => update(index, { stageCode: event.target.value })}>
                 {stages.map((stage) => (
-                  <option
-                    key={String(stage.code ?? stage.stageCode)}
-                    value={String(stage.code ?? stage.stageCode)}
-                  >
+                  <option key={String(stage.code ?? stage.stageCode)} value={String(stage.code ?? stage.stageCode)}>
                     {String(stage.label ?? stage.stageLabel ?? stage.code)}
                   </option>
                 ))}
@@ -847,9 +861,7 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
                 type="number"
                 min="0"
                 value={row.nNormal}
-                onChange={(event) =>
-                  update(index, { nNormal: Number(event.target.value) })
-                }
+                onChange={(event) => update(index, { nNormal: Number(event.target.value) })}
               />
             </label>
             <label>
@@ -858,28 +870,31 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
                 type="number"
                 min="0"
                 value={row.nAbnormal}
-                onChange={(event) =>
-                  update(index, { nAbnormal: Number(event.target.value) })
-                }
+                onChange={(event) => update(index, { nAbnormal: Number(event.target.value) })}
               />
             </label>
             <button
               type="button"
               className="inline-action inline-action--danger"
-              onClick={() =>
-                setRows((current) =>
-                  current.filter((_, position) => position !== index),
-                )
-              }
+              onClick={() => setRows((current) => current.filter((_, position) => position !== index))}
             >
               {thai ? "ลบแถว" : "Remove"}
             </button>
           </div>
         ))}
         <div className="record-facts">
-          <div className="record-fact"><span>{thai ? "ปกติรวม" : "Normal total"}</span><strong>{totals.normal}</strong></div>
-          <div className="record-fact"><span>{thai ? "ผิดปกติรวม" : "Abnormal total"}</span><strong>{totals.abnormal}</strong></div>
-          <div className="record-fact"><span>{thai ? "จำนวนทั้งหมด" : "Grand total"}</span><strong>{totals.normal + totals.abnormal}</strong></div>
+          <div className="record-fact">
+            <span>{thai ? "ปกติรวม" : "Normal total"}</span>
+            <strong>{totals.normal}</strong>
+          </div>
+          <div className="record-fact">
+            <span>{thai ? "ผิดปกติรวม" : "Abnormal total"}</span>
+            <strong>{totals.abnormal}</strong>
+          </div>
+          <div className="record-fact">
+            <span>{thai ? "จำนวนทั้งหมด" : "Grand total"}</span>
+            <strong>{totals.normal + totals.abnormal}</strong>
+          </div>
         </div>
         <div className="button-row">
           <button

@@ -6,8 +6,10 @@
   "scripts": {
     "dev": "vite",
     "generate:api": "openapi-typescript ../api/openapi.yaml -o src/api/schema.d.ts",
+    "lint": "biome ci src tests",
+    "format": "biome check src tests --write",
     "build": "tsc --noEmit && vite build",
-    "check": "npm run build",
+    "check": "npm run lint && npm run build",
     "test": "npm run build && vitest run"
   },
   "dependencies": {
@@ -15,6 +17,7 @@
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.11",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.2",

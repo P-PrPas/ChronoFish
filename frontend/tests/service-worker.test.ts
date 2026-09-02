@@ -1,49 +1,51 @@
-import { readFile } from 'node:fs/promises'
-import { runInNewContext } from 'node:vm'
-import { expect, test, vi } from 'vitest'
+import { readFile } from "node:fs/promises";
+import { runInNewContext } from "node:vm";
+import { expect, test, vi } from "vitest";
 
-test('service worker leaves API requests to the network', async () => {
-  const source = await readFile(new URL('../dist/sw.js', import.meta.url), 'utf8')
-  type FetchEvent = { request: Request; respondWith: (response: unknown) => void }
-  let onFetch: ((event: FetchEvent) => void) | undefined
+test("service worker leaves API requests to the network", async () => {
+  const source = await readFile(new URL("../dist/sw.js", import.meta.url), "utf8");
+  type FetchEvent = { request: Request; respondWith: (response: unknown) => void };
+  let onFetch: ((event: FetchEvent) => void) | undefined;
   const self = {
-    location: { origin: 'http://localhost' },
+    location: { origin: "http://localhost" },
     addEventListener(type: string, listener: (event: unknown) => void) {
-      if (type === 'fetch') onFetch = listener as (event: FetchEvent) => void
+      if (type === "fetch") onFetch = listener as (event: FetchEvent) => void;
     },
-  }
+  };
 
-  runInNewContext(source, { self, URL, Response, fetch, caches: {} })
-  expect(onFetch).toBeTypeOf('function')
-  const respondWith = vi.fn()
-  onFetch!({ request: new Request('http://localhost/api/v1/health'), respondWith })
-  expect(respondWith).not.toHaveBeenCalled()
-})
+  runInNewContext(source, { self, URL, Response, fetch, caches: {} });
+  expect(onFetch).toBeTypeOf("function");
+  const respondWith = vi.fn();
+  onFetch!({ request: new Request("http://localhost/api/v1/health"), respondWith });
+  expect(respondWith).not.toHaveBeenCalled();
+});
 
-test('service worker prefers the deployed shell for online navigation', async () => {
-  const source = await readFile(new URL('../dist/sw.js', import.meta.url), 'utf8')
-  type FetchEvent = { request: Request; respondWith: (response: Promise<Response>) => void }
-  let onFetch: ((event: FetchEvent) => void) | undefined
+test("service worker prefers the deployed shell for online navigation", async () => {
+  const source = await readFile(new URL("../dist/sw.js", import.meta.url), "utf8");
+  type FetchEvent = { request: Request; respondWith: (response: Promise<Response>) => void };
+  let onFetch: ((event: FetchEvent) => void) | undefined;
   const self = {
-    location: { origin: 'http://localhost' },
+    location: { origin: "http://localhost" },
     addEventListener(type: string, listener: (event: unknown) => void) {
-      if (type === 'fetch') onFetch = listener as (event: FetchEvent) => void
+      if (type === "fetch") onFetch = listener as (event: FetchEvent) => void;
     },
-  }
-  const cache = { put: vi.fn() }
+  };
+  const cache = { put: vi.fn() };
   const caches = {
-    match: vi.fn(async () => new Response('stale shell')),
+    match: vi.fn(async () => new Response("stale shell")),
     open: vi.fn(async () => cache),
-  }
-  const fetch = vi.fn(async () => new Response('deployed shell'))
-  let response: Promise<Response> | undefined
+  };
+  const fetch = vi.fn(async () => new Response("deployed shell"));
+  let response: Promise<Response> | undefined;
 
-  runInNewContext(source, { self, URL, Response, fetch, caches })
+  runInNewContext(source, { self, URL, Response, fetch, caches });
   onFetch!({
-    request: { method: 'GET', mode: 'navigate', url: 'http://localhost/' } as Request,
-    respondWith(value) { response = value },
-  })
+    request: { method: "GET", mode: "navigate", url: "http://localhost/" } as Request,
+    respondWith(value) {
+      response = value;
+    },
+  });
 
-  expect(await response?.then((value) => value.text())).toBe('deployed shell')
-  expect(fetch).toHaveBeenCalledOnce()
-})
+  expect(await response?.then((value) => value.text())).toBe("deployed shell");
+  expect(fetch).toHaveBeenCalledOnce();
+});
