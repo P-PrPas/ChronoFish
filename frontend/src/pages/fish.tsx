@@ -1,16 +1,19 @@
-import { type FormEvent, useCallback, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useMemo, useState } from 'react'
 import { type ApiItem, get } from '../api/client'
-import { putQueue, type QueuedWrite } from '../offline'
+import { Empty, ErrorMessage } from '../components'
 import { parseFilters, withFilters } from '../filters'
-import { type AppText } from '../types'
-import { Empty, ErrorMessage, ReportTable } from '../components'
+import { putQueue, type QueuedWrite } from '../offline'
+import { type AppText, text } from '../types'
 import { uuidv7 } from '../uuidv7'
 
 type FishOutcome = 'ALIVE' | 'DEAD' | 'FROZEN' | 'DISCARDED'
 type FishCondition = 'NORMAL' | 'ABNORMAL' | 'UNDETERMINED'
 const outcomes: FishOutcome[] = ['ALIVE', 'DEAD', 'FROZEN', 'DISCARDED']
-const outcomeLabel = (outcome: FishOutcome, t: AppText) => ({ ALIVE: t.fishAlive, DEAD: t.fishDead, FROZEN: t.fishFrozen, DISCARDED: t.fishDiscarded }[outcome])
 const bangkokDate = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(new Date())
+const outcomeLabel = (value: FishOutcome, t: AppText) => ({ ALIVE: t.fishAlive, DEAD: t.fishDead, FROZEN: t.fishFrozen, DISCARDED: t.fishDiscarded }[value])
+const conditionLabel = (value: unknown, thai: boolean) => ({ NORMAL: thai ? 'ปกติ' : 'Normal', ABNORMAL: thai ? 'พบความผิดปกติ' : 'Abnormal', UNDETERMINED: thai ? 'ยังประเมินไม่ได้' : 'Undetermined' }[String(value)] ?? '—')
+const sexLabel = (value: unknown, thai: boolean) => ({ M: thai ? 'เพศผู้' : 'Male', F: thai ? 'เพศเมีย' : 'Female', UNKNOWN: thai ? 'ยังไม่ระบุ' : 'Not recorded' }[String(value)] ?? '—')
+const specimenTypeLabel = (value: unknown, thai: boolean) => ({ CAUDAL_FIN_CLIP: thai ? 'ชิ้นครีบหาง' : 'Caudal fin clip', WHOLE_EMBRYO: thai ? 'ตัวอ่อนทั้งตัว' : 'Whole embryo' }[String(value)] ?? String(value ?? '—'))
 const dateRange = (start: string, end: string) => {
   if (!start || !end || end < start) return []
   const values: string[] = []
@@ -35,160 +38,127 @@ export function Fish({ t }: { t: AppText }) {
   const [error, setError] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [outcomesByFish, setOutcomesByFish] = useState<Record<string, FishOutcome>>({})
+  const [correctionReason, setCorrectionReason] = useState('')
+  const [saving, setSaving] = useState(false)
   const [search, setSearch] = useState('')
   const [filters, setFilters] = useState({ siteId: dashboardFilters.siteId ?? '', boxId: '', status: '', strain: dashboardFilters.strain ?? '', treatmentGroupId: dashboardFilters.treatmentGroupId ?? '', dobFrom: '', dobTo: '' })
   const [masters, setMasters] = useState<Record<string, ApiItem[]>>({ sites: [], 'fish-boxes': [], 'treatment-groups': [] })
+  const thai = t === text.th
 
-  const loadRollCall = useCallback(() => {
-    void get(`/fish/roll-call?date=${date}`).then((data) => {
-      setItems(data.items ?? [])
-    }).catch((e: Error) => setError(e.message))
-  }, [date])
-  const loadRegistry = useCallback(() => {
-    void get(withFilters('/fish?includeInactive=true', dashboardFilters)).then((data) => setRegistry(data.items ?? [])).catch((e: Error) => setError(e.message))
-  }, [dashboardFilters])
-  useEffect(() => {
-    void Promise.all(['sites', 'fish-boxes', 'treatment-groups'].map(async (resource) => [resource, (await get(`/${resource}`)).items ?? []] as [string, ApiItem[]]))
-      .then((result) => setMasters(Object.fromEntries(result))).catch(() => undefined)
-  }, [])
+  const loadRollCall = useCallback(() => { void get(`/fish/roll-call?date=${date}`).then((data) => setItems(data.items ?? [])).catch((e: Error) => setError(e.message)) }, [date])
+  const loadRegistry = useCallback(() => { void get(withFilters('/fish?includeInactive=true', dashboardFilters)).then((data) => setRegistry(data.items ?? [])).catch((e: Error) => setError(e.message)) }, [dashboardFilters])
+  useEffect(() => { void Promise.all(['sites', 'fish-boxes', 'treatment-groups'].map(async (resource) => [resource, (await get(`/${resource}`)).items ?? []] as [string, ApiItem[]])).then((result) => setMasters(Object.fromEntries(result))).catch(() => undefined) }, [])
   useEffect(() => { if (mode === 'rollcall') loadRollCall(); else loadRegistry() }, [mode, loadRollCall, loadRegistry])
   useEffect(() => {
     const refresh = () => { loadRollCall(); loadRegistry() }
-    const reject = (event: Event) => {
-      const detail = (event as CustomEvent<QueuedWrite>).detail
-      if (detail.path === '/observations/fish') setError(detail.lastError ?? 'Fish observation was rejected')
-    }
+    const reject = (event: Event) => { const detail = (event as CustomEvent<QueuedWrite>).detail; if (detail.path === '/observations/fish') setError(detail.lastError ?? 'Fish observation was rejected') }
     window.addEventListener('chronofish:queue-drained', refresh)
     window.addEventListener('chronofish:queue-rejected', reject)
-    return () => {
-      window.removeEventListener('chronofish:queue-drained', refresh)
-      window.removeEventListener('chronofish:queue-rejected', reject)
-    }
+    return () => { window.removeEventListener('chronofish:queue-drained', refresh); window.removeEventListener('chronofish:queue-rejected', reject) }
   }, [loadRollCall, loadRegistry])
 
-  const record = async (fish: ApiItem, outcome: FishOutcome) => {
-    const id = String(fish.fishId)
-    if (!fish.alreadyRecorded && date < bangkokDate() && !backdateReason.trim()) {
-      setError('Backdate reason is required')
-      return
-    }
-    const correctionReason = fish.alreadyRecorded ? window.prompt('Reason for correcting this observation')?.trim() : ''
-    if (fish.alreadyRecorded && !correctionReason) return
-    setOutcomesByFish((current) => ({ ...current, [id]: outcome }))
-    try {
-      if (fish.alreadyRecorded && fish.observationId) {
-        await putQueue(`/observations/fish/${fish.observationId}`, { observedOn: date, outcome, condition: fish.condition ?? 'NORMAL', overrideReason: correctionReason }, 'application/json', 'PATCH')
-      } else {
-        await putQueue('/observations/fish', { observations: [{ clientUuid: uuidv7(), cloneFishId: fish.fishId, observedOn: date, outcome, condition: fish.condition ?? 'NORMAL', ...(date < bangkokDate() ? { overrideReason: backdateReason.trim() } : {}) }] })
-      }
-      loadRollCall()
-    } catch (e) {
-      setOutcomesByFish((current) => { const next = { ...current }; delete next[id]; return next })
-      setError((e as Error).message)
-    }
-  }
-  const markAlive = async () => {
+  const saveRollCall = async () => {
     const dates = dateRange(date, endDate)
-    if (dates.length === 0 || endDate > bangkokDate()) {
-      setError('Roll-call date range is invalid')
-      return
-    }
-    if (dates.some((value) => value < bangkokDate()) && !backdateReason.trim()) {
-      setError('Backdate reason is required')
-      return
-    }
+    if (!dates.length || endDate > bangkokDate()) { setError(thai ? 'ช่วงวันที่ตรวจไม่ถูกต้อง' : 'Roll-call date range is invalid'); return }
+    if (dates.some((value) => value < bangkokDate()) && !backdateReason.trim()) { setError(thai ? 'โปรดระบุเหตุผลที่บันทึกย้อนหลัง' : 'Backdate reason is required'); return }
+    if (dates.length > 1 && Object.values(outcomesByFish).some((outcome) => outcome !== 'ALIVE')) { setError(thai ? 'รายการที่มีข้อยกเว้นบันทึกได้ครั้งละหนึ่งวัน' : 'Exception outcomes can only be saved for one day at a time'); return }
+    const corrections = items.filter((fish) => fish.alreadyRecorded && outcomesByFish[String(fish.fishId)] && outcomesByFish[String(fish.fishId)] !== String(fish.recordedOutcome ?? 'ALIVE'))
+    if (corrections.length && !correctionReason.trim()) { setError(thai ? 'โปรดระบุเหตุผลที่แก้ไขผลการตรวจ' : 'Correction reason is required'); return }
+    setSaving(true)
+    setError('')
     try {
       const rolls = dates.length === 1 ? [{ items }] : await Promise.all(dates.map((value) => get(`/fish/roll-call?date=${value}`)))
-      const observations = rolls.flatMap((roll, index) => (roll.items ?? []).filter((item: ApiItem) => !item.alreadyRecorded).map((fish: ApiItem) => ({ clientUuid: uuidv7(), cloneFishId: fish.fishId, observedOn: dates[index], outcome: 'ALIVE', condition: fish.condition ?? 'NORMAL', ...(dates[index] < bangkokDate() ? { overrideReason: backdateReason.trim() } : {}) })))
-      if (observations.length === 0) return
-      for (const fish of items.filter((item) => !item.alreadyRecorded)) setOutcomesByFish((current) => ({ ...current, [String(fish.fishId)]: 'ALIVE' }))
-      await putQueue('/observations/fish', { observations })
+      const observations = rolls.flatMap((roll, index) => (roll.items ?? []).filter((item: ApiItem) => !item.alreadyRecorded).map((fish: ApiItem) => ({ clientUuid: uuidv7(), cloneFishId: fish.fishId, observedOn: dates[index], outcome: dates.length === 1 ? outcomesByFish[String(fish.fishId)] ?? 'ALIVE' : 'ALIVE', condition: fish.condition ?? 'NORMAL', ...(dates[index] < bangkokDate() ? { overrideReason: backdateReason.trim() } : {}) })))
+      if (observations.length) await putQueue('/observations/fish', { observations })
+      for (const fish of corrections) await putQueue(`/observations/fish/${fish.observationId}`, { observedOn: date, outcome: outcomesByFish[String(fish.fishId)], condition: fish.condition ?? 'NORMAL', overrideReason: correctionReason.trim() }, 'application/json', 'PATCH')
+      setOutcomesByFish({})
+      setCorrectionReason('')
+      loadRollCall()
     } catch (e) { setError((e as Error).message) }
-    loadRollCall()
+    finally { setSaving(false) }
   }
   const visible = useMemo(() => registry.filter((fish) =>
-    (!filters.siteId || String(fish.siteId) === filters.siteId) &&
-    (!filters.boxId || String(fish.fishBoxId) === filters.boxId) &&
-    (!filters.status || String(fish.status) === filters.status) &&
-    (!filters.treatmentGroupId || String(fish.treatmentGroupId) === filters.treatmentGroupId) &&
-    (!filters.strain || String(fish.strain ?? '').toLowerCase().includes(filters.strain.toLowerCase())) &&
-    (!filters.dobFrom || String(fish.dob) >= filters.dobFrom) &&
-    (!filters.dobTo || String(fish.dob) <= filters.dobTo) &&
-    (!search || `${fish.fishCode ?? ''} ${fish.strain ?? ''}`.toLowerCase().includes(search.toLowerCase()))
+    (!filters.siteId || String(fish.siteId) === filters.siteId) && (!filters.boxId || String(fish.fishBoxId) === filters.boxId) && (!filters.status || String(fish.status) === filters.status) && (!filters.treatmentGroupId || String(fish.treatmentGroupId) === filters.treatmentGroupId) && (!filters.strain || String(fish.strain ?? '').toLowerCase().includes(filters.strain.toLowerCase())) && (!filters.dobFrom || String(fish.dob) >= filters.dobFrom) && (!filters.dobTo || String(fish.dob) <= filters.dobTo) && (!search || `${fish.fishCode ?? ''} ${fish.strain ?? ''}`.toLowerCase().includes(search.toLowerCase()))
   ), [registry, filters, search])
+  const groups = useMemo(() => Object.entries(items.reduce<Record<string, ApiItem[]>>((result, fish) => { const key = String(fish.fishBoxCode ?? fish.boxCode ?? (thai ? 'ยังไม่ระบุตู้ปลา' : 'No fish box')); (result[key] ??= []).push(fish); return result }, {})), [items, thai])
 
-  if (selected) return <FishDetail fishId={selected} masters={masters} onBack={() => setSelected('')} />
+  if (selected) return <FishDetail fishId={selected} masters={masters} t={t} onBack={() => setSelected('')} />
+  if (showCreate) return <section><button className="back" onClick={() => setShowCreate(false)}>← {thai ? 'กลับไปงานตรวจปลา' : 'Back to fish checks'}</button><ManualFishForm t={t} masters={masters} onSaved={(optimistic) => { setShowCreate(false); setRegistry((current) => [optimistic, ...current]) }} onCancel={() => setShowCreate(false)} /></section>
+
   return <section>
-    <div className="page-heading"><div><p className="eyebrow">STAGE 2 / REGISTRY</p><h1>{t.fish}</h1><p className="muted">Bangkok date: {date}. All Alive sends one batch request for this roll-call.</p></div><div className="button-row">{mode === 'rollcall' && <button className="button button--secondary" onClick={() => void markAlive()}>{t.allAlive}</button>}<button className="button button--primary" onClick={() => setShowCreate(true)}>Register fish</button></div></div>
-    <div className="tabs" role="tablist"><button role="tab" aria-selected={mode === 'rollcall'} className={mode === 'rollcall' ? 'tab tab--active' : 'tab'} onClick={() => setMode('rollcall')}>Daily roll-call</button><button role="tab" aria-selected={mode === 'registry'} className={mode === 'registry' ? 'tab tab--active' : 'tab'} onClick={() => setMode('registry')}>Fish registry</button></div>
-    {showCreate && <ManualFishForm masters={masters} onSaved={(optimistic) => { setShowCreate(false); setRegistry((current) => [optimistic, ...current]) }} onCancel={() => setShowCreate(false)} />}
+    <div className="page-heading"><div><p className="eyebrow">{thai ? 'บันทึกการดูแลประจำวัน' : 'DAILY CARE RECORD'}</p><h1>{mode === 'rollcall' ? (thai ? 'ตรวจปลาประจำวัน' : 'Daily fish check') : (thai ? 'ค้นหาทะเบียนปลาโคลน' : 'Clone fish records')}</h1><p className="muted">{thai ? `วันที่ ${new Intl.DateTimeFormat('th-TH', { dateStyle: 'long', timeZone: 'Asia/Bangkok' }).format(new Date(`${date}T12:00:00+07:00`))} · ปลาที่ยังไม่เลือกจะบันทึกเป็น “ยังอยู่” โดยอัตโนมัติ` : `Bangkok date: ${date}. Fish without an exception are saved as alive.`}</p></div><div className="button-row">{mode === 'rollcall' && <button className="button button--primary" disabled={saving || !items.length} onClick={() => void saveRollCall()}>{saving ? t.saving : (thai ? `บันทึกผล ${items.length} ตัว` : `Save ${items.length} fish`)}</button>}<button className="button button--secondary" onClick={() => setShowCreate(true)}>{thai ? 'ขึ้นทะเบียนปลาใหม่' : 'Register fish'}</button></div></div>
+    <div className="tabs" role="tablist" aria-label={thai ? 'มุมมองการดูแลปลา' : 'Fish care view'}><button id="fish-tab-rollcall" role="tab" aria-controls="fish-panel-rollcall" aria-selected={mode === 'rollcall'} tabIndex={mode === 'rollcall' ? 0 : -1} className={mode === 'rollcall' ? 'tab tab--active' : 'tab'} onClick={() => setMode('rollcall')} onKeyDown={(event) => { if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') { setMode('registry'); requestAnimationFrame(() => document.getElementById('fish-tab-registry')?.focus()) } }}>{thai ? 'งานตรวจวันนี้' : 'Daily check'}</button><button id="fish-tab-registry" role="tab" aria-controls="fish-panel-registry" aria-selected={mode === 'registry'} tabIndex={mode === 'registry' ? 0 : -1} className={mode === 'registry' ? 'tab tab--active' : 'tab'} onClick={() => setMode('registry')} onKeyDown={(event) => { if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') { setMode('rollcall'); requestAnimationFrame(() => document.getElementById('fish-tab-rollcall')?.focus()) } }}>{thai ? 'ทะเบียนปลา' : 'Fish registry'}</button></div>
     {error && <ErrorMessage message={error} />}
-    {mode === 'rollcall' ? <>
-      <div className="form-card form-card--inline"><label>Roll-call date<input name="rollCallStart" type="date" max={bangkokDate()} value={date} onChange={(event) => { setDate(event.target.value); setEndDate(event.target.value) }} /></label><label>Through<input name="rollCallEnd" type="date" min={date} max={bangkokDate()} value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>{(date < bangkokDate() || endDate < bangkokDate()) && <label>Backdate reason<input name="rollCallOverrideReason" required value={backdateReason} onChange={(event) => setBackdateReason(event.target.value)} /></label>}</div>
-      {items.length === 0 ? <Empty message={t.empty} /> : <div className="list">{items.map((fish) => {
+    {mode === 'rollcall' ? <div id="fish-panel-rollcall" role="tabpanel" aria-labelledby="fish-tab-rollcall">
+      <details className="filter-disclosure"><summary>{thai ? 'เปลี่ยนวันที่หรือบันทึกย้อนหลัง' : 'Change date or enter a backdated check'}</summary><div className="form-card form-card--inline"><label>{thai ? 'วันที่เริ่มต้น' : 'Roll-call date'}<input name="rollCallStart" type="date" max={bangkokDate()} value={date} onChange={(event) => { setDate(event.target.value); setEndDate(event.target.value) }} /></label><label>{thai ? 'ถึงวันที่' : 'Through'}<input name="rollCallEnd" type="date" min={date} max={bangkokDate()} value={endDate} onChange={(event) => setEndDate(event.target.value)} /></label>{(date < bangkokDate() || endDate < bangkokDate()) && <label>{thai ? 'เหตุผลที่บันทึกย้อนหลัง' : 'Backdate reason'}<input name="rollCallOverrideReason" required value={backdateReason} onChange={(event) => setBackdateReason(event.target.value)} /></label>}</div></details>
+      {items.some((fish) => fish.alreadyRecorded && outcomesByFish[String(fish.fishId)] && outcomesByFish[String(fish.fishId)] !== String(fish.recordedOutcome ?? 'ALIVE')) && <label className="correction-reason">{thai ? 'เหตุผลที่แก้ไขผลเดิม' : 'Reason for correcting recorded outcomes'}<input name="rollCallCorrectionReason" required value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} /></label>}
+      {!items.length ? <Empty message={t.empty} /> : <div className="record-list">{groups.map(([box, fishInBox]) => <section className="record-group" key={box}><header className="record-group__head"><div><p>{thai ? 'ตู้ปลา' : 'Fish box'}</p><h2>{box}</h2></div><span className="pill">{fishInBox.filter((fish) => !fish.alreadyRecorded).length} {thai ? 'รอตรวจ' : 'remaining'}</span></header>{fishInBox.map((fish) => {
         const id = String(fish.fishId)
         const value = outcomesByFish[id] ?? (fish.alreadyRecorded ? String(fish.recordedOutcome ?? 'ALIVE') as FishOutcome : 'ALIVE')
-        return <div className="list-row" key={id}><button className="fish-row-main" onClick={() => setSelected(id)}><strong>{String(fish.fishCode)}</strong><small>{String(fish.ageDays ?? '—')} days · {String(fish.condition ?? '—')} · first abnormality {String(fish.firstAbnormalOn ?? '—')} ({String(fish.firstAbnormalAgeDays ?? '—')} days)</small></button><div className="button-row">{outcomes.map((outcome) => <button key={outcome} className={value === outcome ? 'button button--primary' : 'button button--secondary'} onClick={() => void record(fish, outcome)}>{outcomeLabel(outcome, t)}</button>)}</div></div>
-      })}</div>}
-    </> : <>
-      <fieldset className="filter-bar"><legend>Registry filters</legend><label>Search<input value={search} onChange={(event) => setSearch(event.target.value)} /></label><label>Site<select value={filters.siteId} onChange={(event) => setFilters({ ...filters, siteId: event.target.value })}><option value="">All</option>{(masters.sites ?? []).map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.code ?? item.name)}</option>)}</select></label><label>Box<select value={filters.boxId} onChange={(event) => setFilters({ ...filters, boxId: event.target.value })}><option value="">All</option>{(masters['fish-boxes'] ?? []).map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.boxCode ?? item.code)}</option>)}</select></label><label>Status<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">All</option>{outcomes.map((value) => <option key={value}>{value}</option>)}</select></label><label>Strain<input value={filters.strain} onChange={(event) => setFilters({ ...filters, strain: event.target.value })} /></label><label>Treatment<select value={filters.treatmentGroupId} onChange={(event) => setFilters({ ...filters, treatmentGroupId: event.target.value })}><option value="">All</option>{(masters['treatment-groups'] ?? []).map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.code ?? item.name)}</option>)}</select></label><label>DOB from<input type="date" value={filters.dobFrom} onChange={(event) => setFilters({ ...filters, dobFrom: event.target.value })} /></label><label>DOB to<input type="date" value={filters.dobTo} onChange={(event) => setFilters({ ...filters, dobTo: event.target.value })} /></label><button type="button" className="button button--secondary" onClick={() => setFilters({ siteId: '', boxId: '', status: '', strain: '', treatmentGroupId: '', dobFrom: '', dobTo: '' })}>Clear</button></fieldset>
-      {visible.length === 0 ? <Empty message="No fish match these filters" /> : <div className="list">{visible.map((fish) => <button className="list-row" key={String(fish.id)} onClick={() => setSelected(String(fish.id))}><span><strong>{String(fish.fishCode)}</strong><small>Strain {String(fish.strain ?? 'Unknown')} · DOB {String(fish.dob ?? '—')} · first abnormality {String(fish.firstAbnormalOn ?? '—')}</small></span><span className="pill">{String(fish.status ?? '—')}</span></button>)}</div>}
-    </>}
+        return <div className="record-row" key={id}><button className="fish-row-main record-row__title" onClick={() => setSelected(id)}><strong>{String(fish.fishCode)}</strong><small>{thai ? `อายุ ${String(fish.ageDays ?? '—')} วัน` : `${String(fish.ageDays ?? '—')} days old`}</small></button><span className={String(fish.condition) === 'ABNORMAL' ? 'status-label status-label--danger' : 'status-label'}>{conditionLabel(fish.condition, thai)}</span><div className="record-row__actions" aria-label={thai ? `ผลการตรวจ ${String(fish.fishCode)}` : `Outcome for ${String(fish.fishCode)}`}>{outcomes.map((outcome) => <button type="button" key={outcome} aria-pressed={value === outcome} className={value === outcome ? 'button button--primary' : 'button button--secondary'} onClick={() => setOutcomesByFish((current) => ({ ...current, [id]: outcome }))}>{outcomeLabel(outcome, t)}</button>)}</div></div>
+      })}</section>)}</div>}
+    </div> : <div id="fish-panel-registry" role="tabpanel" aria-labelledby="fish-tab-registry">
+      <details className="filter-disclosure"><summary>{thai ? `ค้นหาและกรอง · พบ ${visible.length} ตัว` : `Search and filter · ${visible.length} fish`}</summary><fieldset className="filter-bar"><legend>{thai ? 'ตัวกรองทะเบียนปลา' : 'Registry filters'}</legend><label>{thai ? 'ค้นหารหัสหรือสายพันธุ์' : 'Search'}<input value={search} onChange={(event) => setSearch(event.target.value)} /></label><label>{thai ? 'สถานที่' : 'Site'}<select value={filters.siteId} onChange={(event) => setFilters({ ...filters, siteId: event.target.value })}><option value="">{thai ? 'ทั้งหมด' : 'All'}</option>{masters.sites.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.code ?? item.name)}</option>)}</select></label><label>{thai ? 'ตู้ปลา' : 'Box'}<select value={filters.boxId} onChange={(event) => setFilters({ ...filters, boxId: event.target.value })}><option value="">{thai ? 'ทั้งหมด' : 'All'}</option>{masters['fish-boxes'].map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.boxCode ?? item.code)}</option>)}</select></label><label>{thai ? 'สถานะ' : 'Status'}<select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option value="">{thai ? 'ทั้งหมด' : 'All'}</option>{outcomes.map((value) => <option key={value} value={value}>{outcomeLabel(value, t)}</option>)}</select></label><label>{thai ? 'สายพันธุ์' : 'Strain'}<input value={filters.strain} onChange={(event) => setFilters({ ...filters, strain: event.target.value })} /></label><label>{thai ? 'กลุ่มการทดลอง' : 'Treatment'}<select value={filters.treatmentGroupId} onChange={(event) => setFilters({ ...filters, treatmentGroupId: event.target.value })}><option value="">{thai ? 'ทั้งหมด' : 'All'}</option>{masters['treatment-groups'].map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.code ?? item.name)}</option>)}</select></label><label>{thai ? 'เกิดตั้งแต่' : 'DOB from'}<input type="date" value={filters.dobFrom} onChange={(event) => setFilters({ ...filters, dobFrom: event.target.value })} /></label><label>{thai ? 'เกิดถึง' : 'DOB to'}<input type="date" value={filters.dobTo} onChange={(event) => setFilters({ ...filters, dobTo: event.target.value })} /></label><button type="button" className="button button--secondary" onClick={() => setFilters({ siteId: '', boxId: '', status: '', strain: '', treatmentGroupId: '', dobFrom: '', dobTo: '' })}>{thai ? 'ล้างตัวกรอง' : 'Clear'}</button></fieldset></details>
+      {!visible.length ? <Empty message={thai ? 'ไม่พบปลาที่ตรงกับตัวกรอง' : 'No fish match these filters'} actionLabel={thai ? 'ล้างตัวกรอง' : 'Clear filters'} onAction={() => { setSearch(''); setFilters({ siteId: '', boxId: '', status: '', strain: '', treatmentGroupId: '', dobFrom: '', dobTo: '' }) }} /> : <div className="list">{visible.map((fish) => <button className="list-row" key={String(fish.id)} onClick={() => setSelected(String(fish.id))}><span><strong>{String(fish.fishCode)}</strong><small>{thai ? `สายพันธุ์ ${String(fish.strain ?? 'ไม่ระบุ')} · เกิด ${String(fish.dob ?? '—')} · ${conditionLabel(fish.condition, true)}` : `Strain ${String(fish.strain ?? 'Unknown')} · DOB ${String(fish.dob ?? '—')} · ${conditionLabel(fish.condition, false)}`}</small></span><span className="pill">{outcomeLabel((fish.status ?? 'ALIVE') as FishOutcome, t)}</span></button>)}</div>}
+    </div>}
   </section>
 }
 
-function ManualFishForm({ masters, onSaved, onCancel }: { masters: Record<string, ApiItem[]>; onSaved: (optimistic: ApiItem) => void; onCancel: () => void }) {
+function ManualFishForm({ t, masters, onSaved, onCancel }: { t: AppText; masters: Record<string, ApiItem[]>; onSaved: (optimistic: ApiItem) => void; onCancel: () => void }) {
   const [form, setForm] = useState({ fishCode: '', dob: bangkokDate(), donorCellLineId: '', siteId: '', fishBoxId: '', condition: 'NORMAL', sex: 'UNKNOWN', remarks: '', overrideReason: '' })
-  const [donors, setDonors] = useState<ApiItem[]>([]); const [error, setError] = useState('')
+  const [donors, setDonors] = useState<ApiItem[]>([])
+  const [error, setError] = useState('')
+  const thai = t === text.th
   useEffect(() => { void get('/donor-cell-lines').then((data) => setDonors(data.items ?? [])) }, [])
-  const submit = async (event: FormEvent) => { event.preventDefault(); try { await putQueue('/fish', { ...form, siteId: form.siteId || null, fishBoxId: form.fishBoxId || null }); const { overrideReason: _reason, ...optimistic } = form; onSaved({ ...optimistic, id: `queued-fish-${Date.now()}`, siteId: form.siteId || undefined, fishBoxId: form.fishBoxId || undefined, status: 'ALIVE', condition: form.condition as ApiItem['condition'], sex: form.sex as ApiItem['sex'], queued: true }) } catch (e) { setError((e as Error).message) } }
-  return <form className="form-card" onSubmit={submit}><h2>Register clone fish</h2><div className="form-card--inline"><label>Fish code<input required value={form.fishCode} onChange={(e) => setForm({ ...form, fishCode: e.target.value })} /></label><label>DOB<input required type="date" max={bangkokDate()} value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></label><label>Donor<select required value={form.donorCellLineId} onChange={(e) => setForm({ ...form, donorCellLineId: e.target.value })}><option value="">Select donor</option>{donors.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.strain ?? item.id)}</option>)}</select></label></div><div className="form-card--inline"><label>Site<select value={form.siteId} onChange={(e) => setForm({ ...form, siteId: e.target.value })}><option value="">No site</option>{(masters.sites ?? []).map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.code ?? item.name)}</option>)}</select></label><label>Fish box<select value={form.fishBoxId} onChange={(e) => setForm({ ...form, fishBoxId: e.target.value })}><option value="">No box</option>{(masters['fish-boxes'] ?? []).map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.boxCode ?? item.code)}</option>)}</select></label><label>Sex<select value={form.sex} onChange={(e) => setForm({ ...form, sex: e.target.value })}><option>UNKNOWN</option><option>M</option><option>F</option></select></label></div>{form.dob < bangkokDate() && <label>Registration reason<input name="manualFishOverrideReason" required value={form.overrideReason} onChange={(e) => setForm({ ...form, overrideReason: e.target.value })} /></label>}<label>Remarks<input value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} /></label>{error && <ErrorMessage message={error} />}<div className="button-row"><button className="button button--primary">Save fish</button><button type="button" className="button button--secondary" onClick={onCancel}>Cancel</button></div></form>
+  const submit = async (event: FormEvent) => { event.preventDefault(); try { await putQueue('/fish', { ...form, siteId: form.siteId || null, fishBoxId: form.fishBoxId || null }); const { overrideReason: _reason, ...optimistic } = form; onSaved({ ...optimistic, condition: form.condition as ApiItem['condition'], sex: form.sex as ApiItem['sex'], id: `queued-fish-${Date.now()}`, siteId: form.siteId || undefined, fishBoxId: form.fishBoxId || undefined, status: 'ALIVE', queued: true }) } catch (e) { setError((e as Error).message) } }
+  return <form className="task-surface form-card" onSubmit={submit}>
+    <div><p className="eyebrow">{thai ? 'ทะเบียนประวัติ' : 'FISH RECORD'}</p><h1>{thai ? 'ขึ้นทะเบียนปลาโคลน' : 'Register clone fish'}</h1><p className="task-intro">{thai ? 'กรอกข้อมูลที่ใช้ยืนยันตัวปลา 3 รายการก่อน รายละเอียดตำแหน่งเลี้ยงเพิ่มภายหลังได้' : 'Start with the three details that identify the fish. Housing details can be added later.'}</p></div>
+    <label>{thai ? 'รหัสประจำตัวปลา' : 'Fish code'}<input required value={form.fishCode} onChange={(e) => setForm({ ...form, fishCode: e.target.value })} /><span className="field-hint">{thai ? 'รหัสที่ติดกับตู้หรือสมุดบันทึก' : 'The code shown on the tank or paper record'}</span></label>
+    <label>{thai ? 'วันเกิด' : 'DOB'}<input required type="date" max={bangkokDate()} value={form.dob} onChange={(e) => setForm({ ...form, dob: e.target.value })} /></label>
+    <label>{thai ? 'สายเซลล์ผู้ให้' : 'Donor'}<select required value={form.donorCellLineId} onChange={(e) => setForm({ ...form, donorCellLineId: e.target.value })}><option value="">{thai ? 'เลือกสายเซลล์ผู้ให้' : 'Select donor'}</option>{donors.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.strain ?? item.name ?? item.id)}</option>)}</select></label>
+    <details className="workflow-disclosure"><summary>{thai ? 'เพิ่มตำแหน่งเลี้ยง เพศ และหมายเหตุ' : 'Add housing, sex and notes'}</summary><div className="workflow-disclosure__body form-card--inline"><label>{thai ? 'สถานที่' : 'Site'}<select value={form.siteId} onChange={(e) => setForm({ ...form, siteId: e.target.value })}><option value="">{thai ? 'ยังไม่ระบุ' : 'No site'}</option>{masters.sites.map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.code ?? item.name)}</option>)}</select></label><label>{thai ? 'ตู้ปลา' : 'Fish box'}<select value={form.fishBoxId} onChange={(e) => setForm({ ...form, fishBoxId: e.target.value })}><option value="">{thai ? 'ยังไม่ระบุ' : 'No box'}</option>{masters['fish-boxes'].map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.boxCode ?? item.code)}</option>)}</select></label><label>{thai ? 'เพศ' : 'Sex'}<select value={form.sex} onChange={(e) => setForm({ ...form, sex: e.target.value })}><option value="UNKNOWN">{sexLabel('UNKNOWN', thai)}</option><option value="M">{sexLabel('M', thai)}</option><option value="F">{sexLabel('F', thai)}</option></select></label><label>{thai ? 'หมายเหตุ' : 'Remarks'}<input value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} /></label></div></details>
+    {form.dob < bangkokDate() && <label>{thai ? 'เหตุผลที่ลงทะเบียนย้อนหลัง' : 'Registration reason'}<input name="manualFishOverrideReason" required value={form.overrideReason} onChange={(e) => setForm({ ...form, overrideReason: e.target.value })} /></label>}
+    {error && <ErrorMessage message={error} />}
+    <div className="button-row"><button className="button button--primary">{thai ? 'บันทึกเข้าทะเบียนปลา' : 'Save fish'}</button><button type="button" className="button button--secondary" onClick={onCancel}>{thai ? 'ยกเลิก' : 'Cancel'}</button></div>
+  </form>
 }
 
-function FishDetail({ fishId, masters, onBack }: { fishId: string; masters: Record<string, ApiItem[]>; onBack: () => void }) {
-  const [detail, setDetail] = useState<ApiItem | null>(null); const [error, setError] = useState(''); const [fishEdit, setFishEdit] = useState({ fishCode: '', sex: 'UNKNOWN', fishBoxId: '', remarks: '' }); const [specimen, setSpecimen] = useState({ specimenCode: '', specimenKind: 'CL', specimenType: 'CAUDAL_FIN_CLIP', collectedOn: bangkokDate(), frozenOn: '', storage: '', notes: '', markFinClipped: false }); const [editing, setEditing] = useState<ApiItem | null>(null); const [reason, setReason] = useState('')
-  const load = useCallback(() => { void get(`/fish/${fishId}`).then((value) => { setDetail(value); setFishEdit({ fishCode: String(value.fishCode ?? ''), sex: String(value.sex ?? 'UNKNOWN'), fishBoxId: String(value.fishBoxId ?? ''), remarks: String(value.remarks ?? '') }) }).catch((e: Error) => setError(e.message)) }, [fishId]); useEffect(load, [load])
-  const saveFish = async (event: FormEvent) => {
+function FishDetail({ fishId, masters, t, onBack }: { fishId: string; masters: Record<string, ApiItem[]>; t: AppText; onBack: () => void }) {
+  const [detail, setDetail] = useState<ApiItem | null>(null)
+  const [error, setError] = useState('')
+  const [tab, setTab] = useState<'history' | 'specimens' | 'details'>('history')
+  const [showSpecimenForm, setShowSpecimenForm] = useState(false)
+  const [fishEdit, setFishEdit] = useState({ fishCode: '', sex: 'UNKNOWN', fishBoxId: '', remarks: '' })
+  const [specimen, setSpecimen] = useState({ specimenCode: '', specimenKind: 'CL', specimenType: 'CAUDAL_FIN_CLIP', collectedOn: bangkokDate(), frozenOn: '', storage: '', notes: '', markFinClipped: false })
+  const [editing, setEditing] = useState<ApiItem | null>(null)
+  const [reason, setReason] = useState('')
+  const thai = t === text.th
+  const load = useCallback(() => { void get(`/fish/${fishId}`).then((value) => { setDetail(value); setFishEdit({ fishCode: String(value.fishCode ?? ''), sex: String(value.sex ?? 'UNKNOWN'), fishBoxId: String(value.fishBoxId ?? ''), remarks: String(value.remarks ?? '') }) }).catch((e: Error) => setError(e.message)) }, [fishId])
+  useEffect(load, [load])
+  const saveFish = async (event: FormEvent) => { event.preventDefault(); if (!detail) return; const previous = detail; setDetail({ ...detail, ...fishEdit, sex: fishEdit.sex as ApiItem['sex'], fishBoxId: fishEdit.fishBoxId || null }); try { await putQueue(`/fish/${fishId}`, { ...fishEdit, fishBoxId: fishEdit.fishBoxId || null }, 'application/json', 'PATCH') } catch (e) { setDetail(previous); setError((e as Error).message) } }
+  const saveSpecimen = async (event: FormEvent) => { event.preventDefault(); if (!detail) return; const previous = detail; const optimistic = { ...specimen, id: `queued-specimen-${Date.now()}`, fishId, queued: true, frozenOn: specimen.frozenOn || null, storage: specimen.storage || null }; setDetail({ ...detail, specimens: [...((detail.specimens as ApiItem[] | undefined) ?? []), optimistic] }); try { await putQueue(`/fish/${fishId}/specimens`, { ...specimen, frozenOn: specimen.frozenOn || null, storage: specimen.storage || null }); setSpecimen({ ...specimen, specimenCode: '' }); setShowSpecimenForm(false) } catch (e) { setDetail(previous); setError((e as Error).message) } }
+  const correct = async (event: FormEvent) => { event.preventDefault(); if (!editing || !reason.trim() || !detail) return; const previous = detail; setDetail({ ...detail, observations: ((detail.observations as ApiItem[] | undefined) ?? []).map((item) => item.id === editing.id ? { ...item, ...editing, queued: true } : item) }); const corrected = editing; setEditing(null); setReason(''); try { await putQueue(`/observations/fish/${corrected.id}`, { correctionReason: reason, observedOn: corrected.observedOn, outcome: corrected.outcome, condition: corrected.condition, notes: corrected.notes }, 'application/json', 'PATCH') } catch (e) { setDetail(previous); setError((e as Error).message) } }
+  const remove = async (item: ApiItem) => { const deleteReason = window.prompt(thai ? 'เหตุผลที่ลบผลการตรวจ' : 'Reason for deleting this observation'); if (!deleteReason?.trim() || !detail) return; const previous = detail; setDetail({ ...detail, observations: ((detail.observations as ApiItem[] | undefined) ?? []).filter((candidate) => candidate.id !== item.id) }); try { await putQueue(`/observations/fish/${item.id}?reason=${encodeURIComponent(deleteReason)}`, undefined, 'application/json', 'DELETE') } catch (e) { setDetail(previous); setError((e as Error).message) } }
+
+  if (!detail) return <section><button className="back" onClick={onBack}>← {thai ? 'ทะเบียนปลา' : 'Fish registry'}</button>{error ? <ErrorMessage message={error} /> : <p className="notice">{thai ? 'กำลังเปิดประวัติปลา…' : 'Loading fish record…'}</p>}</section>
+  const observations = (detail.observations as ApiItem[] | undefined) ?? []
+  const specimens = (detail.specimens as ApiItem[] | undefined) ?? []
+  const box = masters['fish-boxes'].find((item) => String(item.id) === String(detail.fishBoxId))
+  const moveDetailTab = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
-    if (!detail) return
-    const previous = detail
-    setDetail({ ...detail, fishCode: fishEdit.fishCode, sex: fishEdit.sex as ApiItem['sex'], remarks: fishEdit.remarks, fishBoxId: fishEdit.fishBoxId || null })
-    try {
-      await putQueue(`/fish/${fishId}`, { ...fishEdit, fishBoxId: fishEdit.fishBoxId || null }, 'application/json', 'PATCH')
-    } catch (e) { setDetail(previous); setError((e as Error).message) }
+    const tabs = ['history', 'specimens', 'details'] as const
+    const index = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 : (tabs.indexOf(tab) + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length
+    setTab(tabs[index]); requestAnimationFrame(() => document.getElementById(`fish-detail-tab-${tabs[index]}`)?.focus())
   }
-  const saveSpecimen = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!detail) return
-    const previous = detail
-    const optimistic = { ...specimen, id: `queued-specimen-${Date.now()}`, fishId, queued: true, frozenOn: specimen.frozenOn || null, storage: specimen.storage || null }
-    setDetail({ ...detail, specimens: [...((detail.specimens as ApiItem[] | undefined) ?? []), optimistic] })
-    try {
-      await putQueue(`/fish/${fishId}/specimens`, { ...specimen, frozenOn: specimen.frozenOn || null, storage: specimen.storage || null })
-      setSpecimen({ ...specimen, specimenCode: '' })
-    } catch (e) { setDetail(previous); setError((e as Error).message) }
-  }
-  const correct = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!editing || !reason.trim() || !detail) return
-    const previous = detail
-    const nextObservations = ((detail.observations as ApiItem[] | undefined) ?? []).map((item) => item.id === editing.id ? { ...item, ...editing, queued: true } : item)
-    setDetail({ ...detail, observations: nextObservations })
-    setEditing(null); setReason('')
-    try {
-      await putQueue(`/observations/fish/${editing.id}`, { correctionReason: reason, observedOn: editing.observedOn, outcome: editing.outcome, condition: editing.condition, notes: editing.notes }, 'application/json', 'PATCH')
-    } catch (e) { setDetail(previous); setError((e as Error).message) }
-  }
-  const remove = async (item: ApiItem) => {
-    const deleteReason = window.prompt('Reason for deleting this observation')
-    if (!deleteReason?.trim() || !detail) return
-    const previous = detail
-    setDetail({ ...detail, observations: ((detail.observations as ApiItem[] | undefined) ?? []).filter((candidate) => candidate.id !== item.id) })
-    try {
-      await putQueue(`/observations/fish/${item.id}?reason=${encodeURIComponent(deleteReason)}`, undefined, 'application/json', 'DELETE')
-    } catch (e) { setDetail(previous); setError((e as Error).message) }
-  }
-  if (!detail) return <section><button className="back" onClick={onBack}>← Fish registry</button>{error ? <ErrorMessage message={error} /> : <p className="notice">Loading fish record...</p>}</section>
-  const observations = (detail.observations as ApiItem[] | undefined) ?? []; const specimens = (detail.specimens as ApiItem[] | undefined) ?? []
-  return <section><button className="back" onClick={onBack}>← Fish registry</button><div className="page-heading"><div><p className="eyebrow">FISH DETAIL / TIMELINE</p><h1>{String(detail.fishCode)}</h1><p className="muted">Strain {String(detail.strain ?? '—')} · DOB {String(detail.dob ?? '—')} · {String(detail.status ?? '—')}</p><p className="muted">First abnormality: {String(detail.firstAbnormalOn ?? '—')} · age {String(detail.firstAbnormalAgeDays ?? '—')}</p></div></div>{error && <ErrorMessage message={error} />}<form className="form-card form-card--inline" onSubmit={saveFish}><label>Fish code<input required value={fishEdit.fishCode} onChange={(event) => setFishEdit({ ...fishEdit, fishCode: event.target.value })} /></label><label>Sex<select value={fishEdit.sex} onChange={(event) => setFishEdit({ ...fishEdit, sex: event.target.value })}><option>UNKNOWN</option><option>M</option><option>F</option></select></label><label>Fish box<select value={fishEdit.fishBoxId} onChange={(event) => setFishEdit({ ...fishEdit, fishBoxId: event.target.value })}><option value="">No box</option>{(masters['fish-boxes'] ?? []).map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.boxCode ?? item.code)}</option>)}</select></label><label>Remarks<input value={fishEdit.remarks} onChange={(event) => setFishEdit({ ...fishEdit, remarks: event.target.value })} /></label><button className="button button--primary">Save fish</button></form><ReportTable headers={['Observed on', 'Age', 'Outcome', 'Condition']} rows={observations.map((item) => [String(item.observedOn ?? '—'), String(item.ageDays ?? '—'), String(item.outcome ?? '—'), String(item.condition ?? '—')])} />{observations.map((item) => <div className="button-row" key={String(item.id)}><button className="inline-action" onClick={() => { setEditing(item); setReason('') }}>Correct</button><button className="inline-action inline-action--danger" onClick={() => void remove(item)}>Delete</button></div>)}{editing && <form className="form-card form-card--inline" onSubmit={correct}><label>Outcome<select value={String(editing.outcome ?? 'ALIVE')} onChange={(event) => setEditing({ ...editing, outcome: event.target.value })}><option>ALIVE</option><option>DEAD</option><option>FROZEN</option><option>DISCARDED</option></select></label><label>Condition<select value={String(editing.condition ?? 'NORMAL')} onChange={(event) => setEditing({ ...editing, condition: event.target.value as FishCondition })}><option>NORMAL</option><option>ABNORMAL</option><option>UNDETERMINED</option></select></label><label>Correction reason<input required value={reason} onChange={(event) => setReason(event.target.value)} /></label><button className="button button--primary">Save correction</button></form>}<form className="form-card" onSubmit={saveSpecimen}><h2>Specimen</h2><div className="form-card--inline"><label>Code<input required value={specimen.specimenCode} onChange={(event) => setSpecimen({ ...specimen, specimenCode: event.target.value })} /></label><label>Kind<select value={specimen.specimenKind} onChange={(event) => setSpecimen({ ...specimen, specimenKind: event.target.value })}><option>CL</option><option>RT</option><option>DC</option></select></label><label>Type<select value={specimen.specimenType} onChange={(event) => setSpecimen({ ...specimen, specimenType: event.target.value })}><option>CAUDAL_FIN_CLIP</option><option>WHOLE_EMBRYO</option></select></label></div><div className="form-card--inline"><label>Collected on<input required type="date" value={specimen.collectedOn} onChange={(event) => setSpecimen({ ...specimen, collectedOn: event.target.value })} /></label><label>Frozen on<input type="date" value={specimen.frozenOn} onChange={(event) => setSpecimen({ ...specimen, frozenOn: event.target.value })} /></label><label>Storage<select value={specimen.storage} onChange={(event) => setSpecimen({ ...specimen, storage: event.target.value })}><option value="">Not stored</option><option>-20</option><option>-80</option></select></label></div><label>Notes<input value={specimen.notes} onChange={(event) => setSpecimen({ ...specimen, notes: event.target.value })} /></label><label><input type="checkbox" checked={specimen.markFinClipped} onChange={(event) => setSpecimen({ ...specimen, markFinClipped: event.target.checked })} /> Mark fin clipped</label><button className="button button--primary">Add specimen</button></form><ReportTable headers={['Specimen', 'Kind', 'Type', 'Collected', 'Frozen', 'Storage']} rows={specimens.map((item) => [String(item.specimenCode ?? '—'), String(item.specimenKind ?? '—'), String(item.specimenType ?? '—'), String(item.collectedOn ?? '—'), String(item.frozenOn ?? '—'), String(item.storage ?? '—')])} /></section>
+  return <section>
+    <button className="back" onClick={onBack}>← {thai ? 'กลับไปทะเบียนปลา' : 'Fish registry'}</button>
+    <div className="page-heading"><div><p className="eyebrow">{thai ? 'ประวัติปลาโคลน' : 'CLONE FISH RECORD'}</p><h1>{String(detail.fishCode)}</h1><p className="muted">{thai ? 'ข้อมูลประจำตัว ผลการตรวจตามเวลา และตัวอย่างเนื้อเยื่ออยู่ในระเบียนเดียวกัน' : 'Identity, observation history and tissue samples in one record.'}</p></div></div>
+    <div className="record-facts"><div className="record-fact"><span>{thai ? 'สถานะ' : 'Status'}</span><strong>{outcomeLabel((detail.status ?? 'ALIVE') as FishOutcome, t)}</strong></div><div className="record-fact"><span>{thai ? 'อายุ' : 'Age'}</span><strong>{String(detail.ageDays ?? '—')} {thai ? 'วัน' : 'days'}</strong></div><div className="record-fact"><span>{thai ? 'สายพันธุ์' : 'Strain'}</span><strong>{String(detail.strain ?? '—')}</strong></div><div className="record-fact"><span>{thai ? 'ตู้ปลา' : 'Fish box'}</span><strong>{String(box?.boxCode ?? detail.fishBoxCode ?? '—')}</strong></div><div className="record-fact"><span>{thai ? 'สภาพล่าสุด' : 'Latest condition'}</span><strong>{conditionLabel(detail.condition, thai)}</strong></div></div>
+    {error && <ErrorMessage message={error} />}
+    <div className="tabs" role="tablist" aria-label={thai ? 'ข้อมูลปลา' : 'Fish record sections'}>{(['history', 'specimens', 'details'] as const).map((value) => <button id={`fish-detail-tab-${value}`} role="tab" aria-controls={`fish-detail-panel-${value}`} aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} className={tab === value ? 'tab tab--active' : 'tab'} onClick={() => setTab(value)} onKeyDown={moveDetailTab} key={value}>{value === 'history' ? (thai ? 'ผลการตรวจ' : 'Observation history') : value === 'specimens' ? (thai ? 'ตัวอย่างเนื้อเยื่อและ DNA' : 'Tissue & DNA samples') : (thai ? 'ข้อมูลประจำตัว' : 'Fish details')}</button>)}</div>
+    {tab === 'history' && <div id="fish-detail-panel-history" role="tabpanel" aria-labelledby="fish-detail-tab-history">{!observations.length ? <Empty message={thai ? 'ยังไม่มีผลการตรวจปลา' : 'No observations yet'} /> : <div className="timeline">{observations.map((item) => <article className="timeline__item" key={String(item.id)}><div className="timeline__card"><div className="timeline__meta"><strong>{String(item.observedOn ?? '—')}</strong><span className={String(item.outcome) === 'DEAD' ? 'status-label status-label--danger' : 'status-label'}>{outcomeLabel((item.outcome ?? 'ALIVE') as FishOutcome, t)}</span></div><p className="muted">{thai ? `อายุ ${String(item.ageDays ?? '—')} วัน · ${conditionLabel(item.condition, true)}` : `Age ${String(item.ageDays ?? '—')} days · ${conditionLabel(item.condition, false)}`}</p><div className="timeline__actions"><button className="inline-action" onClick={() => { setEditing(item); setReason('') }}>{thai ? 'แก้ไขผล' : 'Correct'}</button><button className="inline-action inline-action--danger" onClick={() => void remove(item)}>{thai ? 'ลบรายการ' : 'Delete'}</button></div></div></article>)}</div>}{editing && <form className="task-surface form-card" onSubmit={correct}><h2>{thai ? `แก้ไขผลวันที่ ${String(editing.observedOn)}` : `Correct ${String(editing.observedOn)}`}</h2><label>{thai ? 'ผลการตรวจ' : 'Outcome'}<select value={String(editing.outcome ?? 'ALIVE')} onChange={(event) => setEditing({ ...editing, outcome: event.target.value })}>{outcomes.map((value) => <option key={value} value={value}>{outcomeLabel(value, t)}</option>)}</select></label><label>{thai ? 'สภาพปลา' : 'Condition'}<select value={String(editing.condition ?? 'NORMAL')} onChange={(event) => setEditing({ ...editing, condition: event.target.value as FishCondition })}><option value="NORMAL">{conditionLabel('NORMAL', thai)}</option><option value="ABNORMAL">{conditionLabel('ABNORMAL', thai)}</option><option value="UNDETERMINED">{conditionLabel('UNDETERMINED', thai)}</option></select></label><label>{thai ? 'เหตุผลที่แก้ไข' : 'Correction reason'}<input required value={reason} onChange={(event) => setReason(event.target.value)} /></label><div className="button-row"><button className="button button--primary">{thai ? 'บันทึกการแก้ไข' : 'Save correction'}</button><button type="button" className="button button--secondary" onClick={() => setEditing(null)}>{thai ? 'ยกเลิก' : 'Cancel'}</button></div></form>}</div>}
+    {tab === 'specimens' && <div id="fish-detail-panel-specimens" role="tabpanel" aria-labelledby="fish-detail-tab-specimens"><div className="task-section__head"><div><h2>{thai ? 'ตัวอย่างที่เก็บแล้ว' : 'Collected samples'}</h2><p className="muted">{thai ? 'ใช้ติดตามชิ้นเนื้อ ตำแหน่งจัดเก็บ และชุดรหัสที่ส่งวิเคราะห์' : 'Track tissue, storage and the analysis code set.'}</p></div><button className="button button--primary" onClick={() => setShowSpecimenForm((value) => !value)}>{showSpecimenForm ? (thai ? 'ปิดแบบฟอร์ม' : 'Close form') : (thai ? 'เพิ่มตัวอย่าง' : 'Add specimen')}</button></div>{!specimens.length ? <Empty message={thai ? 'ยังไม่มีตัวอย่างจากปลาตัวนี้' : 'No samples from this fish'} /> : <div className="specimen-grid">{specimens.map((item) => <article className="specimen-card" key={String(item.id)}><strong>{String(item.specimenCode ?? '—')}</strong><span>{specimenTypeLabel(item.specimenType, thai)} · {String(item.specimenKind ?? '—')}</span><small>{thai ? 'เก็บเมื่อ' : 'Collected'} {String(item.collectedOn ?? '—')} · {item.storage ? `${String(item.storage)} °C` : (thai ? 'ไม่ระบุที่เก็บ' : 'No storage')}</small></article>)}</div>}{showSpecimenForm && <form className="task-surface form-card" onSubmit={saveSpecimen}><div><p className="eyebrow">{thai ? 'บันทึกตัวอย่าง' : 'SAMPLE RECORD'}</p><h2>{thai ? 'เพิ่มตัวอย่างเนื้อเยื่อหรือ DNA' : 'Add tissue or DNA specimen'}</h2></div><label>{thai ? 'รหัสตัวอย่าง' : 'Specimen code'}<input required value={specimen.specimenCode} onChange={(event) => setSpecimen({ ...specimen, specimenCode: event.target.value })} /><span className="field-hint">{thai ? 'ใช้รหัสเดียวกับฉลากบนหลอด' : 'Use the code printed on the sample tube'}</span></label><label>{thai ? 'ชุดรหัสวิเคราะห์' : 'Analysis code set'}<select value={specimen.specimenKind} onChange={(event) => setSpecimen({ ...specimen, specimenKind: event.target.value })}><option>CL</option><option>RT</option><option>DC</option></select></label><label>{thai ? 'ชนิดตัวอย่าง' : 'Sample type'}<select value={specimen.specimenType} onChange={(event) => setSpecimen({ ...specimen, specimenType: event.target.value })}><option value="CAUDAL_FIN_CLIP">{specimenTypeLabel('CAUDAL_FIN_CLIP', thai)}</option><option value="WHOLE_EMBRYO">{specimenTypeLabel('WHOLE_EMBRYO', thai)}</option></select></label><label>{thai ? 'วันที่เก็บ' : 'Collected on'}<input required type="date" value={specimen.collectedOn} onChange={(event) => setSpecimen({ ...specimen, collectedOn: event.target.value })} /></label><label>{thai ? 'วันที่แช่แข็ง' : 'Frozen on'}<input type="date" value={specimen.frozenOn} onChange={(event) => setSpecimen({ ...specimen, frozenOn: event.target.value })} /></label><label>{thai ? 'อุณหภูมิจัดเก็บ' : 'Storage temperature'}<select value={specimen.storage} onChange={(event) => setSpecimen({ ...specimen, storage: event.target.value })}><option value="">{thai ? 'ยังไม่จัดเก็บ' : 'Not stored'}</option><option value="-20">−20 °C</option><option value="-80">−80 °C</option></select></label><label>{thai ? 'หมายเหตุ' : 'Notes'}<input value={specimen.notes} onChange={(event) => setSpecimen({ ...specimen, notes: event.target.value })} /></label><label className="check-field"><input type="checkbox" checked={specimen.markFinClipped} onChange={(event) => setSpecimen({ ...specimen, markFinClipped: event.target.checked })} />{thai ? 'ทำเครื่องหมายว่าตัดครีบแล้ว' : 'Mark fin clipped'}</label><div className="button-row"><button className="button button--primary">{thai ? 'บันทึกตัวอย่าง' : 'Add specimen'}</button><button type="button" className="button button--secondary" onClick={() => setShowSpecimenForm(false)}>{thai ? 'ยกเลิก' : 'Cancel'}</button></div></form>}</div>}
+    {tab === 'details' && <form id="fish-detail-panel-details" role="tabpanel" aria-labelledby="fish-detail-tab-details" className="task-surface form-card" onSubmit={saveFish}><h2>{thai ? 'แก้ไขข้อมูลประจำตัวปลา' : 'Edit fish details'}</h2><label>{thai ? 'รหัสปลา' : 'Fish code'}<input required value={fishEdit.fishCode} onChange={(event) => setFishEdit({ ...fishEdit, fishCode: event.target.value })} /></label><label>{thai ? 'เพศ' : 'Sex'}<select value={fishEdit.sex} onChange={(event) => setFishEdit({ ...fishEdit, sex: event.target.value })}><option value="UNKNOWN">{sexLabel('UNKNOWN', thai)}</option><option value="M">{sexLabel('M', thai)}</option><option value="F">{sexLabel('F', thai)}</option></select></label><label>{thai ? 'ตู้ปลา' : 'Fish box'}<select value={fishEdit.fishBoxId} onChange={(event) => setFishEdit({ ...fishEdit, fishBoxId: event.target.value })}><option value="">{thai ? 'ยังไม่ระบุ' : 'No box'}</option>{masters['fish-boxes'].map((item) => <option key={String(item.id)} value={String(item.id)}>{String(item.boxCode ?? item.code)}</option>)}</select></label><label>{thai ? 'หมายเหตุ' : 'Remarks'}<input value={fishEdit.remarks} onChange={(event) => setFishEdit({ ...fishEdit, remarks: event.target.value })} /></label><div className="button-row"><button className="button button--primary">{thai ? 'บันทึกข้อมูลปลา' : 'Save fish'}</button></div></form>}
+  </section>
 }

@@ -5,7 +5,7 @@ from time import perf_counter
 
 import pytest
 from test_experiments import create_batch, headers
-from test_fish import setup_eligible_embryo
+from test_fish import BANGKOK, setup_eligible_embryo
 
 
 def analytics_fixture(client, write_headers):
@@ -70,7 +70,10 @@ def test_dashboard_endpoints_return_complete_shapes(client, write_headers):
         response = client.get(f"/api/v1/analytics/{endpoint}")
         assert response.status_code == 200, (endpoint, response.text)
         assert isinstance(response.json()["items"], list)
-        assert set(response.json()["meta"]) == {"filters", "sampleSize", "denominators", "unknown", "missing"}
+        assert {"filters", "sampleSize", "denominators", "unknown", "missing"} <= set(response.json()["meta"])
+    assert {"statusComposition", "ageDistribution", "sexComposition", "boxCensus", "batchPerformance"} <= set(
+        client.get("/api/v1/analytics/fish-survival").json()["supporting"]
+    )
 
 
 def test_dashboard_bundle_uses_one_consistent_snapshot(client, store, monkeypatch):
@@ -168,16 +171,37 @@ def test_analytics_fixture_matches_manual_counts_and_shared_filters(client, writ
 
     abnormality = client.get("/api/v1/analytics/abnormality-onset", params=filters).json()
     assert abnormality["items"] == [{"stageOrder": 19, "stageLabel": "Shield", "count": 1}]
-    assert abnormality["meta"]["missing"]["firstAbnormality"] == 2
+    assert abnormality["meta"]["denominators"]["everAbnormal"] == 1
+    assert abnormality["meta"]["denominators"]["noAbnormalityRecorded"] == 2
+    assert abnormality["meta"]["missing"].get("firstAbnormality", 0) == 0
 
     pipeline = client.get("/api/v1/analytics/pipeline", params=filters).json()
     assert [item["count"] for item in pipeline["items"]] == [3, 2, 2, 0, 0]
     assert pipeline["items"][0]["pctOfStart"] == 1
 
 
+def test_stage1_survival_does_not_increase_when_raw_alive_rises_after_a_gap(client, write_headers, store):
+    _batch, _donor, lot = analytics_fixture(client, write_headers)
+    with store.lock:
+        stage_19 = next(
+            item
+            for item in store.state.observations.values()
+            if item.get("embryoId") == lot["embryos"][0]["id"] and item.get("stageCode") == "stage_19_50%"
+        )
+        stage_19["outcome"] = "DEAD"
+
+    rows = client.get("/api/v1/analytics/survival").json()["items"]
+    assert all(current["surv"] <= previous["surv"] for previous, current in zip(rows, rows[1:], strict=False))
+    stage_19_row = next(item for item in rows if item["stageOrder"] == 19)
+    stage_22_row = next(item for item in rows if item["stageOrder"] == 22)
+    assert (stage_19_row["alive"], stage_19_row["nPrev"]) == (1, 3)
+    assert (stage_22_row["alive"], stage_22_row["nPrev"]) == (2, 2)
+    assert stage_22_row["surv"] == pytest.approx(stage_19_row["surv"])
+
+
 def test_manual_fish_is_not_counted_as_promoted_and_uses_unknown_metadata(client, write_headers):
     _batch, donor = create_batch(client, write_headers)
-    today = datetime.now().date().isoformat()
+    today = datetime.now(BANGKOK).date().isoformat()
     fish_response = client.post(
         "/api/v1/fish",
         headers=headers(write_headers, 520),
@@ -190,6 +214,10 @@ def test_manual_fish_is_not_counted_as_promoted_and_uses_unknown_metadata(client
     assert result["stage1"]["nPromoted"] == 0
     assert result["stage2"]["nFish"] == 1
     assert result["meta"]["unknown"]["fishSex"] == 1
+    pipeline = client.get("/api/v1/analytics/pipeline").json()
+    assert pipeline["items"][-1]["step"] == "Alive Fish"
+    assert pipeline["items"][-1]["count"] == 0
+    assert pipeline["meta"]["denominators"]["manualFish"] == 1
     filtered = client.get("/api/v1/analytics/kpi", params={"donorCellLineId": donor["id"]}).json()
     assert filtered["stage2"]["nFish"] == 1
     fish_survival = client.get("/api/v1/analytics/fish-survival", params={"splitByCondition": True}).json()
@@ -216,10 +244,13 @@ def test_zero_denominator_and_missing_checkpoint_are_explicit(client, write_head
     assert survival["items"][1]["surv"] == 1
     assert survival["items"][1]["pctOfDevelopment"] is None
     assert survival["meta"]["missing"]["stageCheckpoint"] >= len(lot["embryos"])
+    abnormality = client.get("/api/v1/analytics/abnormality-onset").json()
+    assert abnormality["meta"]["denominators"].get("noAbnormalityRecorded", 0) == 0
+    assert abnormality["meta"]["missing"]["firstAbnormality"] == len(lot["embryos"])
 
 
 def test_dashboard_bundle_smoke_fixture_stays_under_three_seconds(client, store):
-    today = datetime.now().date()
+    today = datetime.now(BANGKOK).date()
     with store.lock:
         store.state.entities["fish"] = {
             f"fish-{index}": {
@@ -247,7 +278,7 @@ def test_fish_survival_respects_dead_status_without_exit_date(client, store):
             "dead-fish": {
                 "id": "dead-fish",
                 "fishCode": "DEAD-1",
-                "dob": datetime.now().date().isoformat(),
+                "dob": datetime.now(BANGKOK).date().isoformat(),
                 "donorCellLineId": "donor-fixture",
                 "status": "DEAD",
                 "condition": "NORMAL",
@@ -258,6 +289,415 @@ def test_fish_survival_respects_dead_status_without_exit_date(client, store):
         }
     point = client.get("/api/v1/analytics/fish-survival").json()["items"][0]
     assert (point["atRisk"], point["alive"], point["surv"]) == (1, 0, 0)
+    assert point["nEvents"] == 1
+    assert client.get("/api/v1/analytics/fish-survival").json()["meta"]["missing"]["exitDate"] == 1
+
+
+def test_fish_survival_reports_unusable_dob_instead_of_hiding_it(client, store):
+    with store.lock:
+        store.state.entities["fish"] = {
+            "no-dob-fish": {
+                "id": "no-dob-fish",
+                "fishCode": "NODOB-1",
+                "dob": "",
+                "donorCellLineId": "donor-fixture",
+                "status": "DEAD",
+                "condition": "NORMAL",
+                "sex": "UNKNOWN",
+                "active": True,
+                "deletedAt": None,
+            }
+        }
+    meta = client.get("/api/v1/analytics/fish-survival").json()["meta"]
+    assert meta["missing"]["dob"] == 1
+
+
+def test_fish_survival_uses_kaplan_meier_events_and_last_follow_up_censoring(client, store):
+    today = datetime.now(BANGKOK).date()
+    dob = (today - timedelta(days=4)).isoformat()
+    with store.lock:
+        store.state.entities["fish"] = {
+            "alive": {
+                "id": "alive",
+                "fishCode": "ALIVE",
+                "dob": dob,
+                "status": "ALIVE",
+                "condition": "NORMAL",
+                "sex": "UNKNOWN",
+                "active": True,
+                "deletedAt": None,
+            },
+            "dead": {
+                "id": "dead",
+                "fishCode": "DEAD",
+                "dob": dob,
+                "status": "DEAD",
+                "condition": "NORMAL",
+                "sex": "UNKNOWN",
+                "exitDate": (today - timedelta(days=2)).isoformat(),
+                "active": True,
+                "deletedAt": None,
+            },
+            "frozen": {
+                "id": "frozen",
+                "fishCode": "FROZEN",
+                "dob": dob,
+                "status": "FROZEN",
+                "condition": "ABNORMAL",
+                "sex": "UNKNOWN",
+                "firstAbnormalOn": (today - timedelta(days=1)).isoformat(),
+                "exitDate": (today - timedelta(days=1)).isoformat(),
+                "active": True,
+                "deletedAt": None,
+            },
+            "discarded": {
+                "id": "discarded",
+                "fishCode": "DISCARDED",
+                "dob": dob,
+                "status": "DISCARDED",
+                "condition": "NORMAL",
+                "sex": "UNKNOWN",
+                "exitDate": (today - timedelta(days=3)).isoformat(),
+                "active": True,
+                "deletedAt": None,
+            },
+        }
+        store.state.fish_observations["alive-follow-up"] = {
+            "id": "alive-follow-up",
+            "cloneFishId": "alive",
+            "observedOn": (today - timedelta(days=2)).isoformat(),
+            "outcome": "ALIVE",
+            "condition": "NORMAL",
+            "deletedAt": None,
+        }
+
+    result = client.get("/api/v1/analytics/fish-survival").json()
+    rows = result["items"]
+    assert [(row["ageDays"], row["atRisk"], row["nEvents"], row["nCensored"]) for row in rows] == [
+        (0, 4, 0, 0),
+        (1, 4, 0, 1),
+        (2, 3, 1, 1),
+        (3, 1, 0, 1),
+    ]
+    assert [row["surv"] for row in rows] == pytest.approx([1, 1, 2 / 3, 2 / 3])
+    assert all(current["surv"] <= previous["surv"] for previous, current in zip(rows, rows[1:], strict=False))
+    assert all(0 <= row["survLower95"] <= row["surv"] <= row["survUpper95"] <= 1 for row in rows)
+    split = client.get("/api/v1/analytics/fish-survival?splitByCondition=true").json()
+    assert split["meta"]["method"] == "Kaplan-Meier"
+    assert split["meta"]["comparison"]["label"] == "Ever abnormal vs No abnormality recorded"
+    assert split["meta"]["comparison"]["interpretation"] == "Exploratory comparison; not causal."
+    assert {row["abnormalityGroup"] for row in split["items"]} == {
+        "EVER_ABNORMAL",
+        "NO_ABNORMALITY_RECORDED",
+        "UNKNOWN",
+    }
+
+
+def test_fish_survival_non_split_aggregates_strain_and_treatment(client, store):
+    today = datetime.now(BANGKOK).date()
+    dob = (today - timedelta(days=2)).isoformat()
+    with store.lock:
+        store.state.entities["donor-cell-lines"] = {
+            "donor-a": {"id": "donor-a", "strain": "AB", "active": True, "deletedAt": None},
+            "donor-b": {"id": "donor-b", "strain": "TU", "active": True, "deletedAt": None},
+        }
+        store.state.entities["treatment-groups"] = {
+            "treatment-a": {"id": "treatment-a", "code": "SCNT", "active": True, "deletedAt": None},
+            "treatment-b": {"id": "treatment-b", "code": "IVF", "active": True, "deletedAt": None},
+        }
+        store.state.entities["batches"] = {
+            "batch-a": {"id": "batch-a", "treatmentGroupId": "treatment-a", "active": True, "deletedAt": None},
+            "batch-b": {"id": "batch-b", "treatmentGroupId": "treatment-b", "active": True, "deletedAt": None},
+        }
+        store.state.entities["injection-lots"] = {
+            "lot-a": {
+                "id": "lot-a",
+                "batchId": "batch-a",
+                "donorCellLineId": "donor-a",
+                "activatedAt": f"{dob}T00:00:00Z",
+                "active": True,
+                "deletedAt": None,
+            },
+            "lot-b": {
+                "id": "lot-b",
+                "batchId": "batch-b",
+                "donorCellLineId": "donor-b",
+                "activatedAt": f"{dob}T00:00:00Z",
+                "active": True,
+                "deletedAt": None,
+            },
+        }
+        store.state.entities["embryos"] = {
+            "embryo-a": {"id": "embryo-a", "injectionLotId": "lot-a", "active": True, "deletedAt": None},
+            "embryo-b": {"id": "embryo-b", "injectionLotId": "lot-b", "active": True, "deletedAt": None},
+        }
+        state_fish = {
+            "fish-a": {
+                "id": "fish-a",
+                "fishCode": "FISH-A",
+                "embryoId": "embryo-a",
+                "donorCellLineId": "donor-a",
+                "dob": dob,
+                "status": "ALIVE",
+                "condition": "ABNORMAL",
+                "firstAbnormalOn": (today - timedelta(days=1)).isoformat(),
+                "sex": "UNKNOWN",
+                "active": True,
+                "deletedAt": None,
+            },
+            "fish-b": {
+                "id": "fish-b",
+                "fishCode": "FISH-B",
+                "embryoId": "embryo-b",
+                "donorCellLineId": "donor-b",
+                "dob": dob,
+                "status": "DEAD",
+                "condition": "NORMAL",
+                "exitDate": (today - timedelta(days=1)).isoformat(),
+                "sex": "UNKNOWN",
+                "active": True,
+                "deletedAt": None,
+            },
+        }
+        store.state.entities["fish"] = state_fish
+        store.state.fish_observations["fish-b-follow-up"] = {
+            "id": "fish-b-follow-up",
+            "cloneFishId": "fish-b",
+            "observedOn": (today - timedelta(days=1)).isoformat(),
+            "outcome": "DEAD",
+            "condition": "NORMAL",
+            "deletedAt": None,
+        }
+
+    overall = client.get("/api/v1/analytics/fish-survival").json()["items"]
+    assert len(overall) == 3
+    assert {(row["strain"], row["treatmentGroup"]) for row in overall} == {("ALL", "ALL")}
+    assert [(row["ageDays"], row["atRisk"], row["nEvents"]) for row in overall] == [(0, 2, 0), (1, 2, 1), (2, 1, 0)]
+
+    split = client.get("/api/v1/analytics/fish-survival?splitByCondition=true").json()["items"]
+    assert {(row["abnormalityGroup"], row["strain"], row["treatmentGroup"]) for row in split} == {
+        ("EVER_ABNORMAL", "AB", "SCNT"),
+        ("NO_ABNORMALITY_RECORDED", "TU", "IVF"),
+    }
+
+    by_strain = client.get("/api/v1/analytics/fish-survival", params=[("groupBy", "strain")]).json()["items"]
+    assert {(row["strain"], row["treatmentGroup"], row["condition"]) for row in by_strain} == {
+        ("AB", "ALL", None),
+        ("TU", "ALL", None),
+    }
+    dashboard = client.get("/api/v1/analytics/dashboard").json()
+    assert {(row["strain"], row["treatmentGroup"], row["condition"]) for row in dashboard["fishSurvival"]["items"]} == {
+        ("ALL", "ALL", None)
+    }
+    grouped_dashboard = client.get(
+        "/api/v1/analytics/dashboard",
+        params=[("stage1GroupBy", "site"), ("stage1GroupBy", "strain"), ("stage2GroupBy", "condition")],
+    ).json()
+    assert {row["strain"] for row in grouped_dashboard["survival"]["items"]} == {"AB", "TU"}
+    assert {row["abnormalityGroup"] for row in grouped_dashboard["fishSurvival"]["items"]} == {
+        "EVER_ABNORMAL",
+        "NO_ABNORMALITY_RECORDED",
+    }
+
+
+def test_fish_supporting_analysis_reports_composition_age_and_box_boundaries(client, store):
+    today = datetime.now(BANGKOK).date()
+    with store.lock:
+        store.state.entities["donor-cell-lines"] = {
+            "donor": {"id": "donor", "strain": "AB", "active": True, "deletedAt": None},
+        }
+        store.state.entities["fish-boxes"] = {
+            "box-1": {"id": "box-1", "boxCode": "B1", "active": True, "deletedAt": None},
+            "box-2": {"id": "box-2", "boxCode": "B2", "active": True, "deletedAt": None},
+            "box-empty": {"id": "box-empty", "boxCode": "B3", "active": True, "deletedAt": None},
+        }
+        values = [
+            ("alive-0", "ALIVE", 0, "M", "box-1"),
+            ("dead-6", "DEAD", 6, "F", "box-1"),
+            ("frozen-7", "FROZEN", 7, "M", "box-2"),
+            ("discarded-14", "DISCARDED", 14, "F", "box-2"),
+            ("alive-28", "ALIVE", 28, "UNKNOWN", None),
+        ]
+        store.state.entities["fish"] = {
+            fish_id: {
+                "id": fish_id,
+                "fishCode": fish_id,
+                "donorCellLineId": "donor",
+                "dob": (today - timedelta(days=age)).isoformat(),
+                "status": status,
+                "condition": "NORMAL",
+                "sex": sex,
+                "fishBoxId": box_id,
+                "active": True,
+                "deletedAt": None,
+            }
+            for fish_id, status, age, sex, box_id in values
+        }
+
+    supporting = client.get("/api/v1/analytics/fish-survival").json()["supporting"]
+    assert {row["status"]: row["n"] for row in supporting["statusComposition"]} == {
+        "ALIVE": 2,
+        "DEAD": 1,
+        "FROZEN": 1,
+        "DISCARDED": 1,
+    }
+    assert {row["sex"]: row["n"] for row in supporting["sexComposition"]} == {"M": 2, "F": 2, "UNKNOWN": 1}
+    assert [row["n"] for row in supporting["ageDistribution"]] == [2, 1, 1, 0, 1]
+    assert supporting["ageDistribution"][0]["minDays"] == 0
+    assert supporting["ageDistribution"][0]["maxDays"] == 6
+    assert supporting["ageDistribution"][1]["minDays"] == 7
+    assert supporting["ageDistribution"][1]["maxDays"] == 13
+    assert supporting["ageDistribution"][-1]["minDays"] == 28
+    assert supporting["ageDistribution"][-1]["maxDays"] is None
+    assert {row["boxCode"]: row["n"] for row in supporting["boxCensus"]} == {
+        "B1": 2,
+        "B2": 2,
+        "B3": 0,
+        "Unassigned": 1,
+    }
+    box_rows = {row["boxCode"]: row for row in supporting["boxCensus"]}
+    assert box_rows["B1"]["statusCounts"] == {"ALIVE": 1, "DEAD": 1, "FROZEN": 0, "DISCARDED": 0, "UNKNOWN": 0}
+    assert box_rows["B3"]["statusCounts"] == {"ALIVE": 0, "DEAD": 0, "FROZEN": 0, "DISCARDED": 0, "UNKNOWN": 0}
+    assert supporting["boxMeta"] == {"nBoxes": 4, "emptyBoxes": 1}
+    assert supporting["missingExitDate"] == 3
+
+
+def test_fish_supporting_day5_reports_eligibility_and_condition_denominator(client, store):
+    now = datetime.now(UTC).replace(microsecond=0)
+    today = now.astimezone(BANGKOK).date()
+    old_activation = (now - timedelta(days=2)).isoformat().replace("+00:00", "Z")
+    future_activation = (now + timedelta(days=1)).isoformat().replace("+00:00", "Z")
+    with store.lock:
+        store.state.entities["batches"] = {
+            "old-batch": {
+                "id": "old-batch",
+                "batchCode": "OLD",
+                "experimentDate": (today - timedelta(days=100)).isoformat(),
+                "timingProfileId": "day5-profile",
+                "active": True,
+                "deletedAt": None,
+            },
+            "future-batch": {
+                "id": "future-batch",
+                "batchCode": "FUTURE",
+                "experimentDate": (today + timedelta(days=100)).isoformat(),
+                "timingProfileId": "day5-profile",
+                "active": True,
+                "deletedAt": None,
+            },
+            "not-ready-batch": {
+                "id": "not-ready-batch",
+                "batchCode": "NOT-READY",
+                "experimentDate": (today - timedelta(days=100)).isoformat(),
+                "timingProfileId": "day5-profile",
+                "active": True,
+                "deletedAt": None,
+            },
+        }
+        store.state.entities["timing-profiles"] = {
+            "day5-profile": {
+                "id": "day5-profile",
+                "entries": [{"stageCode": "stage_26_5D", "expectedHpa": 24}],
+                "active": True,
+                "deletedAt": None,
+            },
+        }
+        store.state.entities["injection-lots"] = {
+            "old-lot": {
+                "id": "old-lot",
+                "batchId": "old-batch",
+                "donorCellLineId": "donor",
+                "activatedAt": old_activation,
+                "active": True,
+                "deletedAt": None,
+            },
+            "future-lot": {
+                "id": "future-lot",
+                "batchId": "old-batch",
+                "donorCellLineId": "donor",
+                "activatedAt": future_activation,
+                "active": True,
+                "deletedAt": None,
+            },
+            "future-batch-lot": {
+                "id": "future-batch-lot",
+                "batchId": "future-batch",
+                "donorCellLineId": "donor",
+                "activatedAt": old_activation,
+                "active": True,
+                "deletedAt": None,
+            },
+            "not-ready-lot": {
+                "id": "not-ready-lot",
+                "batchId": "not-ready-batch",
+                "donorCellLineId": "donor",
+                "activatedAt": future_activation,
+                "active": True,
+                "deletedAt": None,
+            },
+        }
+        store.state.entities["embryos"] = {
+            "old-normal": {"id": "old-normal", "injectionLotId": "old-lot", "active": True, "deletedAt": None},
+            "old-abnormal": {"id": "old-abnormal", "injectionLotId": "old-lot", "active": True, "deletedAt": None},
+            "old-missing": {"id": "old-missing", "injectionLotId": "old-lot", "active": True, "deletedAt": None},
+            "future-missing": {
+                "id": "future-missing",
+                "injectionLotId": "future-lot",
+                "active": True,
+                "deletedAt": None,
+            },
+            "future-batch-missing": {
+                "id": "future-batch-missing",
+                "injectionLotId": "future-batch-lot",
+                "active": True,
+                "deletedAt": None,
+            },
+            "not-ready": {"id": "not-ready", "injectionLotId": "not-ready-lot", "active": True, "deletedAt": None},
+        }
+        store.state.observations = {
+            "day5-normal": {
+                "id": "day5-normal",
+                "embryoId": "old-normal",
+                "stageCode": "stage_26_5D",
+                "observedAt": f"{today}T01:00:00Z",
+                "condition": "NORMAL",
+                "outcome": "ALIVE",
+                "deletedAt": None,
+            },
+            "day5-abnormal": {
+                "id": "day5-abnormal",
+                "embryoId": "old-abnormal",
+                "stageCode": "stage_26_5D",
+                "observedAt": f"{today}T01:00:00Z",
+                "condition": "ABNORMAL",
+                "outcome": "ALIVE",
+                "deletedAt": None,
+            },
+        }
+
+    rows = {
+        row["batchCode"]: row
+        for row in client.get("/api/v1/analytics/fish-survival").json()["supporting"]["batchPerformance"]
+    }
+    assert rows["OLD"] == {
+        "batchId": "old-batch",
+        "batchCode": "OLD",
+        "status": "ELIGIBLE",
+        "eligible": True,
+        "n": 2,
+        "denominator": 2,
+        "nNormal": 1,
+        "nAbnormal": 1,
+        "missingEmbryos": 1,
+        "pctNormal": 0.5,
+    }
+    assert rows["FUTURE"]["status"] == "MISSING"
+    assert rows["FUTURE"]["missingEmbryos"] == 1
+    assert rows["FUTURE"]["pctNormal"] is None
+    assert rows["NOT-READY"]["status"] == "NOT_ELIGIBLE"
+    assert rows["NOT-READY"]["missingEmbryos"] == 0
+    definition = client.get("/api/v1/analytics/fish-survival").json()["supporting"]["day5Definition"]
+    assert "activatedAt" in definition and "expectedHpa" in definition
 
 
 def test_nullable_egg_count_is_reported_without_breaking_kpi(client, write_headers):

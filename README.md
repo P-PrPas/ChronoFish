@@ -1,6 +1,6 @@
-# ChronoFish
+# KUVTH Zebrafish LIMS
 
-ChronoFish tracks SCNT zebrafish experiments from injection through embryo checkpoints and clone-fish follow-up. This repository is the implementation baseline for SRS v1.0.
+KUVTH Zebrafish LIMS tracks SCNT zebrafish experiments from injection through embryo checkpoints and clone-fish follow-up. This repository is the implementation baseline for SRS v1.0.
 
 ## Repository layout
 
@@ -82,6 +82,11 @@ CI boots both database engines, applies all migrations, and runs constraint
 smoke checks.
 
 Optional initial master data is under `backend/db/seeds/{postgres,mysql}/master_data.sql`.
+
+`docker compose --profile demo up --build` additionally loads
+`backend/db/seeds/postgres/demo_data.sql`. That seed deletes and recreates every
+record owned by its demo batches — including anything entered through the UI
+against them — so run it only against a throwaway database, never a real one.
 
 Configuration is documented in [`.env.example`](.env.example). Do not commit real credentials.
 

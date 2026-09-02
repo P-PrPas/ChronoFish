@@ -10,6 +10,7 @@ import { putQueue, type QueuedWrite } from "../offline";
 import { Empty, ErrorMessage } from "../components";
 import { uuidv7 } from "../uuidv7";
 import { type AppText, text } from "../types";
+import { formatBangkokDateTime } from "../time";
 
 const seedProtocolId = "01900000-0000-7000-8000-000000000001";
 
@@ -102,13 +103,12 @@ function apiError(error: unknown): string {
 
 function createdAt(profile: ApiItem): string {
   const value = String(profile.createdAt ?? "");
-  const date = new Date(value);
-  return value && !Number.isNaN(date.valueOf()) ? date.toLocaleString() : "Unknown time";
+  return formatBangkokDateTime(value) || "—";
 }
 
-function changedStages(profile: ApiItem, previous?: ApiItem): string {
+function changedStages(profile: ApiItem, previous?: ApiItem, thai = false): string {
   const current = (profile.entries as ApiItem[] | undefined) ?? [];
-  if (!previous) return `Initial profile · ${current.length} stages`;
+  if (!previous) return thai ? `ค่าเริ่มต้น · ${current.length} ระยะ` : `Initial profile · ${current.length} stages`;
   const oldValues = new Map(
     ((previous.entries as ApiItem[] | undefined) ?? []).map((entry) => [
       String(entry.stageCode ?? entry.code),
@@ -118,14 +118,14 @@ function changedStages(profile: ApiItem, previous?: ApiItem): string {
   const changes = current.filter(
     (entry) => oldValues.get(String(entry.stageCode ?? entry.code)) !== Number(entry.expectedHpa),
   );
-  if (changes.length === 0) return "No timing values changed";
+  if (changes.length === 0) return thai ? "ไม่มีค่าเวลาเปลี่ยนแปลง" : "No timing values changed";
   return changes
     .slice(0, 3)
     .map((entry) => {
       const code = String(entry.stageCode ?? entry.code);
       return `${code}: ${oldValues.get(code) ?? "—"} → ${Number(entry.expectedHpa)}`;
     })
-    .join(" · ") + (changes.length > 3 ? ` · +${changes.length - 3} more` : "");
+    .join(" · ") + (changes.length > 3 ? ` · +${changes.length - 3} ${thai ? "ระยะ" : "more"}` : "");
 }
 
 export function Timing({ t = text.en }: { t?: AppText } = {}) {
@@ -241,7 +241,7 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
   };
   const importCsv = async () => {
     if (!csvPreview || csvPreview.errors.length || csvPreview.rows.some((row) => row.errors.length)) return;
-    if (!window.confirm(`Import ${csvPreview.rows.length} timing rows as a new version?`)) return;
+    if (!window.confirm(thai ? `นำเข้าข้อมูลเวลา ${csvPreview.rows.length} แถวเป็นเวอร์ชันใหม่หรือไม่?` : `Import ${csvPreview.rows.length} timing rows as a new version?`)) return;
     setImporting(true);
     setError("");
     setMessage("");
@@ -251,7 +251,7 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
         csvPreview.text,
         "text/csv",
       );
-      if (result.queued) setMessage("CSV import queued; the new version will appear after sync");
+      if (result.queued) setMessage(thai ? "รอนำเข้า CSV เวอร์ชันใหม่จะแสดงหลังซิงก์" : "CSV import queued; the new version will appear after sync");
       else {
         setCsvPreview(null);
         await load();
@@ -274,10 +274,10 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
       (entry) => oldEntries.get(String(entry.stageCode ?? entry.code)) !== Number(entry.expectedHpa),
     );
     if (changed.length === 0) {
-      setError("Change at least one expected HPA value before saving");
+      setError(thai ? "เปลี่ยนค่า HPA ที่คาดไว้อย่างน้อยหนึ่งระยะก่อนบันทึก" : "Change at least one expected HPA value before saving");
       return;
     }
-    if (!window.confirm(`Create a new timing profile version with ${changed.length} changed stage(s)?`)) return;
+    if (!window.confirm(thai ? `สร้างเวอร์ชันเวลาใหม่จากการเปลี่ยน ${changed.length} ระยะหรือไม่?` : `Create a new timing profile version with ${changed.length} changed stage(s)?`)) return;
     setSaving(true);
     setError("");
     setMessage("");
@@ -293,7 +293,7 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
       const result = await putQueue("/timing-profiles", payload);
       if (result.queued)
         setMessage(
-          "Timing profile queued; it will create a new version when online",
+          thai ? "รอส่งโปรไฟล์เวลา ระบบจะสร้างเวอร์ชันใหม่เมื่อออนไลน์" : "Timing profile queued; it will create a new version when online",
         );
       else await load();
     } catch (saveError) {
@@ -308,13 +308,18 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
         position === index ? { ...entry, expectedHpa: Number(value) } : entry,
       ),
     );
+  const thai = t === text.th;
   return (
     <section>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">SCR-15 / VERSIONED</p>
+          <p className="eyebrow">{thai ? "มาตรฐานเวลาแบบเก็บเวอร์ชัน" : "VERSIONED TIMING STANDARD"}</p>
+          <h1>{thai ? "เวลามาตรฐานของแต่ละระยะ" : "Timing standards by stage"}</h1>
+          <p className="muted">
+            {thai ? "เลือกโพรโทคอล แล้วปรับเฉพาะระยะที่ต้องการ ระบบจะสร้างเวอร์ชันใหม่โดยไม่เปลี่ยนข้อมูลการทดลองเดิม" : "Choose a protocol and change only the stages you need. Saving creates a new version without changing existing experiments."}
+          </p>
           <label>
-            Protocol
+            {thai ? "โพรโทคอล" : "Protocol"}
             <select
               required
               value={protocolId}
@@ -326,7 +331,7 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
                 setCsvPreview(null);
               }}
             >
-              <option value="">Select protocol</option>
+              <option value="">{thai ? "เลือกโพรโทคอล" : "Select protocol"}</option>
               {protocols.length === 0 && protocolId && (
                 <option value={protocolId}>Default protocol</option>
               )}
@@ -337,11 +342,6 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
               ))}
             </select>
           </label>
-          <h1>{t.timing}</h1>
-          <p className="muted">
-            Edit expected HPA values and save one complete new version. Existing
-            batches keep their snapshot.
-          </p>
         </div>
         <div className="button-row">
           <button className="button button--secondary" onClick={download}>
@@ -361,19 +361,19 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
       </div>
       {error && <ErrorMessage message={error} />}
       {message && <p className="notice">{message}</p>}
-      {loading && <p className="muted">Loading timing profile…</p>}
+      {loading && <p className="muted">{thai ? "กำลังโหลดเวลามาตรฐาน…" : "Loading timing profile…"}</p>}
       {profile && (
         <>
           <div className="list-row">
             <span>
-              <strong>Current version {String(profile.version)}</strong>
-              <small>{String(profile.name)} · {createdAt(profile)} · by {operatorNames[String(profile.createdByOperatorId)] ?? String(profile.createdByOperatorId ?? "Unknown operator")}</small>
+              <strong>{thai ? "เวอร์ชันที่ใช้อยู่" : "Current version"} {String(profile.version)}</strong>
+              <small>{String(profile.name)} · {createdAt(profile)} · {thai ? "บันทึกโดย" : "by"} {operatorNames[String(profile.createdByOperatorId)] ?? (thai ? "ไม่ระบุผู้ปฏิบัติงาน" : "Unknown operator")}</small>
             </span>
-            <span className="pill">Current</span>
+            <span className="pill">{thai ? "กำลังใช้งาน" : "Current"}</span>
           </div>
           <form className="form-card" onSubmit={save}>
             <label>
-              New version name
+              {thai ? "ชื่อเวอร์ชันใหม่" : "New version name"}
               <input
                 required
                 maxLength={200}
@@ -381,15 +381,17 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
                 onChange={(event) => setName(event.target.value)}
               />
             </label>
-            <div className="table-wrap">
+            <details className="workflow-disclosure">
+              <summary>{thai ? `ปรับค่า HPA รายระยะ · ${entries.length} ระยะ` : `Edit HPA by stage · ${entries.length} stages`}</summary>
+              <div className="workflow-disclosure__body table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Stage</th>
-                    <th>Label</th>
-                    <th>Current HPA</th>
-                    <th>New HPA</th>
-                    <th>Change</th>
+                    <th>{thai ? "ระยะ" : "Stage"}</th>
+                    <th>{thai ? "ชื่อระยะ" : "Label"}</th>
+                    <th>{thai ? "HPA ปัจจุบัน" : "Current HPA"}</th>
+                    <th>{thai ? "HPA ใหม่" : "New HPA"}</th>
+                    <th>{thai ? "ผลต่าง" : "Change"}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -403,7 +405,7 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
                         <td>{original}</td>
                         <td>
                           <input
-                            aria-label={`Expected HPA ${String(entry.stageCode ?? index + 1)}`}
+                            aria-label={`${thai ? "HPA ใหม่ของ" : "New HPA for"} ${String(entry.stageCode ?? index + 1)}`}
                             type="number"
                             required
                             min="0"
@@ -418,7 +420,8 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </details>
             <button className="button button--primary" disabled={saving}>
               {saving ? t.saving : t.saveTimingVersion}
             </button>
@@ -426,20 +429,20 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
         </>
       )}
       {csvPreview && (
-        <section className="form-card" aria-label="CSV preview">
+        <section className="form-card" aria-label={thai ? "ตัวอย่าง CSV" : "CSV preview"}>
           <div>
-            <h2>CSV preview</h2>
-            <p className="muted">{csvPreview.fileName} · {csvPreview.rows.length} rows ready</p>
+            <h2>{thai ? "ตัวอย่าง CSV" : "CSV preview"}</h2>
+            <p className="muted">{csvPreview.fileName} · {csvPreview.rows.length} {thai ? "แถวพร้อมนำเข้า" : "rows ready"}</p>
           </div>
           {csvPreview.errors.map((previewError) => <ErrorMessage key={previewError} message={previewError} />)}
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Row</th><th>Stage</th><th>Label</th><th>Expected HPA</th><th>Status</th></tr></thead>
+              <thead><tr>{(thai ? ["แถว", "ระยะ", "ชื่อระยะ", "HPA ที่คาดไว้", "สถานะ"] : ["Row", "Stage", "Label", "Expected HPA", "Status"]).map((header) => <th key={header}>{header}</th>)}</tr></thead>
               <tbody>
                 {csvPreview.rows.map((row) => (
                   <tr key={row.row}>
                     <td>{row.row}</td><td>{row.stageCode}</td><td>{row.label}</td><td>{row.expectedHpa}</td>
-                    <td>{row.errors.length ? row.errors.join(" · ") : "Ready"}</td>
+                    <td>{row.errors.length ? row.errors.join(" · ") : (thai ? "พร้อม" : "Ready")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -447,25 +450,25 @@ export function Timing({ t = text.en }: { t?: AppText } = {}) {
           </div>
           <div className="button-row">
             <button className="button button--primary" disabled={importing || csvPreview.errors.length > 0 || csvPreview.rows.some((row) => row.errors.length > 0)} onClick={() => void importCsv()}>
-              {importing ? t.importing : "Import preview"}
+              {importing ? t.importing : (thai ? "นำเข้าตัวอย่าง" : "Import preview")}
             </button>
-            <button className="button button--secondary" onClick={() => setCsvPreview(null)}>Cancel</button>
+            <button className="button button--secondary" onClick={() => setCsvPreview(null)}>{thai ? "ยกเลิก" : "Cancel"}</button>
           </div>
         </section>
       )}
       <section>
-        <h2>Version history</h2>
+        <h2>{thai ? "ประวัติเวอร์ชัน" : "Version history"}</h2>
         <div className="list">
           {history.map((version, index) => (
             <div className="list-row" key={String(version.id)}>
               <span>
-                <strong>Version {String(version.version)} · {String(version.name)}</strong>
-                <small>{createdAt(version)} · by {operatorNames[String(version.createdByOperatorId)] ?? String(version.createdByOperatorId ?? "Unknown operator")} · {changedStages(version, history[index + 1])}</small>
+                <strong>{thai ? "เวอร์ชัน" : "Version"} {String(version.version)} · {String(version.name)}</strong>
+                <small>{createdAt(version)} · {thai ? "บันทึกโดย" : "by"} {operatorNames[String(version.createdByOperatorId)] ?? (thai ? "ไม่ระบุผู้ปฏิบัติงาน" : "Unknown operator")} · {changedStages(version, history[index + 1], thai)}</small>
               </span>
-              {Boolean(version.isCurrent) && <span className="pill">Current</span>}
+              {Boolean(version.isCurrent) && <span className="pill">{thai ? "กำลังใช้งาน" : "Current"}</span>}
             </div>
           ))}
-          {!loading && history.length === 0 && <Empty message="No timing versions" />}
+          {!loading && history.length === 0 && <Empty message={thai ? "ยังไม่มีประวัติเวอร์ชัน" : "No timing versions"} />}
         </div>
       </section>
     </section>
@@ -550,24 +553,22 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
       !queued.includes(String(item.embryoId)),
   );
   return (
-    <section>
+    <form onSubmit={(event) => { event.preventDefault(); void promote(eligibleSelected) }}>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">SCR-07 / CONFIRMATION REQUIRED</p>
-          <h1>{t.promotions}</h1>
+          <p className="eyebrow">{t === text.th ? "เปลี่ยนสถานะจากตัวอ่อนเป็นปลา" : "EMBRYO-TO-FISH HANDOFF"}</p>
+          <h1>{t === text.th ? "ขึ้นทะเบียนปลาโคลนที่เข้าเกณฑ์" : "Register eligible clone fish"}</h1>
           <p className="muted">
-            Review strain, first abnormality, fish code, and optional box before
-            confirmation.
+            {t === text.th ? "ตรวจสายพันธุ์ ระยะแรกที่พบความผิดปกติ และรหัสปลา จากนั้นเลือกหลายรายการเพื่อยืนยันพร้อมกัน" : "Review strain, first abnormality and fish code, then select multiple records to confirm together."}
           </p>
         </div>
         <div className="button-row">
-          <button className="button button--secondary" onClick={load}>
+          <button className="button button--secondary" type="button" onClick={load}>
             {t.refresh}
           </button>
           <button
             className="button button--primary"
             disabled={!eligibleSelected.length}
-            onClick={() => void promote(eligibleSelected)}
           >
             {t.confirmSelected} ({eligibleSelected.length})
           </button>
@@ -575,7 +576,7 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
       </div>
       {message && <ErrorMessage message={message} />}
       {items.length === 0 ? (
-        <Empty message={t.noEligiblePromotions} />
+        <Empty message={t.noEligiblePromotions} actionLabel={t.due} onAction={() => { location.hash = 'due' }} />
       ) : (
         <div className="list">
           {items.map((item) => {
@@ -586,7 +587,7 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
               fishBoxId: "",
             };
             return (
-              <div className="list-row" key={id}>
+              <div className="list-row promotion-row" key={id}>
                 <label className="check-row">
                   <input
                     type="checkbox"
@@ -603,14 +604,14 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
                   <span>
                     <strong>{String(item.embryoCode)}</strong>
                     <small>
-                      Strain {String(item.strain ?? "—")} · DOB{" "}
-                      {String(item.dob)} · first abnormality{" "}
-                      {String(item.firstAbnormalStageLabel ?? "—")}
+                      {t === text.th ? "สายพันธุ์" : "Strain"} {String(item.strain ?? "—")} · {t === text.th ? "เกิด" : "DOB"}{" "}
+                      {String(item.dob)} · {t === text.th ? "เริ่มพบความผิดปกติ" : "first abnormality"}{" "}{String(item.firstAbnormalStageLabel ?? "—")}
                     </small>
                   </span>
                 </label>
                 <input
-                  aria-label={`Fish code ${String(item.embryoCode)}`}
+                  aria-label={`${t === text.th ? "รหัสปลา" : "Fish code"} ${String(item.embryoCode)}`}
+                  required={selected.includes(id)}
                   value={edit.fishCode}
                   onChange={(event) =>
                     setEdits((current) => ({
@@ -620,7 +621,7 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
                   }
                 />
                 <select
-                  aria-label={`Fish box ${String(item.embryoCode)}`}
+                  aria-label={`${t === text.th ? "ตู้ปลา" : "Fish box"} ${String(item.embryoCode)}`}
                   value={edit.fishBoxId}
                   onChange={(event) =>
                     setEdits((current) => ({
@@ -629,26 +630,20 @@ export function Promotions({ t = text.en }: { t?: AppText } = {}) {
                     }))
                   }
                 >
-                  <option value="">No box</option>
+                  <option value="">{t === text.th ? "ยังไม่ระบุตู้ปลา" : "No box"}</option>
                   {boxes.map((box) => (
                     <option key={String(box.id)} value={String(box.id)}>
                       {String(box.boxCode ?? box.code)}
                     </option>
                   ))}
                 </select>
-                <button
-                  className="button button--primary"
-                  disabled={isQueued}
-                  onClick={() => void promote([item])}
-                >
-                  {isQueued ? t.queued : t.confirm}
-                </button>
+                {isQueued && <span className="pill">{t.queued}</span>}
               </div>
             );
           })}
         </div>
       )}
-    </section>
+    </form>
   );
 }
 
@@ -659,6 +654,7 @@ type ControlRow = {
   nAbnormal: number;
 };
 export function Controls({ t = text.en }: { t?: AppText } = {}) {
+  const thai = t === text.th;
   const [batchId, setBatchId] = useState("");
   const [batches, setBatches] = useState<ApiItem[]>([]);
   const [protocols, setProtocols] = useState<ApiItem[]>([]);
@@ -770,37 +766,22 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
     <section>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">SCR-11 / CONTROL ARMS</p>
-          <h1>{t.controls}</h1>
+          <p className="eyebrow">{thai ? "บันทึกข้อมูลเพื่อเปรียบเทียบ" : "COMPARISON EVIDENCE"}</p>
+          <h1>{thai ? "ผลกลุ่มเปรียบเทียบ" : "Comparison group results"}</h1>
           <p className="muted">
-            Record multiple natural-breeding and IVF rows against real batch and
-            stage data.
+            {thai ? "เลือกการทดลองและระยะ แล้วบันทึกจำนวนปกติ–ผิดปกติของกลุ่มผสมธรรมชาติหรือ IVF" : "Choose an experiment and stage, then record normal and abnormal counts for natural-breeding or IVF groups."}
           </p>
         </div>
       </div>
-      <div className="metric-grid">
-        <div className="metric">
-          <span>Normal total</span>
-          <strong>{totals.normal}</strong>
-        </div>
-        <div className="metric">
-          <span>Abnormal total</span>
-          <strong>{totals.abnormal}</strong>
-        </div>
-        <div className="metric">
-          <span>Grand total</span>
-          <strong>{totals.normal + totals.abnormal}</strong>
-        </div>
-      </div>
-      <form className="form-card" onSubmit={save}>
+      <form className="task-surface form-card control-form" onSubmit={save}>
         <label>
-          Protocol
+          {thai ? "โพรโทคอล" : "Protocol"}
           <select
             required
             value={protocolId}
             onChange={(event) => setProtocolId(event.target.value)}
           >
-            <option value="">Select protocol</option>
+            <option value="">{thai ? "เลือกโพรโทคอล" : "Select protocol"}</option>
             {protocols.length === 0 && protocolId && (
               <option value={protocolId}>Default protocol</option>
             )}
@@ -812,13 +793,13 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
           </select>
         </label>
         <label>
-          Batch
+          {thai ? "การทดลอง" : "Batch"}
           <select
             required
             value={batchId}
             onChange={(event) => setBatchId(event.target.value)}
           >
-            <option value="">Select batch</option>
+            <option value="">{thai ? "เลือกการทดลอง" : "Select batch"}</option>
             {batches.map((batch) => (
               <option key={String(batch.id)} value={String(batch.id)}>
                 {String(batch.batchCode)}
@@ -829,7 +810,7 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
         {rows.map((row, index) => (
           <div className="form-card--inline" key={`${index}-${row.armType}`}>
             <label>
-              Arm
+              {thai ? "กลุ่มเปรียบเทียบ" : "Arm"}
               <select
                 value={row.armType}
                 onChange={(event) =>
@@ -838,12 +819,12 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
                   })
                 }
               >
-                <option>NATURAL_BREEDING</option>
-                <option>IVF</option>
+                <option value="NATURAL_BREEDING">{thai ? "ผสมพันธุ์ตามธรรมชาติ" : "Natural breeding"}</option>
+                <option value="IVF">IVF</option>
               </select>
             </label>
             <label>
-              Stage
+              {thai ? "ระยะที่ตรวจ" : "Stage"}
               <select
                 value={row.stageCode}
                 onChange={(event) =>
@@ -861,7 +842,7 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
               </select>
             </label>
             <label>
-              Normal
+              {thai ? "จำนวนปกติ" : "Normal"}
               <input
                 type="number"
                 min="0"
@@ -872,7 +853,7 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
               />
             </label>
             <label>
-              Abnormal
+              {thai ? "จำนวนผิดปกติ" : "Abnormal"}
               <input
                 type="number"
                 min="0"
@@ -891,10 +872,15 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
                 )
               }
             >
-              Remove
+              {thai ? "ลบแถว" : "Remove"}
             </button>
           </div>
         ))}
+        <div className="record-facts">
+          <div className="record-fact"><span>{thai ? "ปกติรวม" : "Normal total"}</span><strong>{totals.normal}</strong></div>
+          <div className="record-fact"><span>{thai ? "ผิดปกติรวม" : "Abnormal total"}</span><strong>{totals.abnormal}</strong></div>
+          <div className="record-fact"><span>{thai ? "จำนวนทั้งหมด" : "Grand total"}</span><strong>{totals.normal + totals.abnormal}</strong></div>
+        </div>
         <div className="button-row">
           <button
             type="button"
@@ -911,10 +897,10 @@ export function Controls({ t = text.en }: { t?: AppText } = {}) {
               ])
             }
           >
-            Add arm row
+            {thai ? "เพิ่มกลุ่มหรือระยะ" : "Add arm row"}
           </button>
           <button className="button button--primary" type="submit">
-            Save counts
+            {thai ? "บันทึกผลเปรียบเทียบ" : "Save counts"}
           </button>
         </div>
       </form>

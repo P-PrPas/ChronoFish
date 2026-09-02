@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Query, Request
 
 from ...domain.rules import (
+    DAY5_STAGE_ORDER,
     condition_valid,
     default_expected_hpa,
     deviation_label,
@@ -35,7 +36,28 @@ def _latest_embryo_observation(state: State, embryo_id: str) -> dict[str, Any] |
         for item in state.observations.values()
         if item.get("embryoId") == embryo_id and item.get("deletedAt") is None
     ]
-    return max(values, key=lambda item: str(item.get("observedAt", "")), default=None)
+    # Stage order breaks ties so two observations recorded at the same instant
+    # do not resolve on dict order.
+    return max(
+        values,
+        key=lambda item: (str(item.get("observedAt", "")), stage_number(str(item.get("stageCode", "")))),
+        default=None,
+    )
+
+
+def _terminal_embryo_observation(state: State, embryo_id: str) -> dict[str, Any] | None:
+    values = [
+        item
+        for item in state.observations.values()
+        if item.get("embryoId") == embryo_id
+        and item.get("deletedAt") is None
+        and item.get("outcome") in {"DEAD", "DEGENERATED"}
+    ]
+    return min(
+        values,
+        key=lambda item: (str(item.get("observedAt", "")), stage_number(str(item.get("stageCode", "")))),
+        default=None,
+    )
 
 
 def _profile_entries_for_lot(state: State, lot: dict[str, Any]) -> list[dict[str, Any]]:
@@ -83,7 +105,7 @@ def _recompute_embryo(state: State, embryo_id: str) -> None:
         for item in state.observations.values()
         if item.get("embryoId") == embryo_id and item.get("deletedAt") is None
     ]
-    latest = max(values, key=lambda item: str(item.get("observedAt", "")), default=None)
+    terminal = _terminal_embryo_observation(state, embryo_id)
     abnormal = min(
         (item for item in values if item.get("condition") == "ABNORMAL"),
         key=lambda item: (str(item.get("observedAt", "")), stage_number(str(item.get("stageCode", "")))),
@@ -114,22 +136,24 @@ def _recompute_embryo(state: State, embryo_id: str) -> None:
     else:
         for field in abnormal_fields:
             embryo.pop(field, None)
-    if not latest or latest.get("outcome") in {"ALIVE", "NOT_OBSERVED"}:
+    if not terminal:
         for field in ("exitReason", "exitAt", "exitStageCode", "exitStageId"):
             embryo.pop(field, None)
     else:
         embryo.update(
             {
-                "exitReason": latest["outcome"],
-                "exitAt": latest["observedAt"],
-                "exitStageCode": latest["stageCode"],
-                "exitStageId": _stage_definition_id(state, embryo, str(latest["stageCode"])),
+                "exitReason": terminal["outcome"],
+                "exitAt": terminal["observedAt"],
+                "exitStageCode": terminal["stageCode"],
+                "exitStageId": _stage_definition_id(state, embryo, str(terminal["stageCode"])),
             }
         )
     embryo["updatedAt"] = iso_now()
 
 
-def _validate_observation(state: State, item: dict[str, Any]) -> str | None:
+def _validate_observation(
+    state: State, item: dict[str, Any], correcting_observation_id: str | None = None
+) -> str | None:
     for field in ("clientUuid", "embryoId", "stageCode", "observedAt", "outcome", "condition"):
         if not item.get(field):
             return f"ต้องระบุ {field}"
@@ -156,11 +180,12 @@ def _validate_observation(state: State, item: dict[str, Any]) -> str | None:
         return "observedAt ห้ามอยู่ในอนาคตเกิน 5 นาที"
     if item["outcome"] not in EMBRYO_OUTCOMES or not condition_valid(str(item["condition"])):
         return "outcome หรือ condition ไม่ถูกต้อง"
-    if item["outcome"] == "ALIVE" and embryo.get("exitReason") and not item.get("overrideReason"):
-        exit_order = stage_number(str(embryo.get("exitStageCode") or ""))
-        exit_at = parse_datetime(str(embryo["exitAt"]))
+    terminal = _terminal_embryo_observation(state, str(embryo["id"]))
+    if terminal and str(terminal.get("id")) != str(correcting_observation_id or ""):
+        exit_order = stage_number(str(terminal.get("stageCode") or ""))
+        exit_at = parse_datetime(str(terminal["observedAt"]))
         if stage_number(str(item["stageCode"])) >= exit_order or observed >= exit_at:
-            return "ต้องระบุ overrideReason เมื่อต้องการบันทึก ALIVE หลังมี exit event"
+            return "ตัวอ่อนตายแล้ว ไม่สามารถบันทึกรอบถัดไปได้; โปรดแก้ไขผลการตายเดิมหากบันทึกผิด"
     return None
 
 
@@ -295,26 +320,17 @@ def build_observations_router(store: Store) -> APIRouter:
         ]
         embryos = []
         for embryo in all_embryos:
-            if embryo.get("exitReason"):
+            terminal = _terminal_embryo_observation(state, str(embryo["id"]))
+            if embryo.get("exitReason") and not terminal:
                 continue
-            earlier = [
-                item
-                for item in state.observations.values()
-                if item.get("embryoId") == embryo["id"]
-                and item.get("deletedAt") is None
-                and 0 < stage_number(str(item.get("stageCode", ""))) < order
-            ]
-            prior = max(
-                earlier,
-                key=lambda item: (stage_number(str(item.get("stageCode", ""))), str(item.get("observedAt", ""))),
-                default=None,
-            )
+            prior = terminal or _latest_embryo_observation(state, str(embryo["id"]))
             embryos.append(
                 {
                     "embryoId": embryo["id"],
                     "embryoCode": embryo["embryoCode"],
                     "wellPosition": embryo.get("wellPosition"),
                     "defaultCondition": (prior or {}).get("condition", "NORMAL"),
+                    "isDead": terminal is not None,
                     "priorOutcome": (prior or {}).get("outcome"),
                     "priorStageCode": (prior or {}).get("stageCode"),
                     "firstAbnormalStageLabel": stage_label(stage_number(str(embryo.get("firstAbnormalStageCode", ""))))
@@ -324,6 +340,15 @@ def build_observations_router(store: Store) -> APIRouter:
             )
         activated = parse_datetime(str(lot["activatedAt"]))
         expected = _expected_hpa(state, lot, code)
+        stages = [
+            {
+                "stageCode": stage_code(item_order),
+                "stageLabel": stage_label(item_order),
+                "stageOrder": item_order,
+                "expectedHpa": _expected_hpa(state, lot, stage_code(item_order)),
+            }
+            for item_order in range(1, DAY5_STAGE_ORDER + 1)
+        ]
         return {
             "injectionLotId": lot_id,
             "batchCode": batch.get("batchCode"),
@@ -331,9 +356,10 @@ def build_observations_router(store: Store) -> APIRouter:
             "stage": {"code": code, "label": stage_label(order), "stageOrder": order},
             "activatedAt": lot["activatedAt"],
             "expectedHpa": expected,
+            "stages": stages,
             "dueAt": (activated + timedelta(hours=expected)).isoformat().replace("+00:00", "Z"),
             "totalEmbryos": len(all_embryos),
-            "embryosRemaining": len(embryos),
+            "embryosRemaining": sum(not item["isDead"] for item in embryos),
             "embryos": embryos,
         }
 
@@ -466,7 +492,7 @@ def build_observations_router(store: Store) -> APIRouter:
                 allowed = {"observedAt", "outcome", "condition", "notes"}
                 candidate = {**observation, **{key: value for key, value in payload.items() if key in allowed}}
                 candidate["overrideReason"] = correction
-                if message := _validate_observation(state, candidate):
+                if message := _validate_observation(state, candidate, observation_id):
                     raise APIError(422, "validation_error", message)
                 lot = state.entities["injection-lots"][str(candidate["injectionLotId"])]
                 observed_at = parse_datetime(str(candidate["observedAt"]))

@@ -24,6 +24,14 @@ describe('API write context', () => {
     })
   })
 
+  it('rejects every mutation before network access when no operator is selected', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(request('/batches', { method: 'POST', body: '{}' })).rejects.toThrow('OPERATOR_REQUIRED')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('preserves structured API error details for row-level feedback', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
       error: { message: 'CSV needs changes', details: { rows: [{ row: 3, message: 'duplicate stage' }] } },

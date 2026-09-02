@@ -1,4 +1,4 @@
-# ChronoFish Development Status
+# KUVTH Zebrafish LIMS Development Status
 
 > อัปเดตล่าสุด: 24 สิงหาคม 2026
 > Branch: `feat/phase-9-hardening-uat`

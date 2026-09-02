@@ -37,7 +37,9 @@ def create_app(config: Config | None = None, store: Store | None = None) -> Fast
             store = SQLStore(config)
         else:
             store = MemoryStore()
-    app = FastAPI(title="ChronoFish API", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(
+        title="KUVTH Zebrafish LIMS API", version=__version__, docs_url=None, redoc_url=None, openapi_url=None
+    )
     app.state.store = store
     if close_store := getattr(store, "close", None):
         app.router.add_event_handler("shutdown", close_store)

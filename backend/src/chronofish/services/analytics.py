@@ -6,10 +6,18 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from ..domain.rules import age_days_on, default_expected_hpa, round4, stage_code, stage_label, stage_number
+from ..domain.rules import (
+    DAY5_STAGE_ORDER,
+    age_days_on,
+    default_expected_hpa,
+    round4,
+    stage_code,
+    stage_label,
+    stage_number,
+)
 from ..domain.state import State
 from ..runtime.values import parse_datetime, utc_now
-from .fish import enrich_fish, fish_was_alive_on
+from .fish import enrich_fish
 
 BANGKOK = ZoneInfo("Asia/Bangkok")
 ANALYTICS_FILTER_KEYS = (
@@ -23,13 +31,29 @@ ANALYTICS_FILTER_KEYS = (
     "batchId",
 )
 GROUP_DIMENSIONS = {"site", "strain", "treatmentGroup", "operator"}
+FISH_GROUP_DIMENSIONS = {"condition", "strain", "treatmentGroup"}
 CONTROL_STAGE_ORDERS = {3, 19, 20, 22, 23, 24}
+FISH_CENSOR_STATUSES = {"ALIVE", "FROZEN", "DISCARDED"}
+FISH_STATUS_ORDER = ("ALIVE", "DEAD", "FROZEN", "DISCARDED")
+FISH_AGE_BINS = ((0, 6, "0-6"), (7, 13, "7-13"), (14, 20, "14-20"), (21, 27, "21-27"), (28, None, "28+"))
+ABNORMALITY_COMPARISON = {
+    "field": "abnormalityGroup",
+    "label": "Ever abnormal vs No abnormality recorded",
+    "interpretation": "Exploratory comparison; not causal.",
+}
 
 
 def group_dimensions(values: list[str] | None, default: tuple[str, ...]) -> tuple[str, ...]:
     requested = values or [",".join(default)]
     dimensions = [part for value in requested for part in value.split(",") if part in GROUP_DIMENSIONS]
     return tuple(dict.fromkeys(dimensions)) or default
+
+
+def fish_group_dimensions(values: list[str] | None, split_by_condition: bool) -> tuple[str, ...]:
+    if values is None:
+        return ("condition", "strain", "treatmentGroup") if split_by_condition else ()
+    dimensions = [part for value in values for part in value.split(",") if part in FISH_GROUP_DIMENSIONS]
+    return tuple(dict.fromkeys(dimensions))
 
 
 def _quartiles(values: list[float]) -> tuple[float, float]:
@@ -39,6 +63,15 @@ def _quartiles(values: list[float]) -> tuple[float, float]:
     return first, third
 
 
+def _as_date(value: Any) -> date | None:
+    if value in (None, ""):
+        return None
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
 class Analytics:
     """Pure Phase 7 calculations over one consistent store snapshot."""
 
@@ -46,6 +79,7 @@ class Analytics:
         self.state = state
         self.query = {key: value for key, value in query.items() if key in ANALYTICS_FILTER_KEYS and value}
         self.observations = self._observation_index()
+        self.fish_observations = self._fish_observation_index()
         self.checkpoints = {
             embryo_id: {stage_number(str(item.get("stageCode", ""))): item for item in items}
             for embryo_id, items in self.observations.items()
@@ -166,6 +200,45 @@ class Analytics:
                 result[str(item.get("embryoId"))].append(item)
         return result
 
+    def _fish_observation_index(self) -> dict[str, list[dict[str, Any]]]:
+        result: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+        for item in self.state.fish_observations.values():
+            if item.get("deletedAt") is None:
+                result[str(item.get("cloneFishId"))].append(item)
+        return result
+
+    def _embryo_abnormality(self, embryo: dict[str, Any]) -> tuple[int | None, bool, bool]:
+        values = self.observations.get(str(embryo["id"]), [])
+        observed_orders = [
+            stage_number(str(item.get("stageCode", ""))) for item in values if item.get("condition") == "ABNORMAL"
+        ]
+        marker = stage_number(str(embryo.get("firstAbnormalStageCode", "")))
+        first_order = marker or min(observed_orders, default=0)
+        return first_order or None, bool(first_order), bool(values)
+
+    def _promoted_fish(self) -> list[dict[str, Any]]:
+        return [
+            item
+            for item in self.fish.values()
+            if item.get("embryoId")
+            and self.state.entities["embryos"].get(str(item.get("embryoId")), {}).get("exitReason") == "PROMOTED"
+        ]
+
+    def _fish_abnormality_group(self, fish: dict[str, Any]) -> str:
+        observations = self.fish_observations.get(str(fish.get("id")), [])
+        ever_abnormal = bool(
+            fish.get("firstAbnormalOn")
+            or fish.get("firstAbnormalAgeDays") is not None
+            or fish.get("firstAbnormalStageCode")
+            or fish.get("condition") == "ABNORMAL"
+            or any(item.get("condition") == "ABNORMAL" for item in observations)
+        )
+        if ever_abnormal:
+            return "EVER_ABNORMAL"
+        if fish.get("condition") == "NORMAL" and observations:
+            return "NO_ABNORMALITY_RECORDED"
+        return "UNKNOWN"
+
     def _checkpoint_status(self, embryo: dict[str, Any], order: int) -> str:
         embryo_id = str(embryo["id"])
         direct = self.checkpoints.get(embryo_id, {}).get(order)
@@ -215,7 +288,10 @@ class Analytics:
                 alive += self._checkpoint_status(embryo, order) == "alive"
             n_previous = alive if order == 1 else previous_alive
             if order > 1 and n_previous:
-                survival *= alive / n_previous
+                # Keep the plotted estimate monotonic even when raw checkpoint
+                # counts rise after an observation gap or an explicit correction.
+                # Capping the ratio at 1 is enough: the product can only shrink.
+                survival *= min(1.0, alive / n_previous)
             first_alive = int(result[0]["alive"]) if result else alive
             result.append(
                 {
@@ -312,6 +388,10 @@ class Analytics:
             )
             for item in self.embryos
         ]
+        abnormality_states = [self._embryo_abnormality(item) for item in self.embryos]
+        ever_abnormal = sum(item[1] for item in abnormality_states)
+        no_abnormality_recorded = sum(item[2] and not item[1] for item in abnormality_states)
+        missing_abnormality = len(self.embryos) - ever_abnormal - no_abnormality_recorded
         normal = sum(item is not None and item.get("condition") == "NORMAL" for item in latest)
         abnormal = sum(item is not None and item.get("condition") == "ABNORMAL" for item in latest)
         activated = self._activated_count()
@@ -320,7 +400,7 @@ class Analytics:
             name: sum(item.get("condition") == name for item in self.fish.values()) for name in ("NORMAL", "ABNORMAL")
         }
         undetermined = len(self.fish) - sum(conditions.values())
-        promoted = sum(bool(item.get("embryoId")) for item in self.fish.values())
+        promoted = len(self._promoted_fish())
         missing_eggs = sum(item.get("nEggs") is None for item in self.lots.values())
         return {
             "stage1": {
@@ -332,6 +412,12 @@ class Analytics:
                 "nPromoted": promoted,
                 "pctNormal": normal / len(self.embryos) if self.embryos else None,
                 "pctAbnormal": abnormal / len(self.embryos) if self.embryos else None,
+                "abnormalityComparison": {
+                    **ABNORMALITY_COMPARISON,
+                    "everAbnormal": ever_abnormal,
+                    "noAbnormalityRecorded": no_abnormality_recorded,
+                    "unknown": missing_abnormality,
+                },
                 "controlComparison": self._control_comparison(),
             },
             "stage2": {
@@ -350,11 +436,16 @@ class Analytics:
                 {
                     "activated": activated,
                     "stage1Condition": len(self.embryos),
+                    "stage1EverAbnormal": ever_abnormal,
+                    "stage1NoAbnormalityRecorded": no_abnormality_recorded,
                     "stage2Fish": len(self.fish),
+                    "stage2PromotedFish": promoted,
+                    "stage2ManualFish": len(self.fish) - promoted,
                     "aliveFishAge": len(alive_ages),
                 },
                 {
                     "stage1Condition": len(self.embryos) - normal - abnormal,
+                    "stage1AbnormalityStatus": missing_abnormality,
                     "stage2Condition": undetermined,
                     "fishSex": sum(item.get("sex") not in {"M", "F"} for item in self.fish.values()),
                 },
@@ -393,6 +484,7 @@ class Analytics:
             batch = self.batches[str(lot["batchId"])]
             donor = self.state.entities["donor-cell-lines"].get(str(lot.get("donorCellLineId")), {})
             treatment = self.state.entities["treatment-groups"].get(str(batch.get("treatmentGroupId")), {})
+            site = self.state.entities["sites"].get(str(batch.get("siteId")), {})
             values = {
                 "site": str(batch.get("siteId", "")),
                 "strain": str(donor.get("strain", "")),
@@ -401,7 +493,7 @@ class Analytics:
             }
             key = tuple(values[item] for item in dimensions)
             groups[key].append(embryo)
-            metadata[key] = {**values, "treatmentGroupName": treatment.get("code")}
+            metadata[key] = {**values, "siteCode": site.get("code"), "treatmentGroupName": treatment.get("code")}
         items = []
         for key, group in groups.items():
             for point in self._stage_survival(group):
@@ -409,6 +501,7 @@ class Analytics:
                 point.update(
                     {
                         "siteId": meta["site"] if "site" in dimensions else None,
+                        "site": meta["siteCode"] if "site" in dimensions else None,
                         "strain": meta["strain"] if "strain" in dimensions else None,
                         "treatmentGroupId": meta["treatmentGroup"] if "treatmentGroup" in dimensions else None,
                         "treatmentGroup": meta["treatmentGroupName"] if "treatmentGroup" in dimensions else None,
@@ -489,49 +582,113 @@ class Analytics:
 
     def abnormality_onset(self) -> dict[str, Any]:
         counts: defaultdict[int, int] = defaultdict(int)
-        for embryo in self.embryos:
-            if order := stage_number(str(embryo.get("firstAbnormalStageCode", ""))):
+        states = [self._embryo_abnormality(embryo) for embryo in self.embryos]
+        for state in states:
+            order = state[0]
+            if order:
                 counts[order] += 1
+        ever_abnormal = sum(item[1] for item in states)
+        no_abnormality_recorded = sum(item[2] and not item[1] for item in states)
+        missing_abnormality = len(self.embryos) - ever_abnormal - no_abnormality_recorded
+        meta = self._meta(
+            len(self.embryos),
+            {
+                "embryos": len(self.embryos),
+                "everAbnormal": ever_abnormal,
+                "noAbnormalityRecorded": no_abnormality_recorded,
+            },
+            missing={"firstAbnormality": missing_abnormality},
+        )
+        meta["comparison"] = ABNORMALITY_COMPARISON
         return {
             "items": [
                 {"stageOrder": order, "stageLabel": stage_label(order), "count": counts[order]}
                 for order in sorted(counts)
             ],
-            "meta": self._meta(
-                len(self.embryos),
-                {"embryos": len(self.embryos)},
-                missing={"firstAbnormality": len(self.embryos) - sum(counts.values())},
-            ),
+            "meta": meta,
         }
 
-    def fish_survival(self, split_by_condition: bool = False) -> dict[str, Any]:
-        groups: defaultdict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
+    def fish_survival(
+        self,
+        split_by_condition: bool = False,
+        group_by: list[str] | None = None,
+    ) -> dict[str, Any]:
+        dimensions = fish_group_dimensions(group_by, split_by_condition)
+        groups: defaultdict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
+        today = datetime.now(BANGKOK).date()
+        missing_exit_date = missing_dob = 0
+        prepared_by_group: defaultdict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
+        prepared_all: list[dict[str, Any]] = []
         for item in self.fish.values():
-            key = ("ALL", "ALL", "ALL")
-            if split_by_condition:
-                key = (
-                    str(item.get("condition") or "UNDETERMINED"),
-                    str(item.get("strain") or "ALL"),
-                    str(item.get("treatmentGroup") or "ALL"),
-                )
+            status = str(item.get("status") or "")
+            observations = self.fish_observations.get(str(item.get("id")), [])
+            follow_ups = [
+                observed
+                for observation in observations
+                if (observed := _as_date(observation.get("observedOn"))) is not None
+            ]
+            latest_follow_up = max(follow_ups, default=None)
+            exit_date = _as_date(item.get("exitDate"))
+            if status == "DEAD":
+                event_observations = [
+                    observed
+                    for observation in observations
+                    if observation.get("outcome") == "DEAD"
+                    and (observed := _as_date(observation.get("observedOn"))) is not None
+                ]
+                end_date = exit_date or max(event_observations, default=None) or latest_follow_up or today
+                is_event = True
+            elif status in FISH_CENSOR_STATUSES:
+                end_date = exit_date or latest_follow_up or today
+                is_event = False
+            else:
+                end_date = latest_follow_up or today
+                is_event = False
+            if exit_date is None and status in {"DEAD", "FROZEN", "DISCARDED"}:
+                missing_exit_date += 1
+            end_date = min(end_date, today)
+            # dob is NOT NULL in the schema, so a miss here means corrupt data
+            # rather than an ordinary gap. Falling back to today would land a
+            # dead fish on the curve as a day-0 death; report it instead.
+            dob = _as_date(item.get("dob"))
+            if dob is None:
+                missing_dob += 1
+                dob = today
+            end_age = max(age_days_on(dob, end_date), 0)
+            values = {
+                "condition": self._fish_abnormality_group(item),
+                "strain": str(item.get("strain") or "ALL"),
+                "treatmentGroup": str(item.get("treatmentGroup") or "ALL"),
+            }
+            key = tuple(values[dimension] for dimension in dimensions) or ("ALL",)
             groups[key].append(item)
-        rows, today = [], datetime.now(BANGKOK).date()
-        for (condition_name, strain_name, treatment_name), items in groups.items():
-            prepared = []
-            for item in items:
-                dob = date.fromisoformat(item["dob"])
-                prepared.append((item, dob, max(age_days_on(dob, today), 0)))
-            max_age = max((age for _item, _dob, age in prepared), default=0)
+            prepared = {"item": item, "endAge": end_age, "event": is_event}
+            prepared_by_group[key].append(prepared)
+            prepared_all.append(prepared)
+
+        rows = []
+        for key, items in groups.items():
+            prepared = prepared_by_group[key]
+            values = {dimension: key[index] for index, dimension in enumerate(dimensions)}
+            max_age = max((item["endAge"] for item in prepared), default=0)
+            survival, greenwood = 1.0, 0.0
             for age in range(max_age + 1):
-                at_risk = sum(item_age >= age for _item, _dob, item_age in prepared)
-                alive = sum(
-                    item_age >= age and fish_was_alive_on(item, dob + timedelta(days=age))
-                    for item, dob, item_age in prepared
-                )
+                at_risk = sum(item["endAge"] >= age for item in prepared)
+                events = sum(item["event"] and item["endAge"] == age for item in prepared)
+                censored = sum(not item["event"] and item["endAge"] == age for item in prepared)
+                if at_risk and events:
+                    survival *= 1 - events / at_risk
+                    if at_risk > events:
+                        greenwood += events / (at_risk * (at_risk - events))
+                survival = max(0.0, min(1.0, survival))
+                variance = survival * survival * greenwood
+                margin = 1.96 * variance**0.5
                 row = {
                     "ageDays": age,
                     "atRisk": at_risk,
-                    "alive": alive,
+                    "alive": at_risk - events,
+                    "nEvents": events,
+                    "nCensored": censored,
                     "nAlive": sum(item.get("status") == "ALIVE" for item in items),
                     "nDead": sum(item.get("status") == "DEAD" for item in items),
                     "nFrozen": sum(item.get("status") == "FROZEN" for item in items),
@@ -540,28 +697,198 @@ class Analytics:
                     "nFemale": sum(item.get("sex") == "F" for item in items),
                     "nUnknownSex": sum(item.get("sex") not in {"M", "F"} for item in items),
                     "nBoxes": len({item.get("fishBoxId") for item in items if item.get("fishBoxId")}),
-                    "surv": alive / at_risk if at_risk else 0,
-                    "strain": strain_name,
-                    "treatmentGroup": treatment_name,
+                    "surv": survival,
+                    "survLower95": max(0.0, survival - margin),
+                    "survUpper95": min(1.0, survival + margin),
+                    "condition": values.get("condition"),
+                    "abnormalityGroup": values.get("condition"),
+                    "strain": values.get("strain", "ALL"),
+                    "treatmentGroup": values.get("treatmentGroup", "ALL"),
                 }
-                if split_by_condition:
-                    row["condition"] = condition_name
                 rows.append(row)
+        meta = self._meta(
+            len(self.fish),
+            {
+                "fish": len(self.fish),
+                "events": sum(item.get("status") == "DEAD" for item in self.fish.values()),
+                "censored": sum(item.get("status") in FISH_CENSOR_STATUSES for item in self.fish.values()),
+                "aliveFish": sum(item.get("status") == "ALIVE" for item in self.fish.values()),
+            },
+            {
+                "condition": sum(item.get("condition") not in {"NORMAL", "ABNORMAL"} for item in self.fish.values()),
+                "sex": sum(item.get("sex") not in {"M", "F"} for item in self.fish.values()),
+            },
+            {"exitDate": missing_exit_date, "dob": missing_dob},
+        )
+        meta["method"] = "Kaplan-Meier"
+        meta["comparison"] = ABNORMALITY_COMPARISON
         return {
             "items": rows,
-            "meta": self._meta(
-                len(self.fish),
+            "meta": meta,
+            "supporting": self._fish_supporting(prepared_all, missing_exit_date),
+        }
+
+    def _fish_supporting(self, prepared: list[dict[str, Any]], missing_exit_date: int) -> dict[str, Any]:
+        total = len(self.fish)
+        status_counts = {
+            status: sum(item.get("status") == status for item in self.fish.values()) for status in FISH_STATUS_ORDER
+        }
+        unknown_status = total - sum(status_counts.values())
+        status_rows = [
+            {"status": status, "n": count, "pct": count / total if total else None}
+            for status, count in status_counts.items()
+        ]
+        if unknown_status:
+            status_rows.append(
+                {"status": "UNKNOWN", "n": unknown_status, "pct": unknown_status / total if total else None}
+            )
+
+        sex_counts = {
+            "M": sum(item.get("sex") == "M" for item in self.fish.values()),
+            "F": sum(item.get("sex") == "F" for item in self.fish.values()),
+        }
+        sex_counts["UNKNOWN"] = total - sex_counts["M"] - sex_counts["F"]
+        sex_rows = [
+            {"sex": sex, "n": count, "pct": count / total if total else None} for sex, count in sex_counts.items()
+        ]
+
+        ages = [max(int(item.get("endAge", 0)), 0) for item in prepared]
+        age_rows = []
+        for lower, upper, label in FISH_AGE_BINS:
+            count = sum(age >= lower and (upper is None or age <= upper) for age in ages)
+            age_rows.append(
+                {"bin": label, "minDays": lower, "maxDays": upper, "n": count, "pct": count / total if total else None}
+            )
+
+        box_counts: defaultdict[str, int] = defaultdict(int)
+        box_status_counts: defaultdict[str, dict[str, int]] = defaultdict(
+            lambda: {status: 0 for status in (*FISH_STATUS_ORDER, "UNKNOWN")}
+        )
+        for item in self.fish.values():
+            box_id = str(item.get("fishBoxId") or "")
+            box_counts[box_id] += 1
+            status = str(item.get("status") or "UNKNOWN")
+            if status not in FISH_STATUS_ORDER:
+                status = "UNKNOWN"
+            box_status_counts[box_id][status] += 1
+        cohort_restricted = any(
+            self.query.get(key)
+            for key in ("batchId", "operatorId", "treatmentGroupId", "donorCellLineId", "strain", "dateFrom", "dateTo")
+        )
+        if not cohort_restricted:
+            boxes = [
+                box
+                for box in self.state.entities["fish-boxes"].values()
+                if box.get("active") is not False
+                and box.get("deletedAt") is None
+                and (not self.query.get("siteId") or str(box.get("siteId")) == self.query["siteId"])
+            ]
+        else:
+            boxes = [
+                self.state.entities["fish-boxes"].get(box_id, {"id": box_id, "boxCode": box_id})
+                for box_id in box_counts
+                if box_id
+            ]
+        box_rows = [
+            {
+                "fishBoxId": str(box.get("id")),
+                "boxCode": str(box.get("boxCode") or box.get("id")),
+                "n": box_counts.get(str(box.get("id")), 0),
+                "pct": box_counts.get(str(box.get("id")), 0) / total if total else None,
+                "empty": box_counts.get(str(box.get("id")), 0) == 0,
+                "statusCounts": box_status_counts[str(box.get("id"))],
+            }
+            for box in boxes
+        ]
+        if box_counts.get(""):
+            box_rows.append(
                 {
-                    "fish": len(self.fish),
-                    "aliveFish": sum(item.get("status") == "ALIVE" for item in self.fish.values()),
-                },
+                    "fishBoxId": None,
+                    "boxCode": "Unassigned",
+                    "n": box_counts[""],
+                    "pct": box_counts[""] / total if total else None,
+                    "empty": False,
+                    "statusCounts": box_status_counts[""],
+                }
+            )
+        box_rows.sort(key=lambda row: (-int(row["n"]), str(row["boxCode"])))
+
+        by_batch: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+        for embryo in self.embryos:
+            lot = self.lots.get(str(embryo.get("injectionLotId")))
+            if lot and lot.get("batchId") in self.batches:
+                by_batch[str(lot["batchId"])].append(embryo)
+        now = utc_now()
+        batch_rows = []
+        for batch_id, batch in sorted(self.batches.items(), key=lambda item: str(item[1].get("batchCode") or item[0])):
+            day5_observations = []
+            due_embryos = 0
+            for embryo in by_batch.get(batch_id, []):
+                lot = self.lots.get(str(embryo.get("injectionLotId")))
+                observations = [
+                    item
+                    for item in self.observations.get(str(embryo.get("id")), [])
+                    if stage_number(str(item.get("stageCode", ""))) == DAY5_STAGE_ORDER
+                ]
+                if observations:
+                    day5_observations.append(max(observations, key=lambda item: str(item.get("observedAt", ""))))
+                    due_embryos += 1
+                elif lot and lot.get("activatedAt") and self._due_at(lot, DAY5_STAGE_ORDER) <= now:
+                    due_embryos += 1
+            n_normal = sum(item.get("condition") == "NORMAL" for item in day5_observations)
+            n_abnormal = sum(item.get("condition") == "ABNORMAL" for item in day5_observations)
+            denominator = n_normal + n_abnormal
+            if not day5_observations:
+                status = "MISSING" if due_embryos else "NOT_ELIGIBLE"
+            elif denominator == 0:
+                status = "MISSING_CONDITION"
+            else:
+                status = "ELIGIBLE"
+            batch_rows.append(
                 {
-                    "condition": sum(
-                        item.get("condition") not in {"NORMAL", "ABNORMAL"} for item in self.fish.values()
-                    ),
-                    "sex": sum(item.get("sex") not in {"M", "F"} for item in self.fish.values()),
-                },
+                    "batchId": batch_id,
+                    "batchCode": str(batch.get("batchCode") or batch_id),
+                    "status": status,
+                    "eligible": status == "ELIGIBLE",
+                    "n": len(day5_observations),
+                    "denominator": denominator,
+                    "nNormal": n_normal,
+                    "nAbnormal": n_abnormal,
+                    "missingEmbryos": max(due_embryos - len(day5_observations), 0),
+                    "pctNormal": n_normal / denominator if denominator else None,
+                }
+            )
+        batch_rows.sort(
+            key=lambda row: (
+                not row["eligible"],
+                -(float(row["pctNormal"]) if row["pctNormal"] is not None else -1),
+                str(row["batchCode"]),
+            )
+        )
+
+        known_sex = sex_counts["M"] + sex_counts["F"]
+        return {
+            "statusComposition": status_rows,
+            "ageDistribution": age_rows,
+            "ageDefinition": (
+                "Age in days at each fish's current follow-up date, exit/status date, "
+                "or today when no date is recorded."
             ),
+            "sexComposition": sex_rows,
+            "sexCompleteness": {
+                "known": known_sex,
+                "unknown": sex_counts["UNKNOWN"],
+                "pctComplete": known_sex / total if total else None,
+            },
+            "boxCensus": box_rows,
+            "boxMeta": {"nBoxes": len(box_rows), "emptyBoxes": sum(row["empty"] for row in box_rows)},
+            "batchPerformance": batch_rows,
+            "day5Definition": (
+                "Day 5 uses each lot's activatedAt plus timing-profile expectedHpa "
+                "for protocol stage order 26; future embryos are not missing. "
+                "Performance is pct normal among embryos with known Day 5 condition."
+            ),
+            "missingExitDate": missing_exit_date,
         }
 
     def observation_gaps(self) -> dict[str, Any]:
@@ -599,13 +926,14 @@ class Analytics:
         }
 
     def pipeline(self) -> dict[str, Any]:
-        promoted, start = sum(bool(item.get("embryoId")) for item in self.fish.values()), self._activated_count()
+        promoted_fish, start = self._promoted_fish(), self._activated_count()
+        promoted = len(promoted_fish)
         counts = [
             ("Activated", start),
             ("Reached Shield", self._reached_count(19)),
             ("Reached Day 1", self._reached_count(22)),
             ("Promoted", promoted),
-            ("Alive Fish", sum(item.get("status") == "ALIVE" for item in self.fish.values())),
+            ("Alive Fish", sum(item.get("status") == "ALIVE" for item in promoted_fish)),
         ]
         previous, rows = start, []
         for step, count in counts:
@@ -620,10 +948,24 @@ class Analytics:
             previous = count
         return {
             "items": rows,
-            "meta": self._meta(len(self.embryos), {"activated": start, "promoted": promoted, "fish": len(self.fish)}),
+            "meta": self._meta(
+                len(self.embryos),
+                {
+                    "activated": start,
+                    "promoted": promoted,
+                    "fish": len(self.fish),
+                    "promotedFish": promoted,
+                    "alivePromotedFish": sum(item.get("status") == "ALIVE" for item in promoted_fish),
+                    "manualFish": len(self.fish) - promoted,
+                },
+            ),
         }
 
-    def dashboard(self) -> dict[str, Any]:
+    def dashboard(
+        self,
+        stage1_group_by: list[str] | None = None,
+        stage2_group_by: list[str] | None = None,
+    ) -> dict[str, Any]:
         profile_ids = {
             str(batch.get("timingProfileId")) for batch in self.batches.values() if batch.get("timingProfileId")
         } or {
@@ -644,10 +986,10 @@ class Analytics:
             },
             "kpi": self.kpi(),
             "funnel": self.funnel(),
-            "survival": self.survival(),
+            "survival": self.survival(stage1_group_by),
             "timingDeviation": self.timing_deviation(),
             "abnormalityOnset": self.abnormality_onset(),
-            "fishSurvival": self.fish_survival(True),
+            "fishSurvival": self.fish_survival(bool(stage2_group_by), stage2_group_by),
             "observationGaps": self.observation_gaps(),
             "pipeline": self.pipeline(),
         }

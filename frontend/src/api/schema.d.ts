@@ -590,10 +590,12 @@ export interface paths {
         };
         /**
          * Everything the checkpoint entry screen needs
-         * @description Returns only embryos with no exit event (FR-405), each with the condition
-         *     carried forward from its previous observation so the screen can default
-         *     sensibly (FR-409), plus the reference time for this checkpoint so the
-         *     client can show the deviation live as the technician works (FR-412).
+         * @description Returns observable embryos plus embryos previously recorded DEAD or
+         *     DEGENERATED. Terminal embryos carry `isDead: true` so their original
+         *     plate wells remain visible as read-only dead wells in every later round;
+         *     they are excluded from `embryosRemaining` and new observations. The
+         *     prior condition is carried forward so the screen can default sensibly
+         *     (FR-409), together with the reference timing for the checkpoint (FR-412).
          */
         get: operations["getCheckpointEntry"];
         put?: never;
@@ -627,10 +629,11 @@ export interface paths {
          *     from the profile pinned to the batch and **freezes it onto the row**
          *     (BR-03), and derives `deviationH` (BR-04).
          *
-         *     Recording `DEAD` or `DEGENERATED` also writes the embryo's exit event.
-         *     Marking an embryo `ALIVE` after it already has one violates monotonic
-         *     survival (BR-07) and is reported as a rejected item unless
-         *     `overrideReason` is supplied. Request-level conflicts still use `409`.
+         *     Recording `DEAD` or `DEGENERATED` also writes the embryo's terminal exit
+         *     event. Later observations are rejected to preserve monotonic survival
+         *     (BR-07), even when an override reason is supplied. A mistaken terminal
+         *     result must be corrected or deleted on its original audited observation.
+         *     Request-level conflicts still use `409`.
          *
          *     Partial success is normal: each item reports its own status, so one bad
          *     row never discards the rest of the checkpoint.
@@ -923,14 +926,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Discrete-time survival by checkpoint
-         * @description Returns `riskSet`, `alive`, `nPrev`, `nDead` and `surv` per BR-15 and
+         * Monotonic discrete-time survival by checkpoint
+         * @description Returns `riskSet`, `alive`, `nPrev`, `nDead` and monotonic `surv` per BR-15 and
          *     BR-16, grouped by site and strain — the same shape the lab's existing R
          *     notebook consumes.
          *
          *     `riskSet` excludes embryos that have not yet reached the checkpoint's
          *     due time, so an experiment still in progress does not read as mass
-         *     mortality. The raw counts are always returned alongside `surv` so the
+         *     mortality. The raw `alive` and `nPrev` counts are always returned alongside `surv` so the
          *     analyst can recompute survival their own way rather than trusting ours.
          */
         get: operations["getSurvival"];
@@ -989,7 +992,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Daily survival of clone fish */
+        /** Kaplan-Meier daily survival of clone fish */
         get: operations["getFishSurvival"];
         put?: never;
         post?: never;
@@ -1565,6 +1568,7 @@ export interface components {
             dueAt: string;
             /** @description Negative when the checkpoint is still in the future. */
             minutesLate: number;
+            /** @description Embryos without a terminal exit that remain eligible for observation. */
             embryosRemaining: number;
             operatorName?: string | null;
         };
@@ -1574,6 +1578,13 @@ export interface components {
             batchCode: string;
             lotNo: string;
             stage: components["schemas"]["StageDefinition"];
+            /** @description Stage 1 choices available independently for each embryo in this observation round. */
+            stages: {
+                stageCode: string;
+                stageLabel: string;
+                stageOrder: number;
+                expectedHpa: number;
+            }[];
             /** Format: date-time */
             activatedAt: string;
             /** @example 2.5 */
@@ -1589,6 +1600,8 @@ export interface components {
                 wellPosition?: string | null;
                 /** @description Carried forward from the previous observation (FR-409). */
                 defaultCondition: components["schemas"]["Condition"];
+                /** @description True after a DEAD or DEGENERATED observation; shown read-only in later plate maps. */
+                isDead: boolean;
                 priorOutcome?: components["schemas"]["EmbryoOutcome"] | null;
                 priorStageCode?: string | null;
                 firstAbnormalStageLabel?: string | null;
@@ -1612,7 +1625,7 @@ export interface components {
             outcome: components["schemas"]["EmbryoOutcome"];
             condition: components["schemas"]["Condition"];
             notes?: string | null;
-            /** @description Required to record ALIVE for an embryo that already has an exit event (BR-07, FR-420). */
+            /** @description Audit context for exceptional writes; it cannot override a terminal embryo death. */
             overrideReason?: string | null;
         };
         EmbryoObservationResult: {
@@ -1953,6 +1966,14 @@ export interface components {
             };
             missing: {
                 [key: string]: number;
+            };
+            /** @description Statistical method used by the endpoint when applicable. */
+            method?: string;
+            /** @description Comparison labels and interpretation for exploratory groupings. */
+            comparison?: {
+                field: string;
+                label: string;
+                interpretation: string;
             };
         };
         FunnelStep: {
@@ -3928,6 +3949,10 @@ export interface operations {
                  *     `donorCellLineId`, `strain`, `batchId`.
                  */
                 filters?: components["parameters"]["AnalyticsFilters"];
+                /** @description Stage 1 chart grouping; include site plus at most one comparison dimension. */
+                stage1GroupBy?: ("site" | "strain" | "treatmentGroup" | "operator")[];
+                /** @description Stage 2 Kaplan-Meier comparison dimension; omit for the overall curve. */
+                stage2GroupBy?: ("condition" | "strain" | "treatmentGroup")[];
             };
             header?: never;
             path?: never;
@@ -4114,8 +4139,10 @@ export interface operations {
                  *     `donorCellLineId`, `strain`, `batchId`.
                  */
                 filters?: components["parameters"]["AnalyticsFilters"];
-                /** @description Return normal and abnormal fish as separate series (FR-817) */
+                /** @description Return Ever abnormal, No abnormality recorded, and unknown fish as separate exploratory series (FR-817) */
                 splitByCondition?: boolean;
+                /** @description One optional comparison dimension for the Kaplan-Meier chart; omit for the overall curve. */
+                groupBy?: ("condition" | "strain" | "treatmentGroup")[];
             };
             header?: never;
             path?: never;
@@ -4123,7 +4150,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Fish survival series */
+            /** @description Fish survival series with daily events and right-censoring */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4132,12 +4159,19 @@ export interface operations {
                     "application/json": {
                         items: {
                             group?: string | null;
+                            /** @description Current comparison group when splitByCondition=true. */
                             condition?: string | null;
+                            /** @description Semantic comparison group — EVER_ABNORMAL, NO_ABNORMALITY_RECORDED, or UNKNOWN. */
+                            abnormalityGroup?: string | null;
                             strain?: string | null;
                             treatmentGroup?: string | null;
                             ageDays: number;
                             atRisk: number;
                             alive: number;
+                            /** @description Death events at this age. */
+                            nEvents?: number;
+                            /** @description Right-censored fish at this age. */
+                            nCensored?: number;
                             nAlive?: number;
                             nDead?: number;
                             nFrozen?: number;
@@ -4146,9 +4180,73 @@ export interface operations {
                             nFemale?: number;
                             nUnknownSex?: number;
                             nBoxes?: number;
+                            /** @description Kaplan-Meier survival estimate. */
                             surv: number;
+                            /** @description Approximate Greenwood 95% lower confidence bound. */
+                            survLower95?: number;
+                            /** @description Approximate Greenwood 95% upper confidence bound. */
+                            survUpper95?: number;
                         }[];
                         meta: components["schemas"]["AnalyticsMeta"];
+                        supporting: {
+                            statusComposition: {
+                                status: string;
+                                n: number;
+                                pct: number | null;
+                            }[];
+                            ageDistribution: {
+                                bin: string;
+                                minDays: number;
+                                maxDays: number | null;
+                                n: number;
+                                pct: number | null;
+                            }[];
+                            ageDefinition: string;
+                            sexComposition: {
+                                sex: string;
+                                n: number;
+                                pct: number | null;
+                            }[];
+                            sexCompleteness: {
+                                known: number;
+                                unknown: number;
+                                pctComplete: number | null;
+                            };
+                            boxCensus: {
+                                fishBoxId?: string | null;
+                                boxCode: string;
+                                n: number;
+                                pct: number | null;
+                                empty: boolean;
+                                statusCounts: {
+                                    ALIVE: number;
+                                    DEAD: number;
+                                    FROZEN: number;
+                                    DISCARDED: number;
+                                    UNKNOWN: number;
+                                };
+                            }[];
+                            boxMeta: {
+                                nBoxes: number;
+                                emptyBoxes: number;
+                            };
+                            batchPerformance: {
+                                batchId: string;
+                                batchCode: string;
+                                /** @enum {string} */
+                                status: "ELIGIBLE" | "NOT_ELIGIBLE" | "MISSING" | "MISSING_CONDITION";
+                                eligible: boolean;
+                                n: number;
+                                denominator: number;
+                                nNormal: number;
+                                nAbnormal: number;
+                                missingEmbryos: number;
+                                pctNormal: number | null;
+                            }[];
+                            /** @description Day 5 due is calculated per lot from activatedAt plus timing-profile expectedHpa for protocol stage order 26; future embryos without observations are excluded from missing counts. */
+                            day5Definition: string;
+                            missingExitDate?: number;
+                        };
                     };
                 };
             };

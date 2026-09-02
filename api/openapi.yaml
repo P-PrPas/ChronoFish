@@ -1,7 +1,7 @@
 openapi: 3.1.0
 
 info:
-  title: SCNT Tracking System API
+  title: KUVTH Zebrafish LIMS API
   version: 1.0.0
   summary: Zebrafish somatic cell nuclear transfer embryo and clone-fish tracking
   description: |
@@ -30,7 +30,7 @@ info:
     * The server computes authoritative `hpaActual`, `hpaExpected`, and
       `deviationH`. The client may calculate a live preview only (DC-05).
   contact:
-    name: SCNT Tracking System
+    name: KUVTH Zebrafish LIMS
   license:
     name: Proprietary
 
@@ -994,10 +994,12 @@ paths:
       tags: [Observations]
       summary: Everything the checkpoint entry screen needs
       description: |
-        Returns only embryos with no exit event (FR-405), each with the condition
-        carried forward from its previous observation so the screen can default
-        sensibly (FR-409), plus the reference time for this checkpoint so the
-        client can show the deviation live as the technician works (FR-412).
+        Returns observable embryos plus embryos previously recorded DEAD or
+        DEGENERATED. Terminal embryos carry `isDead: true` so their original
+        plate wells remain visible as read-only dead wells in every later round;
+        they are excluded from `embryosRemaining` and new observations. The
+        prior condition is carried forward so the screen can default sensibly
+        (FR-409), together with the reference timing for the checkpoint (FR-412).
       operationId: getCheckpointEntry
       responses:
         '200':
@@ -1024,10 +1026,11 @@ paths:
         from the profile pinned to the batch and **freezes it onto the row**
         (BR-03), and derives `deviationH` (BR-04).
 
-        Recording `DEAD` or `DEGENERATED` also writes the embryo's exit event.
-        Marking an embryo `ALIVE` after it already has one violates monotonic
-        survival (BR-07) and is reported as a rejected item unless
-        `overrideReason` is supplied. Request-level conflicts still use `409`.
+        Recording `DEAD` or `DEGENERATED` also writes the embryo's terminal exit
+        event. Later observations are rejected to preserve monotonic survival
+        (BR-07), even when an override reason is supplied. A mistaken terminal
+        result must be corrected or deleted on its original audited observation.
+        Request-level conflicts still use `409`.
 
         Partial success is normal: each item reports its own status, so one bad
         row never discards the rest of the checkpoint.
@@ -1062,7 +1065,7 @@ paths:
                       stageCode: stage_09_256C
                       observedAt: '2026-08-20T12:38:00+07:00'
                       outcome: DEAD
-                      condition: UNDETERMINED
+                      condition: NORMAL
       responses:
         '200':
           description: Per-item results
@@ -1460,7 +1463,20 @@ paths:
       summary: Complete analytics dashboard from one consistent snapshot
       description: Bundles all dashboard panels so filters and counts cannot drift between requests.
       operationId: getAnalyticsDashboard
-      parameters: [ $ref: '#/components/parameters/AnalyticsFilters' ]
+      parameters:
+        - $ref: '#/components/parameters/AnalyticsFilters'
+        - name: stage1GroupBy
+          in: query
+          description: Stage 1 chart grouping; include site plus at most one comparison dimension.
+          schema:
+            type: array
+            items: { type: string, enum: [site, strain, treatmentGroup, operator] }
+        - name: stage2GroupBy
+          in: query
+          description: Stage 2 Kaplan-Meier comparison dimension; omit for the overall curve.
+          schema:
+            type: array
+            items: { type: string, enum: [condition, strain, treatmentGroup] }
       responses:
         '200':
           description: Dashboard analytics
@@ -1505,15 +1521,15 @@ paths:
   /analytics/survival:
     get:
       tags: [Analytics]
-      summary: Discrete-time survival by checkpoint
+      summary: Monotonic discrete-time survival by checkpoint
       description: |
-        Returns `riskSet`, `alive`, `nPrev`, `nDead` and `surv` per BR-15 and
+        Returns `riskSet`, `alive`, `nPrev`, `nDead` and monotonic `surv` per BR-15 and
         BR-16, grouped by site and strain — the same shape the lab's existing R
         notebook consumes.
 
         `riskSet` excludes embryos that have not yet reached the checkpoint's
         due time, so an experiment still in progress does not read as mass
-        mortality. The raw counts are always returned alongside `surv` so the
+        mortality. The raw `alive` and `nPrev` counts are always returned alongside `surv` so the
         analyst can recompute survival their own way rather than trusting ours.
       operationId: getSurvival
       parameters:
@@ -1598,22 +1614,28 @@ paths:
   /analytics/fish-survival:
     get:
       tags: [Analytics]
-      summary: Daily survival of clone fish
+      summary: Kaplan-Meier daily survival of clone fish
       operationId: getFishSurvival
       parameters:
         - $ref: '#/components/parameters/AnalyticsFilters'
         - name: splitByCondition
           in: query
-          description: Return normal and abnormal fish as separate series (FR-817)
+          description: Return Ever abnormal, No abnormality recorded, and unknown fish as separate exploratory series (FR-817)
           schema: { type: boolean, default: false }
+        - name: groupBy
+          in: query
+          description: One optional comparison dimension for the Kaplan-Meier chart; omit for the overall curve.
+          schema:
+            type: array
+            items: { type: string, enum: [condition, strain, treatmentGroup] }
       responses:
         '200':
-          description: Fish survival series
+          description: Fish survival series with daily events and right-censoring
           content:
             application/json:
               schema:
                 type: object
-                required: [items, meta]
+                required: [items, meta, supporting]
                 properties:
                   items:
                     type: array
@@ -1622,12 +1644,17 @@ paths:
                       required: [ageDays, atRisk, alive, surv]
                       properties:
                         group: { type: [string, 'null'] }
-                        condition: { type: [string, 'null'] }
+                        condition: { type: [string, 'null'], description: Current comparison group when splitByCondition=true. }
+                        abnormalityGroup:
+                          type: [string, 'null']
+                          description: Semantic comparison group — EVER_ABNORMAL, NO_ABNORMALITY_RECORDED, or UNKNOWN.
                         strain: { type: [string, 'null'] }
                         treatmentGroup: { type: [string, 'null'] }
                         ageDays: { type: integer }
                         atRisk: { type: integer }
                         alive: { type: integer }
+                        nEvents: { type: integer, description: Death events at this age. }
+                        nCensored: { type: integer, description: Right-censored fish at this age. }
                         nAlive: { type: integer }
                         nDead: { type: integer }
                         nFrozen: { type: integer }
@@ -1636,8 +1663,97 @@ paths:
                         nFemale: { type: integer }
                         nUnknownSex: { type: integer }
                         nBoxes: { type: integer }
-                        surv: { type: number }
+                        surv: { type: number, description: Kaplan-Meier survival estimate. }
+                        survLower95: { type: number, description: Approximate Greenwood 95% lower confidence bound. }
+                        survUpper95: { type: number, description: Approximate Greenwood 95% upper confidence bound. }
                   meta: { $ref: '#/components/schemas/AnalyticsMeta' }
+                  supporting:
+                    type: object
+                    required: [statusComposition, ageDistribution, ageDefinition, sexComposition, sexCompleteness, boxCensus, boxMeta, batchPerformance, day5Definition]
+                    properties:
+                      statusComposition:
+                        type: array
+                        items:
+                          type: object
+                          required: [status, n, pct]
+                          properties:
+                            status: { type: string }
+                            n: { type: integer, minimum: 0 }
+                            pct: { type: [number, 'null'], minimum: 0, maximum: 1 }
+                      ageDistribution:
+                        type: array
+                        items:
+                          type: object
+                          required: [bin, minDays, maxDays, n, pct]
+                          properties:
+                            bin: { type: string }
+                            minDays: { type: integer, minimum: 0 }
+                            maxDays: { type: [integer, 'null'], minimum: 0 }
+                            n: { type: integer, minimum: 0 }
+                            pct: { type: [number, 'null'], minimum: 0, maximum: 1 }
+                      ageDefinition: { type: string }
+                      sexComposition:
+                        type: array
+                        items:
+                          type: object
+                          required: [sex, n, pct]
+                          properties:
+                            sex: { type: string }
+                            n: { type: integer, minimum: 0 }
+                            pct: { type: [number, 'null'], minimum: 0, maximum: 1 }
+                      sexCompleteness:
+                        type: object
+                        required: [known, unknown, pctComplete]
+                        properties:
+                          known: { type: integer, minimum: 0 }
+                          unknown: { type: integer, minimum: 0 }
+                          pctComplete: { type: [number, 'null'], minimum: 0, maximum: 1 }
+                      boxCensus:
+                        type: array
+                        items:
+                          type: object
+                          required: [boxCode, n, pct, empty, statusCounts]
+                          properties:
+                            fishBoxId: { type: [string, 'null'] }
+                            boxCode: { type: string }
+                            n: { type: integer, minimum: 0 }
+                            pct: { type: [number, 'null'], minimum: 0, maximum: 1 }
+                            empty: { type: boolean }
+                            statusCounts:
+                              type: object
+                              required: [ALIVE, DEAD, FROZEN, DISCARDED, UNKNOWN]
+                              properties:
+                                ALIVE: { type: integer, minimum: 0 }
+                                DEAD: { type: integer, minimum: 0 }
+                                FROZEN: { type: integer, minimum: 0 }
+                                DISCARDED: { type: integer, minimum: 0 }
+                                UNKNOWN: { type: integer, minimum: 0 }
+                      boxMeta:
+                        type: object
+                        required: [nBoxes, emptyBoxes]
+                        properties:
+                          nBoxes: { type: integer, minimum: 0 }
+                          emptyBoxes: { type: integer, minimum: 0 }
+                      batchPerformance:
+                        type: array
+                        items:
+                          type: object
+                          required: [batchId, batchCode, status, eligible, n, denominator, nNormal, nAbnormal, missingEmbryos, pctNormal]
+                          properties:
+                            batchId: { type: string }
+                            batchCode: { type: string }
+                            status: { type: string, enum: [ELIGIBLE, NOT_ELIGIBLE, MISSING, MISSING_CONDITION] }
+                            eligible: { type: boolean }
+                            n: { type: integer, minimum: 0 }
+                            denominator: { type: integer, minimum: 0 }
+                            nNormal: { type: integer, minimum: 0 }
+                            nAbnormal: { type: integer, minimum: 0 }
+                            missingEmbryos: { type: integer, minimum: 0 }
+                            pctNormal: { type: [number, 'null'], minimum: 0, maximum: 1 }
+                      day5Definition:
+                        type: string
+                        description: Day 5 due is calculated per lot from activatedAt plus timing-profile expectedHpa for protocol stage order 26; future embryos without observations are excluded from missing counts.
+                      missingExitDate: { type: integer, minimum: 0 }
 
   /analytics/observation-gaps:
     get:
@@ -1724,7 +1840,7 @@ paths:
           description: Workbook
           headers:
             Content-Disposition:
-              schema: { type: string, examples: ['attachment; filename="scnt_export_2026-08-20.xlsx"'] }
+              schema: { type: string, examples: ['attachment; filename="kuvth-zebrafish-lims-export.xlsx"'] }
           content:
             application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema: { type: string, format: binary }
@@ -2333,17 +2449,30 @@ components:
         minutesLate:
           type: integer
           description: Negative when the checkpoint is still in the future.
-        embryosRemaining: { type: integer }
+        embryosRemaining:
+          type: integer
+          description: Embryos without a terminal exit that remain eligible for observation.
         operatorName: { type: [string, 'null'] }
 
     CheckpointEntry:
       type: object
-      required: [injectionLotId, batchCode, lotNo, stage, activatedAt, expectedHpa, totalEmbryos, embryosRemaining, embryos]
+      required: [injectionLotId, batchCode, lotNo, stage, stages, activatedAt, expectedHpa, totalEmbryos, embryosRemaining, embryos]
       properties:
         injectionLotId: { type: string, format: uuid }
         batchCode: { type: string }
         lotNo: { type: string }
         stage: { $ref: '#/components/schemas/StageDefinition' }
+        stages:
+          type: array
+          description: Stage 1 choices available independently for each embryo in this observation round.
+          items:
+            type: object
+            required: [stageCode, stageLabel, stageOrder, expectedHpa]
+            properties:
+              stageCode: { type: string }
+              stageLabel: { type: string }
+              stageOrder: { type: integer }
+              expectedHpa: { type: number }
         activatedAt: { type: string, format: date-time }
         expectedHpa: { type: number, examples: [2.5] }
         dueAt: { type: string, format: date-time }
@@ -2353,7 +2482,7 @@ components:
           type: array
           items:
             type: object
-            required: [embryoId, embryoCode, defaultCondition]
+            required: [embryoId, embryoCode, defaultCondition, isDead]
             properties:
               embryoId: { type: string, format: uuid }
               embryoCode: { type: string }
@@ -2361,6 +2490,9 @@ components:
               defaultCondition:
                 $ref: '#/components/schemas/Condition'
                 description: Carried forward from the previous observation (FR-409).
+              isDead:
+                type: boolean
+                description: True after a DEAD or DEGENERATED observation; shown read-only in later plate maps.
               priorOutcome:
                 oneOf: [ { $ref: '#/components/schemas/EmbryoOutcome' }, { type: 'null' } ]
               priorStageCode: { type: [string, 'null'] }
@@ -2386,7 +2518,7 @@ components:
         overrideReason:
           type: [string, 'null']
           maxLength: 500
-          description: Required to record ALIVE for an embryo that already has an exit event (BR-07, FR-420).
+          description: Audit context for exceptional writes; it cannot override a terminal embryo death.
 
     EmbryoObservationResult:
       type: object
@@ -2738,6 +2870,15 @@ components:
         missing:
           type: object
           additionalProperties: { type: integer, minimum: 0 }
+        method: { type: string, description: Statistical method used by the endpoint when applicable. }
+        comparison:
+          type: object
+          description: Comparison labels and interpretation for exploratory groupings.
+          required: [field, label, interpretation]
+          properties:
+            field: { type: string }
+            label: { type: string }
+            interpretation: { type: string }
 
     FunnelStep:
       type: object

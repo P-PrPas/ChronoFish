@@ -3,9 +3,9 @@ FROM python:3.13.7-slim-bookworm@sha256:adafcc17694d715c905b4c7bebd96907a1fd5cf1
 ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
 
-LABEL org.opencontainers.image.title="ChronoFish API" \
-      org.opencontainers.image.description="ChronoFish cloning tracking API" \
-      org.opencontainers.image.source="https://github.com/P-PrPas/ChronoFish" \
+LABEL org.opencontainers.image.title="KUVTH Zebrafish LIMS API" \
+      org.opencontainers.image.description="KUVTH Zebrafish LIMS cloning tracking API" \
+      org.opencontainers.image.source="https://github.com/P-PrPas/KUVTH-Zebrafish-LIMS" \
       org.opencontainers.image.revision="$VCS_REF" \
       org.opencontainers.image.created="$BUILD_DATE"
 

@@ -81,6 +81,11 @@ EXPECTED_HPA = (
 )
 
 
+# Day 5 closes Stage 1: embryos are promoted to clone fish here, so stage
+# orders 1..DAY5_STAGE_ORDER are the whole embryo protocol.
+DAY5_STAGE_ORDER = 26
+
+
 def stage_number(code: str) -> int:
     if not code.startswith("stage_"):
         return 0

@@ -714,7 +714,7 @@ def build_export_router(store: Store) -> APIRouter:
         return Response(
             "\ufeff" + output.getvalue(),
             media_type="text/csv; charset=utf-8",
-            headers={"Content-Disposition": 'attachment; filename="chronofish-r-table.csv"'},
+            headers={"Content-Disposition": 'attachment; filename="kuvth-zebrafish-lims-r-table.csv"'},
         )
 
     @router.post("/excel")
@@ -737,7 +737,7 @@ def build_export_router(store: Store) -> APIRouter:
         return Response(
             content,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": 'attachment; filename="chronofish-export.xlsx"'},
+            headers={"Content-Disposition": 'attachment; filename="kuvth-zebrafish-lims-export.xlsx"'},
         )
 
     return router

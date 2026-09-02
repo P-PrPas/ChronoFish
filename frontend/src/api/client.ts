@@ -86,8 +86,14 @@ export function operatorId(): string {
   return ''
 }
 
+export function requireOperator(): string {
+  const id = operatorId()
+  if (!id) throw new Error('OPERATOR_REQUIRED')
+  return id
+}
+
 export function mutationHeaders(key = uuidv7()): Record<string, string> {
-  return { 'X-Operator-Id': operatorId(), 'X-Device-Id': deviceId(), 'X-Idempotency-Key': key }
+  return { 'X-Operator-Id': requireOperator(), 'X-Device-Id': deviceId(), 'X-Idempotency-Key': key }
 }
 
 export async function request(path: string, init: RequestInit = {}): Promise<Response> {

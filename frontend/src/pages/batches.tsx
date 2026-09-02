@@ -7,7 +7,7 @@ import {
 } from "react";
 import { operatorId, type ApiItem, get } from "../api/client";
 import { putQueue, type QueuedWrite } from "../offline";
-import { type AppText } from "../types";
+import { type AppText, text } from "../types";
 import { Empty, ErrorMessage } from "../components";
 import { parseFilters, withFilters } from "../filters";
 import {
@@ -38,7 +38,6 @@ const masterName = (items: ApiItem[] | undefined, id: unknown) => {
       item?.label ??
       item?.lotCode ??
       item?.code ??
-      id ??
       "",
   );
 };
@@ -76,42 +75,35 @@ export function Batches({ t }: { t: AppText }) {
     };
   }, [load]);
   if (selected)
-    return <BatchDetail batch={selected} onBack={() => setSelected(null)} />;
+    return <BatchDetail batch={selected} t={t} onBack={() => setSelected(null)} />;
+  const thai = t === text.th;
   const addQueued = (batch: ApiItem) => {
     setItems((current) => [
       { ...batch, id: `queued-${Date.now()}`, queued: true },
       ...current,
     ]);
     setShowForm(false);
-    setMessage("Saved offline; will sync automatically");
+    setMessage("Saved locally; will sync automatically");
   };
+  if (showForm) return <section><button className="back" onClick={() => setShowForm(false)}>← {thai ? "กลับไปการทดลองทั้งหมด" : "Back to experiments"}</button><BatchForm t={t} onSaved={() => { setShowForm(false); load(); }} onQueued={addQueued} /></section>;
   return (
     <section>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">EXPERIMENTS</p>
-          <h1>{t.batches}</h1>
+          <p className="eyebrow">{thai ? "สมุดงานวิจัย" : "RESEARCH WORKSPACE"}</p>
+          <h1>{thai ? "การทดลองทั้งหมด" : "Experiments"}</h1>
           <p className="muted">
-            Create batches, pin timing, and add injection lots.
+            {thai ? "เปิดการทดลองเพื่อดูชุดตัวอ่อนและงานตรวจตามเวลา หรือเริ่มการทดลองใหม่" : "Open an experiment to review embryo lots and scheduled observations, or start a new one."}
           </p>
         </div>
         <button
           className="button button--primary"
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => setShowForm(true)}
         >
-          + {t.save}
+          {thai ? "+ รอบทดลองใหม่" : "+ New experiment"}
         </button>
       </div>
       {message && <ErrorMessage message={message} />}
-      {showForm && (
-        <BatchForm
-          onSaved={() => {
-            setShowForm(false);
-            load();
-          }}
-          onQueued={addQueued}
-        />
-      )}
       {items.length === 0 ? (
         <Empty message={t.empty} />
       ) : (
@@ -125,13 +117,13 @@ export function Batches({ t }: { t: AppText }) {
               <span>
                 <strong>{String(item.batchCode)}</strong>
                 <small>
-                  {String(item.experimentDate)} · profile{" "}
-                  {String(
-                    item.timingProfileVersion ?? item.timingProfileId ?? "",
-                  )}
+                  {String(item.experimentDate)} · {thai ? "โปรไฟล์เวลา" : "profile"}{" "}
+                  {item.timingProfileVersion != null
+                    ? String(item.timingProfileVersion)
+                    : (thai ? "ที่ตรึงไว้กับรอบนี้" : "pinned to this experiment")}
                 </small>
               </span>
-              <span className="pill">{item.queued ? "queued" : "active"}</span>
+              <span className="pill">{item.queued ? t.queued : (thai ? "กำลังดำเนินการ" : "active")}</span>
             </button>
           ))}
         </div>
@@ -141,14 +133,17 @@ export function Batches({ t }: { t: AppText }) {
 }
 
 function BatchForm({
+  t,
   batch,
   onSaved,
   onQueued,
 }: {
+  t: AppText;
   batch?: ApiItem;
   onSaved: () => void;
   onQueued?: (batch: ApiItem) => void;
 }) {
+  const thai = t === text.th;
   const [form, setForm] = useState({
     batchCode: String(batch?.batchCode ?? ""),
     dayNo: String(batch?.dayNo ?? ""),
@@ -231,16 +226,16 @@ function BatchForm({
     }
   };
   return (
-    <form className="form-card" onSubmit={submit}>
-      <h2>{batch ? "Edit batch" : "New batch"}</h2>
+    <form className="task-surface form-card" onSubmit={submit}>
+      <h1>{batch ? (thai ? "แก้ไขข้อมูลการทดลอง" : "Edit experiment") : (thai ? "เริ่มการทดลองใหม่" : "New experiment")}</h1>
       <p className="muted">
-        Suggested code:{" "}
+        {thai ? "ระบุวันที่ ผู้ปฏิบัติงาน สถานที่ และกลุ่มทดลอง ระบบจะสร้างรหัสให้จากข้อมูลต่อไปนี้:" : "Set the date, operator, location and comparison group. Suggested code:"}{" "}
         <code>{`${form.dayNo || "day_no"}_${form.operatorId || "operator"}_${form.treatmentGroupId || "treatment"}`}</code>
-        . Leave it blank to let the server generate it.
+        {thai ? " · เว้นรหัสว่างไว้เพื่อให้ระบบสร้างให้" : ". Leave it blank to let the server generate it."}
       </p>
       <div className="form-card--inline">
         <label>
-          Day no.
+          {thai ? "ลำดับวันทดลอง" : "Day no."}
           <input
             required
             data-testid="batch-day-no"
@@ -251,7 +246,7 @@ function BatchForm({
           />
         </label>
         <label>
-          Batch code
+          {thai ? "รหัสรอบทดลอง" : "Batch code"}
           <input
             required={Boolean(batch)}
             data-testid="batch-code"
@@ -261,7 +256,7 @@ function BatchForm({
           />
         </label>
         <label>
-          Experiment date
+          {thai ? "วันที่ทดลอง" : "Experiment date"}
           <input
             required
             type="date"
@@ -272,13 +267,13 @@ function BatchForm({
       </div>
       <div className="form-card--inline">
         <label>
-          Operator
+          {thai ? "ผู้ปฏิบัติงาน" : "Operator"}
           <select
             required
             value={form.operatorId}
             onChange={(e) => set("operatorId", e.target.value)}
           >
-            <option value="">Choose operator</option>
+            <option value="">{thai ? "เลือกผู้ปฏิบัติงาน" : "Choose operator"}</option>
             {(masters.operators ?? []).map((item) => (
               <option key={String(item.id)} value={String(item.id)}>
                 {String(item.name ?? item.code ?? item.id)}
@@ -287,13 +282,13 @@ function BatchForm({
           </select>
         </label>
         <label>
-          Site
+          {thai ? "สถานที่" : "Site"}
           <select
             required
             value={form.siteId}
             onChange={(e) => set("siteId", e.target.value)}
           >
-            <option value="">Select site</option>
+            <option value="">{thai ? "เลือกสถานที่" : "Select site"}</option>
             {(masters.sites ?? []).map((site) => (
               <option key={String(site.id)} value={String(site.id)}>
                 {String(site.code)} — {String(site.name)}
@@ -302,14 +297,14 @@ function BatchForm({
           </select>
         </label>
         <label>
-          Protocol
+          {thai ? "โพรโทคอล" : "Protocol"}
           <select
             required
             disabled={Boolean(batch)}
             value={form.protocolId}
             onChange={(e) => set("protocolId", e.target.value)}
           >
-            <option value="">Select protocol</option>
+            <option value="">{thai ? "เลือกโพรโทคอล" : "Select protocol"}</option>
             {(masters.protocols ?? []).map((item) => (
               <option key={String(item.id)} value={String(item.id)}>
                 {String(item.code ?? item.name ?? item.id)}
@@ -318,13 +313,13 @@ function BatchForm({
           </select>
         </label>
         <label>
-          Treatment group
+          {thai ? "กลุ่มการทดลอง" : "Treatment group"}
           <select
             required
             value={form.treatmentGroupId}
             onChange={(e) => set("treatmentGroupId", e.target.value)}
           >
-            <option value="">Select treatment</option>
+            <option value="">{thai ? "เลือกกลุ่มการทดลอง" : "Select treatment"}</option>
             {(masters["treatment-groups"] ?? []).map((item) => (
               <option key={String(item.id)} value={String(item.id)}>
                 {String(item.code ?? item.name)}
@@ -333,6 +328,9 @@ function BatchForm({
           </select>
         </label>
       </div>
+      <details className="workflow-disclosure">
+        <summary>{thai ? "ข้อมูลตัวอย่างและเงื่อนไขเพิ่มเติม (ไม่บังคับ)" : "Sample and environment details (optional)"}</summary>
+        <div className="workflow-disclosure__body">
       <div className="form-card--inline">
         <label>
           Recipient egg lot
@@ -399,9 +397,11 @@ function BatchForm({
           />
         </label>
       </div>
+        </div>
+      </details>
       {error && <ErrorMessage message={error} />}
       <button className="button button--primary" type="submit">
-        {batch ? "Save changes" : "Save batch"}
+        {batch ? (thai ? "บันทึกการแก้ไข" : "Save changes") : (thai ? "สร้างรอบทดลอง" : "Save batch")}
       </button>
     </form>
   );
@@ -409,15 +409,18 @@ function BatchForm({
 
 function BatchDetail({
   batch,
+  t,
   onBack,
 }: {
   batch: ApiItem;
+  t: AppText;
   onBack: () => void;
 }) {
   const [detail, setDetail] = useState<ApiItem | null>(null);
   const [embryos, setEmbryos] = useState<Record<string, ApiItem[]>>({});
   const [message, setMessage] = useState("");
   const [editing, setEditing] = useState(false);
+  const [showLotForm, setShowLotForm] = useState(false);
   const [lot, setLot] = useState({
     lotNo: "1",
     donorCellLineId: "",
@@ -497,17 +500,17 @@ function BatchDetail({
     setLot((current) => ({ ...current, [key]: value }));
   const duplicate = async () => {
     const requestedDate = window.prompt(
-      "Experiment date (YYYY-MM-DD)",
+      thai ? "วันที่ทดลอง (ปปปป-ดด-วว)" : "Experiment date (YYYY-MM-DD)",
       today(),
     );
     if (!requestedDate) return;
     const requestedDayNo = window.prompt(
-      "Day number in the experiment series (blank = next)",
+      thai ? "ลำดับวันในชุดการทดลอง (เว้นว่างเพื่อใช้วันถัดไป)" : "Day number in the experiment series (blank = next)",
       "",
     );
     if (requestedDayNo === null) return;
     const copyLots = window.confirm(
-      "Copy injection lots as unactivated templates?",
+      thai ? "คัดลอกชุดฉีดเป็นแม่แบบที่ยังไม่กระตุ้นหรือไม่?" : "Copy injection lots as unactivated templates?",
     );
     try {
       const result = await putQueue(`/batches/${batch.id}/duplicate`, {
@@ -516,7 +519,7 @@ function BatchDetail({
         copyInjectionLots: copyLots,
       });
       setMessage(
-        result.queued ? "Duplicate queued for sync" : "Batch duplicated",
+        result.queued ? (thai ? "รอส่งสำเนาการทดลอง" : "Duplicate queued for sync") : (thai ? "ทำสำเนาการทดลองแล้ว" : "Batch duplicated"),
       );
       load();
     } catch (e) {
@@ -558,7 +561,7 @@ function BatchDetail({
       };
       if (
         !window.confirm(
-          `${templateId ? "Activate" : "Create"} lot ${lot.lotNo} with ${payload.nActivated} embryos?`,
+          thai ? `${templateId ? "กระตุ้น" : "สร้าง"} ชุด ${lot.lotNo} ที่มีตัวอ่อน ${payload.nActivated} ตัวหรือไม่?` : `${templateId ? "Activate" : "Create"} lot ${lot.lotNo} with ${payload.nActivated} embryos?`,
         )
       )
         return;
@@ -600,7 +603,7 @@ function BatchDetail({
             queued: true,
           })),
         }));
-        setMessage("Lot saved offline; it will sync automatically");
+        setMessage(thai ? "บันทึกชุดไว้แล้ว ระบบจะซิงก์อัตโนมัติ" : "Lot saved locally; it will sync automatically");
       } else {
         setMessage(
           (result.warnings as string[] | undefined)?.join(" ") ||
@@ -615,6 +618,7 @@ function BatchDetail({
     }
   };
   const useTemplate = (item: ApiItem) => {
+    setShowLotForm(true);
     setTemplateId(String(item.id));
     setLot({
       lotNo: String(item.lotNo ?? "1"),
@@ -633,6 +637,12 @@ function BatchDetail({
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const addEmbryos = async (lotId: string) => {
+    if (lotId.startsWith("queued-")) {
+      // The lot itself is still in the offline queue with a placeholder id; a
+      // child write here would 404 forever against /injection-lots/queued-lot-*.
+      setMessage(thai ? "ชุดนี้ยังไม่ซิงก์ รอสักครู่แล้วลองใหม่" : "This lot has not synced yet; try again once it clears the queue.");
+      return;
+    }
     const previous = embryos[lotId] ?? [];
     const optimistic = Array.from({ length: count }, (_, index) => ({
       id: `queued-embryo-${Date.now()}-${index}`,
@@ -648,7 +658,7 @@ function BatchDetail({
       const result = await putQueue(`/injection-lots/${lotId}/embryos`, {
         count,
       });
-      if (result.queued) setMessage("Embryos queued for sync");
+      if (result.queued) setMessage(thai ? "บันทึกตัวอ่อนแล้ว กำลังซิงก์" : "Embryos saved; syncing automatically");
       else {
         setMessage("Embryos added");
         load();
@@ -683,7 +693,7 @@ function BatchDetail({
     }
   };
   const deleteEmbryo = async (embryo: ApiItem) => {
-    const reason = window.prompt("Reason for deleting this embryo");
+    const reason = window.prompt(thai ? "เหตุผลที่ลบตัวอ่อนนี้" : "Reason for deleting this embryo");
     if (!reason?.trim()) return;
     const lotId = String(embryo.injectionLotId ?? "");
     const previous = embryos[lotId] ?? [];
@@ -723,43 +733,57 @@ function BatchDetail({
         : selectedWells;
     setLotValue("wellPositions", next.join(", "));
   };
+  const thai = t === text.th;
+  const displayMaster = (items: ApiItem[] | undefined, id: unknown) =>
+    masterName(items, id) || (items ? "—" : (thai ? "กำลังโหลด…" : "Loading…"));
   return (
     <section>
       <button className="back" onClick={onBack}>
-        ← Batches
+        ← {thai ? "การทดลองทั้งหมด" : "Experiments"}
       </button>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">EXPERIMENT</p>
+          <p className="eyebrow">{thai ? "บันทึกการทดลอง" : "EXPERIMENT RECORD"}</p>
           <h1>{String(detail?.batchCode ?? batch.batchCode)}</h1>
           <p className="muted">
             {String(detail?.experimentDate ?? batch.experimentDate)} ·{" "}
-            {masterName(masters.sites, detail?.siteId ?? batch.siteId)} ·{" "}
-            {masterName(masters.operators, detail?.operatorId ?? batch.operatorId)} ·{" "}
-            {masterName(
+            {displayMaster(masters.sites, detail?.siteId ?? batch.siteId)} ·{" "}
+            {displayMaster(masters.operators, detail?.operatorId ?? batch.operatorId)} ·{" "}
+            {displayMaster(
               masters["treatment-groups"],
               detail?.treatmentGroupId ?? batch.treatmentGroupId,
             )}
           </p>
         </div>
         <div className="button-row">
+          <button className="button button--primary" onClick={() => { setTemplateId(null); setShowLotForm((value) => !value) }}>
+            {showLotForm ? (thai ? "ปิดแบบฟอร์ม" : "Close form") : (thai ? "+ เพิ่มชุดตัวอ่อน" : "+ Add injection lot")}
+          </button>
           <button
             className="button button--secondary"
             onClick={() => setEditing(!editing)}
           >
-            Edit batch
+            {thai ? "แก้ไขข้อมูลการทดลอง" : "Edit batch"}
           </button>
           <button
             className="button button--secondary"
             onClick={() => void duplicate()}
           >
-            Duplicate
+            {thai ? "ทำสำเนาการทดลอง" : "Duplicate"}
           </button>
         </div>
+      </div>
+      <div className="record-facts">
+        <div className="record-fact"><span>{thai ? "วันที่ทดลอง" : "Experiment date"}</span><strong>{String(detail?.experimentDate ?? batch.experimentDate ?? "—")}</strong></div>
+        <div className="record-fact"><span>{thai ? "สถานที่" : "Site"}</span><strong>{displayMaster(masters.sites, detail?.siteId ?? batch.siteId)}</strong></div>
+        <div className="record-fact"><span>{thai ? "ผู้ปฏิบัติงาน" : "Operator"}</span><strong>{displayMaster(masters.operators, detail?.operatorId ?? batch.operatorId)}</strong></div>
+        <div className="record-fact"><span>{thai ? "กลุ่มเปรียบเทียบ" : "Comparison group"}</span><strong>{displayMaster(masters["treatment-groups"], detail?.treatmentGroupId ?? batch.treatmentGroupId)}</strong></div>
+        <div className="record-fact"><span>{thai ? "ชุดตัวอ่อน" : "Injection lots"}</span><strong>{String((detail?.injectionLots ?? []).length)}</strong></div>
       </div>
       {message && <ErrorMessage message={message} />}
       {editing && detail && (
         <BatchForm
+          t={t}
           batch={detail}
           onSaved={() => {
             setEditing(false);
@@ -768,11 +792,11 @@ function BatchDetail({
           }}
         />
       )}
-      <form className="form-card" onSubmit={createLot}>
-        <h2>{templateId ? "Activate injection lot template" : "Injection lot"}</h2>
+      {showLotForm && <form className="form-card lot-builder" onSubmit={createLot}>
+        <h2>{templateId ? (thai ? "เปิดใช้งานแม่แบบ injection lot" : "Activate injection lot template") : (thai ? "เพิ่ม Injection lot" : "Injection lot")}</h2>
         <div className="form-card--inline">
           <label>
-            Lot number
+            {thai ? "หมายเลขชุดตัวอ่อน" : "Lot number"}
             <input
               required
               value={lot.lotNo}
@@ -780,7 +804,7 @@ function BatchDetail({
             />
           </label>
           <label>
-            Donor cell line
+            {thai ? "สายเซลล์ผู้ให้" : "Donor cell line"}
             <select
               required
               value={lot.donorCellLineId}
@@ -788,7 +812,7 @@ function BatchDetail({
                 setLotValue("donorCellLineId", event.target.value)
               }
             >
-              <option value="">Select donor</option>
+              <option value="">{thai ? "เลือกสายเซลล์ผู้ให้" : "Select donor"}</option>
               {(masters["donor-cell-lines"] ?? [])
                 .filter((item) => item.active !== false)
                 .map((item) => (
@@ -799,7 +823,7 @@ function BatchDetail({
             </select>
           </label>
           <label>
-            Activated at
+            {thai ? "เวลาเริ่มกระตุ้น" : "Activated at"}
             <input
               required
               type="datetime-local"
@@ -812,7 +836,7 @@ function BatchDetail({
         </div>
         <div className="form-card--inline">
           <label>
-            Eggs
+            {thai ? "จำนวนไข่ตั้งต้น" : "Eggs"}
             <input
               type="number"
               min="0"
@@ -821,7 +845,7 @@ function BatchDetail({
             />
           </label>
           <label>
-            Activated embryos
+            {thai ? "จำนวนตัวอ่อนที่กระตุ้น" : "Activated embryos"}
             <input
               required
               type="number"
@@ -834,7 +858,7 @@ function BatchDetail({
             />
           </label>
           <label>
-            ENU power %
+            {thai ? "กำลัง ENU (%)" : "ENU power %"}
             <input
               type="number"
               min="0"
@@ -846,6 +870,9 @@ function BatchDetail({
             />
           </label>
         </div>
+        <details className="workflow-disclosure">
+          <summary>{thai ? "ค่าการกระตุ้นและตำแหน่งหลุม (กรอกเมื่อจำเป็น)" : "ENU and well-position details (optional)"}</summary>
+          <div className="workflow-disclosure__body">
         <div className="form-card--inline">
           <label>
             ENU pulse µs
@@ -908,12 +935,16 @@ function BatchDetail({
             }
           />
         </label>
+          </div>
+        </details>
         <button className="button button--primary" type="submit">
-          {templateId ? "Activate template" : "Create lot"}
+          {templateId ? (thai ? "เปิดใช้งานแม่แบบ" : "Activate template") : (thai ? "สร้าง lot" : "Create lot")}
         </button>
-      </form>
-      <article className="form-card">
-        <h2>96-well code preview</h2>
+      </form>}
+      {showLotForm && <details className="workflow-disclosure">
+        <summary>{thai ? `ตรวจตำแหน่งบนแผ่น 96 หลุม · ${preview.length} ตัวอ่อน` : `Review 96-well placement · ${preview.length} embryos`}</summary>
+        <div className="workflow-disclosure__body">
+        <h2>{thai ? "ตัวอย่างรหัสและตำแหน่งหลุม" : "96-well code preview"}</h2>
         <p className="muted">
           {preview.length} code(s); verify positions before saving.
         </p>
@@ -941,39 +972,42 @@ function BatchDetail({
             </li>
           ))}
         </ol>
-      </article>
+        </div>
+      </details>}
       {(detail?.injectionLots ?? []).map((item: ApiItem) => (
-        <article className="form-card" key={String(item.id)}>
+        <article className="form-card lot-card" key={String(item.id)}>
           <div className="page-heading">
             <div>
-              <h2>Lot {String(item.lotNo)}</h2>
+              <h2>{thai ? "ชุดตัวอ่อน" : "Lot"} {String(item.lotNo)}</h2>
               <p className="muted">
-                Donor{" "}
+                {thai ? "เซลล์ผู้ให้" : "Donor"}{" "}
                 {masterName(
                   masters["donor-cell-lines"],
                   item.donorCellLineId,
                 )} ·{" "}
-                {String(item.nActivated ?? 0)} activated ·{" "}
+                {String(item.nActivated ?? 0)} {thai ? "ตัวอ่อน" : "activated"} ·{" "}
                 {formatBangkokDateTime(String(item.activatedAt ?? ""))}
               </p>
             </div>
-            {item.activatedAt ? (
+            {item.activatedAt && String(item.id).startsWith("queued-") ? (
+              <span className="pill">{thai ? "รอซิงก์ก่อนเพิ่มตัวอ่อน" : "Sync pending"}</span>
+            ) : item.activatedAt ? (
               <button
                 className="button button--secondary"
                 type="button"
                 onClick={() => addEmbryos(String(item.id))}
               >
-                Add {count} embryos
+                {thai ? `เพิ่มตัวอ่อน ${count} ตัว` : `Add ${count} embryos`}
               </button>
             ) : (
               <button className="button button--primary" type="button" onClick={() => useTemplate(item)}>
-                Activate template
+                {thai ? "เปิดใช้แม่แบบชุดนี้" : "Activate template"}
               </button>
             )}
           </div>
           {Boolean(item.activatedAt) && (
             <label className="form-card--inline">
-              Additional embryos
+              {thai ? "จำนวนตัวอ่อนที่จะเพิ่ม" : "Additional embryos"}
               <input
                 type="number"
                 min="1"
@@ -983,13 +1017,13 @@ function BatchDetail({
               />
             </label>
           )}
-          <div className="table-wrap">
+          <details className="data-disclosure"><summary>{thai ? `จัดการตัวอ่อน ${String((embryos[String(item.id)] ?? []).length)} รายการ` : `Manage ${(embryos[String(item.id)] ?? []).length} embryos`}</summary><div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Well</th>
-                  <th>Embryo</th>
-                  <th>Action</th>
+                  <th>{thai ? "หลุม" : "Well"}</th>
+                  <th>{thai ? "รหัสตัวอ่อน" : "Embryo"}</th>
+                  <th>{thai ? "จัดการ" : "Action"}</th>
                 </tr>
               </thead>
               <tbody>
@@ -997,13 +1031,13 @@ function BatchDetail({
                   <tr key={String(embryo.id)}>
                     <td>
                       <select
-                        aria-label={`Well for ${String(embryo.embryoCode)}`}
+                        aria-label={`${thai ? "หลุมของ" : "Well for"} ${String(embryo.embryoCode)}`}
                         value={String(embryo.wellPosition ?? "")}
                         onChange={(event) =>
                           void updateWell(embryo, event.target.value)
                         }
                       >
-                        <option value="">Unassigned</option>
+                        <option value="">{thai ? "ยังไม่กำหนด" : "Unassigned"}</option>
                         {wells.map((well) => (
                           <option key={well}>{well}</option>
                         ))}
@@ -1016,21 +1050,21 @@ function BatchDetail({
                         type="button"
                         onClick={() => void updateWell(embryo, null)}
                       >
-                        Clear well
+                        {thai ? "เอาออกจากหลุม" : "Clear well"}
                       </button>
                       <button
                         className="inline-action inline-action--danger"
                         type="button"
                         onClick={() => void deleteEmbryo(embryo)}
                       >
-                        Delete embryo
+                        {thai ? "ลบตัวอ่อน" : "Delete embryo"}
                       </button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          </div>
+          </div></details>
         </article>
       ))}
     </section>

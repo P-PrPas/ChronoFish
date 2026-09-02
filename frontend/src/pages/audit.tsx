@@ -31,7 +31,11 @@ function jsonValue(value: unknown): string {
   return JSON.stringify(value ?? null, null, 2);
 }
 
+const actionLabel = (value: string, thai: boolean) => ({ INSERT: thai ? 'สร้างรายการ' : 'Created', UPDATE: thai ? 'แก้ไขรายการ' : 'Updated', DELETE: thai ? 'ลบรายการ' : 'Deleted' }[value] ?? value)
+const tableLabel = (value: string, thai: boolean) => ({ sites: thai ? 'สถานที่ปฏิบัติงาน' : 'Lab location', experiment_batch: thai ? 'การทดลอง' : 'Experiment', experiment_batches: thai ? 'การทดลอง' : 'Experiment', batch: thai ? 'การทดลอง' : 'Experiment', clone_fish: thai ? 'ทะเบียนปลา' : 'Fish record', fish: thai ? 'ทะเบียนปลา' : 'Fish record', fish_observations: thai ? 'ผลการตรวจปลา' : 'Fish observation', embryo_observations: thai ? 'ผลการตรวจตัวอ่อน' : 'Embryo observation', embryo: thai ? 'ผลการตรวจตัวอ่อน' : 'Embryo observation', specimens: thai ? 'ตัวอย่างเนื้อเยื่อและ DNA' : 'Tissue or DNA sample', specimen: thai ? 'ตัวอย่างเนื้อเยื่อและ DNA' : 'Tissue or DNA sample' }[value] ?? value.replaceAll('_', ' '))
+
 export function Audit({ t = text.en }: { t?: AppText } = {}) {
+  const thai = t === text.th;
   const [draft, setDraft] = useState<AuditFilters>(emptyFilters);
   const [filters, setFilters] = useState<AuditFilters>(emptyFilters);
   const [items, setItems] = useState<ApiItem[]>([]);
@@ -52,11 +56,11 @@ export function Audit({ t = text.en }: { t?: AppText } = {}) {
           setLoaded(true);
         })
         .catch((reason: unknown) => {
-          setError(reason instanceof Error ? reason.message : "Unable to load audit history");
+          setError(reason instanceof Error ? reason.message : (thai ? "โหลดประวัติการแก้ไขไม่สำเร็จ" : "Unable to load audit history"));
         })
         .finally(() => setLoading(false));
     },
-    [filters],
+    [filters, thai],
   );
 
   useEffect(() => {
@@ -87,9 +91,9 @@ export function Audit({ t = text.en }: { t?: AppText } = {}) {
     <section aria-busy={loading}>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">SCR-18 / APPEND-ONLY</p>
-          <h1>{t.audit}</h1>
-          <p className="muted">{t.auditDescription}</p>
+          <p className="eyebrow">{thai ? 'หลักฐานการเปลี่ยนแปลงข้อมูล' : 'DATA CHANGE EVIDENCE'}</p>
+          <h1>{thai ? 'ตรวจสอบการแก้ไขย้อนหลัง' : 'Change history'}</h1>
+          <p className="muted">{thai ? 'ค้นหาว่าใครแก้ข้อมูลอะไร เมื่อใด และเปรียบเทียบค่าก่อน–หลังโดยไม่ต้องอ่านชื่อฐานข้อมูล' : 'See who changed what and when, with before-and-after values kept for verification.'}</p>
         </div>
         <button
           className="button button--secondary"
@@ -102,6 +106,8 @@ export function Audit({ t = text.en }: { t?: AppText } = {}) {
       </div>
 
       <form onSubmit={applyFilters}>
+        <details className="filter-disclosure">
+          <summary>{t.historyFilters}</summary>
         <fieldset className="filter-bar">
           <legend>{t.historyFilters}</legend>
           <label>
@@ -133,6 +139,7 @@ export function Audit({ t = text.en }: { t?: AppText } = {}) {
             </button>
           </div>
         </fieldset>
+        </details>
       </form>
 
       {error && <ErrorMessage message={error} />}
@@ -144,25 +151,29 @@ export function Audit({ t = text.en }: { t?: AppText } = {}) {
             const action = String(item.action ?? "—");
             const table = String(item.tableName ?? "—");
             const recordId = String(item.recordId ?? "—");
-            const operator = String(item.operatorName ?? item.operatorId ?? "—");
+            const operatorId = String(item.operatorId ?? "—");
+            const operator = item.operatorName ? String(item.operatorName) : (thai ? "ผู้ปฏิบัติงาน" : "Operator");
             const occurredAt = String(item.occurredAt ?? "");
             const displayedAt = formatBangkokDateTime(occurredAt) || "—";
+            const readableAction = actionLabel(action, thai);
+            const readableTable = tableLabel(table, thai);
             return (
-              <details className="list-row audit-row" key={String(item.id)}>
+              <details className="list-row audit-row" data-action={action} key={String(item.id)}>
                 <summary>
                   <span>
-                    <strong>{action} · {table}</strong>
+                    <strong>{readableAction} · {readableTable}</strong>
                     <small>
-                      {t.record}: {recordId} · <time dateTime={occurredAt}>{displayedAt}</time>
+                      <time dateTime={occurredAt}>{displayedAt}</time> · <span className="mono">{recordId}</span>
                     </small>
                   </span>
                   <span className="pill">{operator}</span>
                 </summary>
                 <div className="audit-detail">
                   <dl className="audit-meta">
-                    <div><dt>{t.action}</dt><dd>{action}</dd></div>
-                    <div><dt>{t.record}</dt><dd>{recordId}</dd></div>
-                    <div><dt>{t.operator}</dt><dd>{operator}</dd></div>
+                    <div><dt>{t.action}</dt><dd>{readableAction} <span className="mono">({action})</span></dd></div>
+                    <div><dt>{t.table}</dt><dd>{readableTable}</dd></div>
+                    <div><dt>{t.record}</dt><dd className="mono">{recordId}</dd></div>
+                    <div><dt>{t.operator}</dt><dd>{operator}<br /><span className="mono">{operatorId}</span></dd></div>
                     <div><dt>{t.device}</dt><dd>{String(item.deviceId ?? "—")}</dd></div>
                     <div><dt>{t.timestamp}</dt><dd>{displayedAt}</dd></div>
                   </dl>
