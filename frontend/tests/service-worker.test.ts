@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { readFile } from "node:fs/promises";
 import { runInNewContext } from "node:vm";
 import { expect, test, vi } from "vitest";

@@ -86,6 +86,33 @@ describe("due and checkpoint workflows", () => {
     ]);
   });
 
+  it("renders a populated checkpoint review in Thai", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const path = String(input);
+        if (path.includes("/due-checkpoints"))
+          return json({ overdue: [dueItem], upcoming: [dueItem], pendingPromotionCount: 1 });
+        if (path.includes("/checkpoints/")) return json(checkpoint);
+        return json({ items: [] });
+      }),
+    );
+    const rootElement = document.createElement("div");
+    document.body.append(rootElement);
+    const root = createRoot(rootElement);
+    await act(async () => {
+      root.render(<Due t={text.th} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      (document.querySelector(".list-row") as HTMLButtonElement).click();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(document.querySelectorAll(".checkpoint-grid [data-well]")).toHaveLength(3);
+    expect(document.body.textContent).toContain("B-1");
+    root.unmount();
+  });
+
   it("shows overdue/upcoming time and filters the due queue by site and operator", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const path = String(input);

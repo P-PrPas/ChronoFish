@@ -18,6 +18,8 @@ def iso_now() -> str:
 
 
 def parse_datetime(value: str) -> datetime:
+    if not isinstance(value, str):
+        raise APIError(422, "validation_error", "timestamp ต้องเป็น ISO 8601 พร้อม timezone")
     try:
         parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except (TypeError, ValueError) as error:
