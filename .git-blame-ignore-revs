@@ -1,0 +1,6 @@
+# Revisions that only reformat code. GitHub skips these in blame
+# automatically; locally, opt in once with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# build(frontend): adopt Biome for formatting and linting
+f963c6195bc1ea72067cc7131f253b70f4dd80d9
