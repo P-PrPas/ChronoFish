@@ -1,21 +1,9 @@
 import { useEffect, useState } from "react";
 import { type ApiItem, get, request } from "../api/client";
-import {
-  type DashboardFilters,
-  analyticsFilters,
-  parseFilters,
-  updateFilterURL,
-  withFilters,
-} from "../filters";
 import { ErrorMessage, Metric, ReportPanel, ReportTable } from "../components";
+import { analyticsFilters, type DashboardFilters, parseFilters, updateFilterURL, withFilters } from "../filters";
 import { type AppText, text } from "../types";
-import {
-  FilterBar,
-  FunnelChart,
-  SurvivalChart,
-  percent,
-  useDashboardMasterOptions,
-} from "./dashboard";
+import { FilterBar, FunnelChart, percent, SurvivalChart, useDashboardMasterOptions } from "./dashboard";
 
 type PrintableReport = {
   generatedAt: string;
@@ -34,16 +22,12 @@ type PrintableReport = {
 
 function filterSummary(filters: DashboardFilters): string {
   const values = Object.entries(filters).filter(([, value]) => value);
-  return values.length === 0
-    ? "All records"
-    : values.map(([key, value]) => `${key}=${value}`).join(" · ");
+  return values.length === 0 ? "All records" : values.map(([key, value]) => `${key}=${value}`).join(" · ");
 }
 
 export function Export({ t = text.en }: { t?: AppText } = {}) {
   const options = useDashboardMasterOptions();
-  const [filters, setFilters] = useState<DashboardFilters>(() =>
-    analyticsFilters(parseFilters()),
-  );
+  const [filters, setFilters] = useState<DashboardFilters>(() => analyticsFilters(parseFilters()));
   const [message, setMessage] = useState("");
   const [downloading, setDownloading] = useState(false);
   const [reportReady, setReportReady] = useState(false);
@@ -91,7 +75,9 @@ export function Export({ t = text.en }: { t?: AppText } = {}) {
             <p className="eyebrow">{thai ? "ข้อมูลพร้อมใช้งานต่อ" : "ANALYSIS-READY DATA"}</p>
             <h1>{thai ? "ดาวน์โหลดข้อมูลและรายงาน" : "Downloads and reports"}</h1>
             <p className="muted">
-              {thai ? "เลือกข้อมูลชุดเดียวกับหน้าผลการทดลอง แล้วดาวน์โหลดในรูปแบบที่เหมาะกับงานต่อไป" : "Choose the same records used in Research results, then download the format that fits your next task."}
+              {thai
+                ? "เลือกข้อมูลชุดเดียวกับหน้าผลการทดลอง แล้วดาวน์โหลดในรูปแบบที่เหมาะกับงานต่อไป"
+                : "Choose the same records used in Research results, then download the format that fits your next task."}
             </p>
           </div>
         </div>
@@ -111,27 +97,47 @@ export function Export({ t = text.en }: { t?: AppText } = {}) {
           </button>
           <button className="action-card" onClick={downloadRTable} disabled={downloading} aria-busy={downloading}>
             <strong>{thai ? "ดาวน์โหลด R CSV" : "Download R CSV"}</strong>
-            <span>{thai ? "สำหรับนำเข้า R โดยตรง · UTF-8 จำนวน 30 คอลัมน์" : "Ready for R · UTF-8, 30-column analysis table"}</span>
+            <span>
+              {thai ? "สำหรับนำเข้า R โดยตรง · UTF-8 จำนวน 30 คอลัมน์" : "Ready for R · UTF-8, 30-column analysis table"}
+            </span>
           </button>
-          <button
-            className="action-card"
-            onClick={() => window.print()}
-            type="button"
-            disabled={!reportReady}
-          >
+          <button className="action-card" onClick={() => window.print()} type="button" disabled={!reportReady}>
             <strong>{t.printPDF}</strong>
             <span>
               {reportReady
-                ? (thai ? "พิมพ์กราฟและตารางวิเคราะห์ทั้งหมด" : "Print all analytical panels.")
-                : (thai ? "กำลังเตรียมหน้ารายงาน…" : "Preparing analytical panels…")}
+                ? thai
+                  ? "พิมพ์กราฟและตารางวิเคราะห์ทั้งหมด"
+                  : "Print all analytical panels."
+                : thai
+                  ? "กำลังเตรียมหน้ารายงาน…"
+                  : "Preparing analytical panels…"}
             </span>
           </button>
         </div>
-        <button className="button button--secondary" type="button" disabled={!reportReady} onClick={() => setPreviewOpen((value) => !value)}>{previewOpen ? (thai ? "ซ่อนตัวอย่างรายงาน" : "Hide report preview") : (thai ? "ดูตัวอย่างรายงานก่อนพิมพ์" : "Preview report before printing")}</button>
-        {downloading && <p className="table-note" role="status">{thai ? 'กำลังเตรียมไฟล์…' : 'Preparing export…'}</p>}
+        <button
+          className="button button--secondary"
+          type="button"
+          disabled={!reportReady}
+          onClick={() => setPreviewOpen((value) => !value)}
+        >
+          {previewOpen
+            ? thai
+              ? "ซ่อนตัวอย่างรายงาน"
+              : "Hide report preview"
+            : thai
+              ? "ดูตัวอย่างรายงานก่อนพิมพ์"
+              : "Preview report before printing"}
+        </button>
+        {downloading && (
+          <p className="table-note" role="status">
+            {thai ? "กำลังเตรียมไฟล์…" : "Preparing export…"}
+          </p>
+        )}
         {message && <ErrorMessage message={message} />}
       </section>
-      <div className={previewOpen ? "report-preview report-preview--open" : "report-preview"}><PrintableDashboard filters={filters} t={t} onReadyChange={setReportReady} /></div>
+      <div className={previewOpen ? "report-preview report-preview--open" : "report-preview"}>
+        <PrintableDashboard filters={filters} t={t} onReadyChange={setReportReady} />
+      </div>
     </>
   );
 }
@@ -170,8 +176,7 @@ export function PrintableDashboard({
           setReport({
             generatedAt: String((bundle.reportMeta as ApiItem | undefined)?.generatedAt ?? ""),
             timingProfileVersions:
-              ((bundle.reportMeta as ApiItem | undefined)
-                ?.timingProfileVersions as number[] | undefined) ?? [],
+              ((bundle.reportMeta as ApiItem | undefined)?.timingProfileVersions as number[] | undefined) ?? [],
             kpi: (bundle.kpi as ApiItem | null) ?? null,
             funnel: items(bundle.funnel),
             survival: items(bundle.survival),
@@ -207,51 +212,31 @@ export function PrintableDashboard({
         <p className="eyebrow">KUVTH ZEBRAFISH LIMS / {thai ? "รายงานผลการทดลอง" : "RESEARCH RESULTS"}</p>
         <h1 id="print-report-title">{thai ? "รายงานสรุปผลการทดลอง" : "Experiment results report"}</h1>
         <p className="muted">
-          {thai ? "สร้างจากชุดข้อมูลและตัวกรองเดียวกับหน้าผลการทดลองและไฟล์ Excel" : "Generated from the same filtered dataset as Research results and the Excel workbook."}
+          {thai
+            ? "สร้างจากชุดข้อมูลและตัวกรองเดียวกับหน้าผลการทดลองและไฟล์ Excel"
+            : "Generated from the same filtered dataset as Research results and the Excel workbook."}
         </p>
-        <p className="muted print-report__filters">{thai ? "ตัวกรอง" : "Filters"}: {filterSummary(filters)}</p>
-        <p className="muted">
-          Timing profile versions:{" "}
-          {report.timingProfileVersions.join(", ") || "none"}
+        <p className="muted print-report__filters">
+          {thai ? "ตัวกรอง" : "Filters"}: {filterSummary(filters)}
         </p>
+        <p className="muted">Timing profile versions: {report.timingProfileVersions.join(", ") || "none"}</p>
       </div>
       {report.loading && <p className="notice">Loading dashboard panels...</p>}
       {report.error && <ErrorMessage message={report.error} />}
       {!report.loading && !report.error && (
         <>
           <div className="metric-grid">
-            <Metric
-              label="Activated embryos"
-              value={Number(stage1?.nActivated ?? 0)}
-            />
-            <Metric
-              label="Promoted fish"
-              value={Number(stage1?.nPromoted ?? 0)}
-            />
-            <Metric
-              label="Reached Shield"
-              value={Number(stage1?.nReachedShield ?? 0)}
-            />
-            <Metric
-              label="Reached Day 1"
-              value={Number(stage1?.nReachedDay1 ?? 0)}
-            />
-            <Metric
-              label="Normal %"
-              value={percent(stage1?.pctNormal)}
-            />
+            <Metric label="Activated embryos" value={Number(stage1?.nActivated ?? 0)} />
+            <Metric label="Promoted fish" value={Number(stage1?.nPromoted ?? 0)} />
+            <Metric label="Reached Shield" value={Number(stage1?.nReachedShield ?? 0)} />
+            <Metric label="Reached Day 1" value={Number(stage1?.nReachedDay1 ?? 0)} />
+            <Metric label="Normal %" value={percent(stage1?.pctNormal)} />
             <Metric label="Alive fish" value={Number(stage2?.nAlive ?? 0)} />
             <Metric label="Batches" value={Number(stage1?.nBatches ?? 0)} />
             <Metric label="Frozen fish" value={Number(stage2?.nFrozen ?? 0)} />
-            <Metric
-              label="Discarded fish"
-              value={Number(stage2?.nDiscarded ?? 0)}
-            />
+            <Metric label="Discarded fish" value={Number(stage2?.nDiscarded ?? 0)} />
             <Metric label="Normal fish" value={Number(stage2?.nNormal ?? 0)} />
-            <Metric
-              label="Abnormal fish"
-              value={Number(stage2?.nAbnormal ?? 0)}
-            />
+            <Metric label="Abnormal fish" value={Number(stage2?.nAbnormal ?? 0)} />
           </div>
           <ReportPanel title="Overview pipeline">
             <FunnelChart points={report.funnel} />
@@ -268,14 +253,7 @@ export function PrintableDashboard({
           <ReportPanel title="Stage 1 survival curve">
             <SurvivalChart points={report.survival} />
             <ReportTable
-              headers={[
-                "Site",
-                "Strain",
-                "Stage",
-                "Risk set",
-                "Alive",
-                "Survival",
-              ]}
+              headers={["Site", "Strain", "Stage", "Risk set", "Alive", "Survival"]}
               rows={report.survival.map((point) => [
                 String(point.site ?? "All"),
                 String(point.strain ?? "All"),
@@ -305,9 +283,7 @@ export function PrintableDashboard({
                 Number(point.n ?? 0),
                 Number(point.meanDeviationH ?? 0).toFixed(4),
                 Number(point.medianDeviationH ?? 0).toFixed(4),
-                point.sdDeviationH == null
-                  ? "—"
-                  : Number(point.sdDeviationH).toFixed(4),
+                point.sdDeviationH == null ? "—" : Number(point.sdDeviationH).toFixed(4),
               ])}
             />
           </ReportPanel>

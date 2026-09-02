@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Audit } from "../src/pages/audit";
 import { text } from "../src/types";
 
-const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
+const json = (value: unknown) =>
+  new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
 const entry = {
   id: "01900000-0000-7000-8000-000000000301",
   tableName: "sites",

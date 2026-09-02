@@ -5,7 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Export } from "../src/pages/export";
 import { text } from "../src/types";
 
-const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
+const json = (value: unknown) =>
+  new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
 
 describe("export page", () => {
   afterEach(() => {
@@ -38,11 +39,13 @@ describe("export page", () => {
     await act(async () => {
       root.render(<Export t={text.en} />);
     });
-    const printButton = Array.from(document.querySelectorAll("button")).find(
-      (button) => button.textContent?.includes("Print / PDF"),
+    const printButton = Array.from(document.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Print / PDF"),
     ) as HTMLButtonElement;
     expect(printButton.disabled).toBe(true);
-    await act(async () => { printButton.click(); });
+    await act(async () => {
+      printButton.click();
+    });
     expect(print).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -79,7 +82,9 @@ describe("export page", () => {
     expect(document.body.textContent).toContain("Download R CSV");
 
     expect(printButton.disabled).toBe(false);
-    await act(async () => { printButton?.click(); });
+    await act(async () => {
+      printButton?.click();
+    });
     expect(print).toHaveBeenCalledOnce();
     root.unmount();
   });

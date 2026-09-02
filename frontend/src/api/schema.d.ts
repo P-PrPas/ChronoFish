@@ -4,4435 +4,4435 @@
  */
 
 export interface paths {
-    "/sites": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List sites */
-        get: operations["listSites"];
-        put?: never;
-        /** Create a site */
-        post: operations["createSite"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+  "/sites": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/sites/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update a site */
-        patch: operations["updateSite"];
-        trace?: never;
+    /** List sites */
+    get: operations["listSites"];
+    put?: never;
+    /** Create a site */
+    post: operations["createSite"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/sites/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/operators": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List operators */
-        get: operations["listOperators"];
-        put?: never;
-        /** Create an operator */
-        post: operations["createOperator"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update a site */
+    patch: operations["updateSite"];
+    trace?: never;
+  };
+  "/operators": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/donor-cell-lines": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List donor cell lines */
-        get: operations["listDonorCellLines"];
-        put?: never;
-        /** Create a donor cell line */
-        post: operations["createDonorCellLine"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List operators */
+    get: operations["listOperators"];
+    put?: never;
+    /** Create an operator */
+    post: operations["createOperator"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/donor-cell-lines": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/recipient-egg-lots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List recipient egg lots */
-        get: operations["listRecipientEggLots"];
-        put?: never;
-        /** Create a recipient egg lot */
-        post: operations["createRecipientEggLot"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List donor cell lines */
+    get: operations["listDonorCellLines"];
+    put?: never;
+    /** Create a donor cell line */
+    post: operations["createDonorCellLine"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/recipient-egg-lots": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/csof-lots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List CSOF lots */
-        get: operations["listCsofLots"];
-        put?: never;
-        /** Create a CSOF lot */
-        post: operations["createCsofLot"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List recipient egg lots */
+    get: operations["listRecipientEggLots"];
+    put?: never;
+    /** Create a recipient egg lot */
+    post: operations["createRecipientEggLot"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/csof-lots": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/treatment-groups": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List treatment groups */
-        get: operations["listTreatmentGroups"];
-        put?: never;
-        /** Create a treatment group */
-        post: operations["createTreatmentGroup"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List CSOF lots */
+    get: operations["listCsofLots"];
+    put?: never;
+    /** Create a CSOF lot */
+    post: operations["createCsofLot"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/treatment-groups": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/fish-boxes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List fish boxes */
-        get: operations["listFishBoxes"];
-        put?: never;
-        /** Create a fish box */
-        post: operations["createFishBox"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List treatment groups */
+    get: operations["listTreatmentGroups"];
+    put?: never;
+    /** Create a treatment group */
+    post: operations["createTreatmentGroup"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/fish-boxes": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/operators/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update or deactivate an operator */
-        patch: operations["updateOperator"];
-        trace?: never;
+    /** List fish boxes */
+    get: operations["listFishBoxes"];
+    put?: never;
+    /** Create a fish box */
+    post: operations["createFishBox"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/operators/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/donor-cell-lines/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update or deactivate a donor cell line */
-        patch: operations["updateDonorCellLine"];
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update or deactivate an operator */
+    patch: operations["updateOperator"];
+    trace?: never;
+  };
+  "/donor-cell-lines/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/recipient-egg-lots/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update or deactivate a recipient egg lot */
-        patch: operations["updateRecipientEggLot"];
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update or deactivate a donor cell line */
+    patch: operations["updateDonorCellLine"];
+    trace?: never;
+  };
+  "/recipient-egg-lots/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/csof-lots/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update or deactivate a CSOF lot */
-        patch: operations["updateCsofLot"];
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update or deactivate a recipient egg lot */
+    patch: operations["updateRecipientEggLot"];
+    trace?: never;
+  };
+  "/csof-lots/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/treatment-groups/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update or deactivate a treatment group */
-        patch: operations["updateTreatmentGroup"];
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update or deactivate a CSOF lot */
+    patch: operations["updateCsofLot"];
+    trace?: never;
+  };
+  "/treatment-groups/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/fish-boxes/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update or deactivate a fish box */
-        patch: operations["updateFishBox"];
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update or deactivate a treatment group */
+    patch: operations["updateTreatmentGroup"];
+    trace?: never;
+  };
+  "/fish-boxes/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/protocols": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List protocols */
-        get: operations["listProtocols"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update or deactivate a fish box */
+    patch: operations["updateFishBox"];
+    trace?: never;
+  };
+  "/protocols": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/protocols/{id}/stages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        /**
-         * List the checkpoint definitions of a protocol
-         * @description Returns all 36 stages in order. Stages 1–26 are `STAGE_1`, 27–36 are `STAGE_2`.
-         */
-        get: operations["listProtocolStages"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List protocols */
+    get: operations["listProtocols"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/protocols/{id}/stages": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/timing-profiles/current": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get the reference timing profile currently in effect */
-        get: operations["getCurrentTimingProfile"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * List the checkpoint definitions of a protocol
+     * @description Returns all 36 stages in order. Stages 1–26 are `STAGE_1`, 27–36 are `STAGE_2`.
+     */
+    get: operations["listProtocolStages"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/timing-profiles/current": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/timing-profiles": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List every version of the reference timing, newest first */
-        get: operations["listTimingProfiles"];
-        put?: never;
-        /**
-         * Save edited reference timing as a new version
-         * @description Saving never overwrites (BR-21). The server copies every stage entry from
-         *     the current version, applies the supplied overrides, stores the result as
-         *     `version + 1`, and marks it current.
-         *
-         *     Batches created earlier keep pointing at the version they were created
-         *     with, and `deviation_h` values already stored on observations are never
-         *     recomputed (NFR-203, AC-204). This is what lets the lab adjust the
-         *     reference times freely without silently rewriting past results.
-         */
-        post: operations["createTimingProfileVersion"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Get the reference timing profile currently in effect */
+    get: operations["getCurrentTimingProfile"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/timing-profiles": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/timing-profiles/csv": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Download the current reference timing as CSV */
-        get: operations["exportTimingCsv"];
-        put?: never;
-        /** Upload reference timing as CSV, creating a new version */
-        post: operations["importTimingCsv"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List every version of the reference timing, newest first */
+    get: operations["listTimingProfiles"];
+    put?: never;
+    /**
+     * Save edited reference timing as a new version
+     * @description Saving never overwrites (BR-21). The server copies every stage entry from
+     *     the current version, applies the supplied overrides, stores the result as
+     *     `version + 1`, and marks it current.
+     *
+     *     Batches created earlier keep pointing at the version they were created
+     *     with, and `deviation_h` values already stored on observations are never
+     *     recomputed (NFR-203, AC-204). This is what lets the lab adjust the
+     *     reference times freely without silently rewriting past results.
+     */
+    post: operations["createTimingProfileVersion"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/timing-profiles/csv": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/batches": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List experiment batches */
-        get: operations["listBatches"];
-        put?: never;
-        /**
-         * Create an experiment batch
-         * @description The server pins the currently-effective timing profile onto the batch at
-         *     creation time (FR-303) and suggests `batchCode` as
-         *     `{dayNo}_{operator}_{treatmentGroup}` when the caller omits it (FR-302).
-         */
-        post: operations["createBatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Download the current reference timing as CSV */
+    get: operations["exportTimingCsv"];
+    put?: never;
+    /** Upload reference timing as CSV, creating a new version */
+    post: operations["importTimingCsv"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/batches": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/batches/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        /** Get a batch with its injection lots */
-        get: operations["getBatch"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /** Update a batch */
-        patch: operations["updateBatch"];
-        trace?: never;
+    /** List experiment batches */
+    get: operations["listBatches"];
+    put?: never;
+    /**
+     * Create an experiment batch
+     * @description The server pins the currently-effective timing profile onto the batch at
+     *     creation time (FR-303) and suggests `batchCode` as
+     *     `{dayNo}_{operator}_{treatmentGroup}` when the caller omits it (FR-302).
+     */
+    post: operations["createBatch"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/batches/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/batches/{id}/duplicate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Create a new batch by copying this one
-         * @description Copies everything except dates and times (FR-305) — enucleation settings repeat almost every run.
-         */
-        post: operations["duplicateBatch"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Get a batch with its injection lots */
+    get: operations["getBatch"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /** Update a batch */
+    patch: operations["updateBatch"];
+    trace?: never;
+  };
+  "/batches/{id}/duplicate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/batches/{id}/injection-lots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Add an injection lot and generate its embryos
-         * @description Creates the lot and immediately generates `nActivated` embryo records
-         *     (FR-308) with codes `{batchCode}_{lotNo}_{seq}` starting at 1 — the same
-         *     shape the lab already uses in its v2 spreadsheet (`1_Jan_Control_1_1`).
-         *
-         *     `activatedAt` is mandatory (FR-307): it is T0 for every downstream
-         *     calculation and for the fish date of birth (BR-01, BR-10).
-         */
-        post: operations["createInjectionLot"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Create a new batch by copying this one
+     * @description Copies everything except dates and times (FR-305) — enucleation settings repeat almost every run.
+     */
+    post: operations["duplicateBatch"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/batches/{id}/injection-lots": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/injection-lots/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Activate a lot template copied with a batch
-         * @description Supplies T0 and creates the embryos for a draft lot created by
-         *     `duplicateBatch`. An activated lot cannot be changed through this
-         *     operation because changing T0 would invalidate downstream results.
-         */
-        patch: operations["activateInjectionLotTemplate"];
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Add an injection lot and generate its embryos
+     * @description Creates the lot and immediately generates `nActivated` embryo records
+     *     (FR-308) with codes `{batchCode}_{lotNo}_{seq}` starting at 1 — the same
+     *     shape the lab already uses in its v2 spreadsheet (`1_Jan_Control_1_1`).
+     *
+     *     `activatedAt` is mandatory (FR-307): it is T0 for every downstream
+     *     calculation and for the fish date of birth (BR-01, BR-10).
+     */
+    post: operations["createInjectionLot"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/injection-lots/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/injection-lots/{id}/embryos": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        /** List the embryos of a lot */
-        get: operations["listLotEmbryos"];
-        put?: never;
-        /**
-         * Add extra embryos to a lot
-         * @description For when the real count differs from what was entered initially (FR-310).
-         */
-        post: operations["addLotEmbryos"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Activate a lot template copied with a batch
+     * @description Supplies T0 and creates the embryos for a draft lot created by
+     *     `duplicateBatch`. An activated lot cannot be changed through this
+     *     operation because changing T0 would invalidate downstream results.
+     */
+    patch: operations["activateInjectionLotTemplate"];
+    trace?: never;
+  };
+  "/injection-lots/{id}/embryos": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/embryos/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Soft-delete an embryo
-         * @description Sets `deletedAt`; nothing is ever physically removed (CON-08, BR-20).
-         */
-        delete: operations["deleteEmbryo"];
-        options?: never;
-        head?: never;
-        /** Update an embryo */
-        patch: operations["updateEmbryo"];
-        trace?: never;
+    /** List the embryos of a lot */
+    get: operations["listLotEmbryos"];
+    put?: never;
+    /**
+     * Add extra embryos to a lot
+     * @description For when the real count differs from what was entered initially (FR-310).
+     */
+    post: operations["addLotEmbryos"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/embryos/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/batches/{id}/control-arm-counts": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        /** List aggregate counts for the natural-breeding and IVF arms */
-        get: operations["listControlArmCounts"];
-        /**
-         * Set aggregate counts for the natural-breeding and IVF arms
-         * @description These arms are counted in bulk rather than tracked per embryo (FR-703,
-         *     Q6), matching how the lab already records them. Sending a row for an
-         *     existing (armType, stageCode) pair replaces it.
-         */
-        put: operations["putControlArmCounts"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Soft-delete an embryo
+     * @description Sets `deletedAt`; nothing is ever physically removed (CON-08, BR-20).
+     */
+    delete: operations["deleteEmbryo"];
+    options?: never;
+    head?: never;
+    /** Update an embryo */
+    patch: operations["updateEmbryo"];
+    trace?: never;
+  };
+  "/batches/{id}/control-arm-counts": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/due-checkpoints": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * What needs looking at right now
-         * @description The home screen (FR-401). Returns every (injection lot × checkpoint) that
-         *     is due but not yet recorded, most overdue first, computed per BR-22:
-         *     `dueAt = activatedAt + expectedHpa`.
-         *
-         *     Also returns the next not-yet-due checkpoint per lot so the technician
-         *     can see what is coming, and the count of embryos waiting to be promoted
-         *     (FR-404).
-         */
-        get: operations["listDueCheckpoints"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List aggregate counts for the natural-breeding and IVF arms */
+    get: operations["listControlArmCounts"];
+    /**
+     * Set aggregate counts for the natural-breeding and IVF arms
+     * @description These arms are counted in bulk rather than tracked per embryo (FR-703,
+     *     Q6), matching how the lab already records them. Sending a row for an
+     *     existing (armType, stageCode) pair replaces it.
+     */
+    put: operations["putControlArmCounts"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/due-checkpoints": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/injection-lots/{id}/checkpoints/{stageCode}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-                stageCode: string;
-            };
-            cookie?: never;
-        };
-        /**
-         * Everything the checkpoint entry screen needs
-         * @description Returns observable embryos plus embryos previously recorded DEAD or
-         *     DEGENERATED. Terminal embryos carry `isDead: true` so their original
-         *     plate wells remain visible as read-only dead wells in every later round;
-         *     they are excluded from `embryosRemaining` and new observations. The
-         *     prior condition is carried forward so the screen can default sensibly
-         *     (FR-409), together with the reference timing for the checkpoint (FR-412).
-         */
-        get: operations["getCheckpointEntry"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * What needs looking at right now
+     * @description The home screen (FR-401). Returns every (injection lot × checkpoint) that
+     *     is due but not yet recorded, most overdue first, computed per BR-22:
+     *     `dueAt = activatedAt + expectedHpa`.
+     *
+     *     Also returns the next not-yet-due checkpoint per lot so the technician
+     *     can see what is coming, and the count of embryos waiting to be promoted
+     *     (FR-404).
+     */
+    get: operations["listDueCheckpoints"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/injection-lots/{id}/checkpoints/{stageCode}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+        stageCode: string;
+      };
+      cookie?: never;
     };
-    "/observations/embryo": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Record embryo observations (bulk, idempotent)
-         * @description The main write path of the system. Send the whole checkpoint in one call.
-         *
-         *     **Idempotent on `clientUuid`** (BR-18): a repeat of a `clientUuid` the
-         *     server already has returns `duplicate` with the stored row and HTTP 200 —
-         *     never an error, never a second row. The offline queue depends on this;
-         *     without it a request that succeeded but whose response was lost would
-         *     double-count and corrupt the survival numbers.
-         *
-         *     Per item the server computes `hpaActual` (BR-02), reads `hpaExpected`
-         *     from the profile pinned to the batch and **freezes it onto the row**
-         *     (BR-03), and derives `deviationH` (BR-04).
-         *
-         *     Recording `DEAD` or `DEGENERATED` also writes the embryo's terminal exit
-         *     event. Later observations are rejected to preserve monotonic survival
-         *     (BR-07), even when an override reason is supplied. A mistaken terminal
-         *     result must be corrected or deleted on its original audited observation.
-         *     Request-level conflicts still use `409`.
-         *
-         *     Partial success is normal: each item reports its own status, so one bad
-         *     row never discards the rest of the checkpoint.
-         */
-        post: operations["createEmbryoObservations"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Everything the checkpoint entry screen needs
+     * @description Returns observable embryos plus embryos previously recorded DEAD or
+     *     DEGENERATED. Terminal embryos carry `isDead: true` so their original
+     *     plate wells remain visible as read-only dead wells in every later round;
+     *     they are excluded from `embryosRemaining` and new observations. The
+     *     prior condition is carried forward so the screen can default sensibly
+     *     (FR-409), together with the reference timing for the checkpoint (FR-412).
+     */
+    get: operations["getCheckpointEntry"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/observations/embryo": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/observations/embryo/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Soft-delete an observation */
-        delete: operations["deleteEmbryoObservation"];
-        options?: never;
-        head?: never;
-        /**
-         * Correct a mis-entered embryo observation
-         * @description Corrections are recorded, not hidden (FR-1101, FR-1102). Editing the
-         *     outcome recalculates the embryo's exit event; editing the condition can
-         *     clear or move `firstAbnormal` (BR-12). `hpaExpectedSnapshot` remains
-         *     frozen; editing `observedAt` recalculates `hpaActual` and `deviationH`
-         *     against that original snapshot (BR-03).
-         */
-        patch: operations["updateEmbryoObservation"];
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Record embryo observations (bulk, idempotent)
+     * @description The main write path of the system. Send the whole checkpoint in one call.
+     *
+     *     **Idempotent on `clientUuid`** (BR-18): a repeat of a `clientUuid` the
+     *     server already has returns `duplicate` with the stored row and HTTP 200 —
+     *     never an error, never a second row. The offline queue depends on this;
+     *     without it a request that succeeded but whose response was lost would
+     *     double-count and corrupt the survival numbers.
+     *
+     *     Per item the server computes `hpaActual` (BR-02), reads `hpaExpected`
+     *     from the profile pinned to the batch and **freezes it onto the row**
+     *     (BR-03), and derives `deviationH` (BR-04).
+     *
+     *     Recording `DEAD` or `DEGENERATED` also writes the embryo's terminal exit
+     *     event. Later observations are rejected to preserve monotonic survival
+     *     (BR-07), even when an override reason is supplied. A mistaken terminal
+     *     result must be corrected or deleted on its original audited observation.
+     *     Request-level conflicts still use `409`.
+     *
+     *     Partial success is normal: each item reports its own status, so one bad
+     *     row never discards the rest of the checkpoint.
+     */
+    post: operations["createEmbryoObservations"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/observations/embryo/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/fish/roll-call": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The daily fish check-list
-         * @description Living fish only (FR-602), with age computed from date of birth (BR-11)
-         *     and a flag for any fish already known to be abnormal, including the age
-         *     at which that was first seen (FR-605). `date` may be in the past so a
-         *     missed day can be filled in later (FR-607, Q-N4 backdating).
-         */
-        get: operations["getFishRollCall"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Soft-delete an observation */
+    delete: operations["deleteEmbryoObservation"];
+    options?: never;
+    head?: never;
+    /**
+     * Correct a mis-entered embryo observation
+     * @description Corrections are recorded, not hidden (FR-1101, FR-1102). Editing the
+     *     outcome recalculates the embryo's exit event; editing the condition can
+     *     clear or move `firstAbnormal` (BR-12). `hpaExpectedSnapshot` remains
+     *     frozen; editing `observedAt` recalculates `hpaActual` and `deviationH`
+     *     against that original snapshot (BR-03).
+     */
+    patch: operations["updateEmbryoObservation"];
+    trace?: never;
+  };
+  "/fish/roll-call": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/observations/fish": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Record fish observations (bulk, idempotent)
-         * @description Same idempotency contract as the embryo endpoint (BR-18). "Everyone still
-         *     alive" is one call carrying every living fish (FR-604, AC-604).
-         *
-         *     An outcome of `DEAD`, `FROZEN`, or `DISCARDED` also closes the fish:
-         *     `status`, `exitDate`, and `exitReason` are set, and it drops off the next
-         *     day's roll-call (FR-606, AC-606).
-         *
-         *     For a consecutive date range, the client expands each fish/date into a
-         *     separate item with its own `clientUuid`. This keeps retries idempotent.
-         */
-        post: operations["createFishObservations"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * The daily fish check-list
+     * @description Living fish only (FR-602), with age computed from date of birth (BR-11)
+     *     and a flag for any fish already known to be abnormal, including the age
+     *     at which that was first seen (FR-605). `date` may be in the past so a
+     *     missed day can be filled in later (FR-607, Q-N4 backdating).
+     */
+    get: operations["getFishRollCall"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/observations/fish": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/observations/fish/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Soft-delete an incorrect fish observation */
-        delete: operations["deleteFishObservation"];
-        options?: never;
-        head?: never;
-        /** Correct a fish observation */
-        patch: operations["updateFishObservation"];
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Record fish observations (bulk, idempotent)
+     * @description Same idempotency contract as the embryo endpoint (BR-18). "Everyone still
+     *     alive" is one call carrying every living fish (FR-604, AC-604).
+     *
+     *     An outcome of `DEAD`, `FROZEN`, or `DISCARDED` also closes the fish:
+     *     `status`, `exitDate`, and `exitReason` are set, and it drops off the next
+     *     day's roll-call (FR-606, AC-606).
+     *
+     *     For a consecutive date range, the client expands each fish/date into a
+     *     separate item with its own `clientUuid`. This keeps retries idempotent.
+     */
+    post: operations["createFishObservations"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/observations/fish/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/promotions/pending": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Embryos that qualify to become clone fish
-         * @description Qualifies when all of BR-09 hold: older than `stage1MaxAgeDays` (5 days
-         *     by default, so past 120 h), no exit event, and last observation `ALIVE`.
-         *     Abnormal embryos qualify like any other (FR-506, Q4).
-         *
-         *     Each entry carries a suggested `fishCode` and `runningNo` (BR-13, BR-14)
-         *     which the caller may override.
-         */
-        get: operations["listPendingPromotions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    post?: never;
+    /** Soft-delete an incorrect fish observation */
+    delete: operations["deleteFishObservation"];
+    options?: never;
+    head?: never;
+    /** Correct a fish observation */
+    patch: operations["updateFishObservation"];
+    trace?: never;
+  };
+  "/promotions/pending": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/promotions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Promote embryos into the fish register
-         * @description Always explicit — the system never promotes on its own (FR-504).
-         *
-         *     The new fish inherits its date of birth from the lot's `activatedAt`,
-         *     **not** from the day it was promoted (BR-10, AC-505), along with the
-         *     donor line, site, condition, and any first-abnormal marker. The embryo
-         *     is closed with `exitReason = PROMOTED`, which keeps it counted as a
-         *     survivor rather than a loss in the survival curves.
-         *
-         *     Running numbers are allocated inside the same transaction so two people
-         *     promoting at once cannot collide (BR-14).
-         */
-        post: operations["createPromotions"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Embryos that qualify to become clone fish
+     * @description Qualifies when all of BR-09 hold: older than `stage1MaxAgeDays` (5 days
+     *     by default, so past 120 h), no exit event, and last observation `ALIVE`.
+     *     Abnormal embryos qualify like any other (FR-506, Q4).
+     *
+     *     Each entry carries a suggested `fishCode` and `runningNo` (BR-13, BR-14)
+     *     which the caller may override.
+     */
+    get: operations["listPendingPromotions"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/promotions": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/fish": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** The clone fish register */
-        get: operations["listFish"];
-        put?: never;
-        /**
-         * Register a fish by hand
-         * @description For fish that did not come through the normal promotion path (FR-509).
-         */
-        post: operations["createFish"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Promote embryos into the fish register
+     * @description Always explicit — the system never promotes on its own (FR-504).
+     *
+     *     The new fish inherits its date of birth from the lot's `activatedAt`,
+     *     **not** from the day it was promoted (BR-10, AC-505), along with the
+     *     donor line, site, condition, and any first-abnormal marker. The embryo
+     *     is closed with `exitReason = PROMOTED`, which keeps it counted as a
+     *     survivor rather than a loss in the survival curves.
+     *
+     *     Running numbers are allocated inside the same transaction so two people
+     *     promoting at once cannot collide (BR-14).
+     */
+    post: operations["createPromotions"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/fish": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/fish/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        /** One fish with its full observation timeline */
-        get: operations["getFish"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        /**
-         * Update a fish
-         * @description Sex is usually only determinable weeks in (FR-609), so it can be set at any time.
-         */
-        patch: operations["updateFish"];
-        trace?: never;
+    /** The clone fish register */
+    get: operations["listFish"];
+    put?: never;
+    /**
+     * Register a fish by hand
+     * @description For fish that did not come through the normal promotion path (FR-509).
+     */
+    post: operations["createFish"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/fish/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/fish/{id}/specimens": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        /** List DNA specimens taken from a fish */
-        get: operations["listFishSpecimens"];
-        put?: never;
-        /** Record a DNA specimen */
-        post: operations["createSpecimen"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** One fish with its full observation timeline */
+    get: operations["getFish"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Update a fish
+     * @description Sex is usually only determinable weeks in (FR-609), so it can be set at any time.
+     */
+    patch: operations["updateFish"];
+    trace?: never;
+  };
+  "/fish/{id}/specimens": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
     };
-    "/analytics/dashboard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Complete analytics dashboard from one consistent snapshot
-         * @description Bundles all dashboard panels so filters and counts cannot drift between requests.
-         */
-        get: operations["getAnalyticsDashboard"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** List DNA specimens taken from a fish */
+    get: operations["listFishSpecimens"];
+    put?: never;
+    /** Record a DNA specimen */
+    post: operations["createSpecimen"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/analytics/dashboard": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/analytics/kpi": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Headline numbers for both stages */
-        get: operations["getKpi"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Complete analytics dashboard from one consistent snapshot
+     * @description Bundles all dashboard panels so filters and counts cannot drift between requests.
+     */
+    get: operations["getAnalyticsDashboard"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/analytics/kpi": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/analytics/funnel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Survivors at each checkpoint, with percentage of activated
-         * @description Percentages follow BR-17 and are always computed live, never stored (DC-04).
-         */
-        get: operations["getFunnel"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Headline numbers for both stages */
+    get: operations["getKpi"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/analytics/funnel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/analytics/survival": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Monotonic discrete-time survival by checkpoint
-         * @description Returns `riskSet`, `alive`, `nPrev`, `nDead` and monotonic `surv` per BR-15 and
-         *     BR-16, grouped by site and strain — the same shape the lab's existing R
-         *     notebook consumes.
-         *
-         *     `riskSet` excludes embryos that have not yet reached the checkpoint's
-         *     due time, so an experiment still in progress does not read as mass
-         *     mortality. The raw `alive` and `nPrev` counts are always returned alongside `surv` so the
-         *     analyst can recompute survival their own way rather than trusting ours.
-         */
-        get: operations["getSurvival"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Survivors at each checkpoint, with percentage of activated
+     * @description Percentages follow BR-17 and are always computed live, never stored (DC-04).
+     */
+    get: operations["getFunnel"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/analytics/survival": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/analytics/timing-deviation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * How far development ran ahead of or behind the reference times
-         * @description Distribution of `deviationH` per checkpoint. Positive means slower than
-         *     the reference, negative means faster. There is deliberately no
-         *     pass/fail threshold — the lab asked for the raw difference and nothing
-         *     more (Q-N5, BR-04).
-         */
-        get: operations["getTimingDeviation"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Monotonic discrete-time survival by checkpoint
+     * @description Returns `riskSet`, `alive`, `nPrev`, `nDead` and monotonic `surv` per BR-15 and
+     *     BR-16, grouped by site and strain — the same shape the lab's existing R
+     *     notebook consumes.
+     *
+     *     `riskSet` excludes embryos that have not yet reached the checkpoint's
+     *     due time, so an experiment still in progress does not read as mass
+     *     mortality. The raw `alive` and `nPrev` counts are always returned alongside `surv` so the
+     *     analyst can recompute survival their own way rather than trusting ours.
+     */
+    get: operations["getSurvival"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/analytics/timing-deviation": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/analytics/abnormality-onset": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Where abnormality is first seen */
-        get: operations["getAbnormalityOnset"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * How far development ran ahead of or behind the reference times
+     * @description Distribution of `deviationH` per checkpoint. Positive means slower than
+     *     the reference, negative means faster. There is deliberately no
+     *     pass/fail threshold — the lab asked for the raw difference and nothing
+     *     more (Q-N5, BR-04).
+     */
+    get: operations["getTimingDeviation"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/analytics/abnormality-onset": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/analytics/fish-survival": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Kaplan-Meier daily survival of clone fish */
-        get: operations["getFishSurvival"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Where abnormality is first seen */
+    get: operations["getAbnormalityOnset"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/analytics/fish-survival": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/analytics/observation-gaps": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Fish that have missed a daily check
-         * @description Drives the reminder to backfill (FR-822).
-         */
-        get: operations["getObservationGaps"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Kaplan-Meier daily survival of clone fish */
+    get: operations["getFishSurvival"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/analytics/observation-gaps": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/analytics/pipeline": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * End-to-end funnel across both stages
-         * @description Joins Stage 1 and Stage 2 into a single chain — something the lab's
-         *     spreadsheets cannot do today because the two live in separate sheets
-         *     with no key between them (FR-823).
-         */
-        get: operations["getPipeline"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Fish that have missed a daily check
+     * @description Drives the reminder to backfill (FR-822).
+     */
+    get: operations["getObservationGaps"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/analytics/pipeline": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/exports/excel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Build the 14-sheet Excel workbook
-         * @description Uses the same filters as the dashboard (FR-905). Every sheet is a flat
-         *     table with a single header row and no merged cells (FR-902) so pandas
-         *     and readxl can read it directly — which is precisely what the current
-         *     spreadsheets cannot do.
-         *
-         *     Generated and returned directly per request; nothing is written to disk (FR-909,
-         *     CON-05), which is also what lets the backend run on a filesystem-less
-         *     platform.
-         */
-        post: operations["exportExcel"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * End-to-end funnel across both stages
+     * @description Joins Stage 1 and Stage 2 into a single chain — something the lab's
+     *     spreadsheets cannot do today because the two live in separate sheets
+     *     with no key between them (FR-823).
+     */
+    get: operations["getPipeline"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/exports/excel": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/exports/r-table": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * The analysis table as CSV
-         * @description Columns `Sites, Strain, Replicate, Strain_Rep` followed by one column per
-         *     checkpoint, matching the shape the lab's R notebook already expects
-         *     (FR-904, AC-904).
-         */
-        get: operations["exportRTable"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Build the 14-sheet Excel workbook
+     * @description Uses the same filters as the dashboard (FR-905). Every sheet is a flat
+     *     table with a single header row and no merged cells (FR-902) so pandas
+     *     and readxl can read it directly — which is precisely what the current
+     *     spreadsheets cannot do.
+     *
+     *     Generated and returned directly per request; nothing is written to disk (FR-909,
+     *     CON-05), which is also what lets the backend run on a filesystem-less
+     *     platform.
+     */
+    post: operations["exportExcel"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/exports/r-table": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/audit-log": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Change history */
-        get: operations["listAuditLog"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * The analysis table as CSV
+     * @description Columns `Sites, Strain, Replicate, Strain_Rep` followed by one column per
+     *     checkpoint, matching the shape the lab's R notebook already expects
+     *     (FR-904, AC-904).
+     */
+    get: operations["exportRTable"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/audit-log": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Service health */
-        get: operations["getHealth"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /** Change history */
+    get: operations["listAuditLog"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/health": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
+    /** Service health */
+    get: operations["getHealth"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        /**
-         * @description DEGENERATED is kept distinct from DEAD because the lab records the two separately.
-         * @enum {string}
-         */
-        EmbryoOutcome: "ALIVE" | "DEAD" | "DEGENERATED" | "NOT_OBSERVED";
-        /** @enum {string} */
-        FishOutcome: "ALIVE" | "DEAD" | "FROZEN" | "DISCARDED" | "NOT_OBSERVED";
-        /** @enum {string} */
-        Condition: "NORMAL" | "ABNORMAL" | "UNDETERMINED";
-        /** @enum {string} */
-        FishStatus: "ALIVE" | "DEAD" | "FROZEN" | "DISCARDED";
-        /** @enum {string} */
-        Sex: "M" | "F" | "UNKNOWN";
-        /**
-         * @description PROMOTED means the embryo survived into the fish register — a success, not a loss.
-         * @enum {string}
-         */
-        ExitReason: "DEAD" | "DEGENERATED" | "PROMOTED" | "LOST";
-        /** @enum {string} */
-        ArmType: "SCNT" | "NATURAL_BREEDING" | "IVF";
-        /** @enum {string} */
-        ControlArmType: "NATURAL_BREEDING" | "IVF";
-        /** @enum {string} */
-        StagePhase: "CLEAVAGE" | "BLASTULA" | "GASTRULA" | "LARVAL";
-        /** @enum {string} */
-        StageScope: "STAGE_1" | "STAGE_2";
-        /** @enum {string} */
-        Preparation: "DISSOCIATED" | "CHUNKS";
-        /**
-         * @description Clone, Recipient Tail, Donor Cell.
-         * @enum {string}
-         */
-        SpecimenKind: "CL" | "RT" | "DC";
-        /** @enum {string} */
-        SpecimenType: "WHOLE_EMBRYO" | "CAUDAL_FIN_CLIP";
-        /**
-         * @description `duplicate` is a normal outcome of retrying, not a failure.
-         * @enum {string}
-         */
-        WriteStatus: "created" | "duplicate" | "rejected";
-        ErrorResponse: {
-            error: {
-                /** @example OBSERVATION_BEFORE_ACTIVATION */
-                code: string;
-                /** @description Written for the person on the iPad, not for a log file (NFR-304). */
-                message: string;
-                field?: string | null;
-                details?: {
-                    [key: string]: unknown;
-                } | null;
-            };
+  schemas: {
+    /**
+     * @description DEGENERATED is kept distinct from DEAD because the lab records the two separately.
+     * @enum {string}
+     */
+    EmbryoOutcome: "ALIVE" | "DEAD" | "DEGENERATED" | "NOT_OBSERVED";
+    /** @enum {string} */
+    FishOutcome: "ALIVE" | "DEAD" | "FROZEN" | "DISCARDED" | "NOT_OBSERVED";
+    /** @enum {string} */
+    Condition: "NORMAL" | "ABNORMAL" | "UNDETERMINED";
+    /** @enum {string} */
+    FishStatus: "ALIVE" | "DEAD" | "FROZEN" | "DISCARDED";
+    /** @enum {string} */
+    Sex: "M" | "F" | "UNKNOWN";
+    /**
+     * @description PROMOTED means the embryo survived into the fish register — a success, not a loss.
+     * @enum {string}
+     */
+    ExitReason: "DEAD" | "DEGENERATED" | "PROMOTED" | "LOST";
+    /** @enum {string} */
+    ArmType: "SCNT" | "NATURAL_BREEDING" | "IVF";
+    /** @enum {string} */
+    ControlArmType: "NATURAL_BREEDING" | "IVF";
+    /** @enum {string} */
+    StagePhase: "CLEAVAGE" | "BLASTULA" | "GASTRULA" | "LARVAL";
+    /** @enum {string} */
+    StageScope: "STAGE_1" | "STAGE_2";
+    /** @enum {string} */
+    Preparation: "DISSOCIATED" | "CHUNKS";
+    /**
+     * @description Clone, Recipient Tail, Donor Cell.
+     * @enum {string}
+     */
+    SpecimenKind: "CL" | "RT" | "DC";
+    /** @enum {string} */
+    SpecimenType: "WHOLE_EMBRYO" | "CAUDAL_FIN_CLIP";
+    /**
+     * @description `duplicate` is a normal outcome of retrying, not a failure.
+     * @enum {string}
+     */
+    WriteStatus: "created" | "duplicate" | "rejected";
+    ErrorResponse: {
+      error: {
+        /** @example OBSERVATION_BEFORE_ACTIVATION */
+        code: string;
+        /** @description Written for the person on the iPad, not for a log file (NFR-304). */
+        message: string;
+        field?: string | null;
+        details?: {
+          [key: string]: unknown;
+        } | null;
+      };
+    };
+    Site: {
+      /** Format: uuid */
+      id: string;
+      /** @example KU */
+      code: string;
+      /** @example Kasetsart University */
+      name: string;
+      active: boolean;
+    };
+    SiteInput: {
+      code: string;
+      name: string;
+      /** @default true */
+      active: boolean;
+    };
+    SitePatchInput: {
+      code?: string;
+      name?: string;
+      active?: boolean;
+    };
+    Operator: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      siteId?: string | null;
+      /** @example Jan */
+      name: string;
+      active: boolean;
+    };
+    OperatorInput: {
+      /** Format: uuid */
+      siteId?: string | null;
+      name: string;
+      /** @default true */
+      active: boolean;
+    };
+    OperatorPatchInput: {
+      /** Format: uuid */
+      siteId?: string | null;
+      name?: string;
+      active?: boolean;
+    };
+    DonorCellLine: {
+      /** Format: uuid */
+      id: string;
+      /** @example AB */
+      strain: string;
+      preparation: components["schemas"]["Preparation"];
+      /** @example AB240426_e48h */
+      batchCode?: string | null;
+      active: boolean;
+    };
+    DonorCellLineInput: {
+      strain: string;
+      preparation: components["schemas"]["Preparation"];
+      batchCode?: string | null;
+      /** @default true */
+      active: boolean;
+    };
+    DonorCellLinePatchInput: {
+      strain?: string;
+      preparation?: components["schemas"]["Preparation"];
+      batchCode?: string | null;
+      active?: boolean;
+    };
+    RecipientEggLot: {
+      /** Format: uuid */
+      id: string;
+      /** @example TAB Taiwan */
+      breed: string;
+      /** Format: date */
+      lotDate?: string | null;
+      /** @example TAB Taiwan 29-04-2025 */
+      label: string;
+      active: boolean;
+    };
+    RecipientEggLotInput: {
+      breed: string;
+      /** Format: date */
+      lotDate?: string | null;
+      label: string;
+      /** @default true */
+      active: boolean;
+    };
+    RecipientEggLotPatchInput: {
+      breed?: string;
+      /** Format: date */
+      lotDate?: string | null;
+      label?: string;
+      active?: boolean;
+    };
+    CsofLot: {
+      /** Format: uuid */
+      id: string;
+      /** @example CSOF 2024-19 */
+      lotCode: string;
+      active: boolean;
+    };
+    CsofLotInput: {
+      lotCode: string;
+      /** @default true */
+      active: boolean;
+    };
+    CsofLotPatchInput: {
+      lotCode?: string;
+      active?: boolean;
+    };
+    TreatmentGroup: {
+      /** Format: uuid */
+      id: string;
+      /** @example RK701 */
+      code: string;
+      name?: string | null;
+      armType: components["schemas"]["ArmType"];
+      active: boolean;
+    };
+    TreatmentGroupInput: {
+      code: string;
+      name?: string | null;
+      armType: components["schemas"]["ArmType"];
+      /** @default true */
+      active: boolean;
+    };
+    TreatmentGroupPatchInput: {
+      code?: string;
+      name?: string | null;
+      armType?: components["schemas"]["ArmType"];
+      active?: boolean;
+    };
+    FishBox: {
+      /** Format: uuid */
+      id: string;
+      /** @example Box-4 */
+      boxCode: string;
+      /** Format: uuid */
+      siteId?: string | null;
+      active: boolean;
+    };
+    FishBoxInput: {
+      boxCode: string;
+      /** Format: uuid */
+      siteId?: string | null;
+      /** @default true */
+      active: boolean;
+    };
+    FishBoxPatchInput: {
+      boxCode?: string;
+      /** Format: uuid */
+      siteId?: string | null;
+      active?: boolean;
+    };
+    Protocol: {
+      /** Format: uuid */
+      id: string;
+      /** @example SCNT standard */
+      name: string;
+      /**
+       * @description Age past which a surviving embryo becomes eligible for promotion (BR-09).
+       * @example 5
+       */
+      stage1MaxAgeDays: number;
+      active: boolean;
+    };
+    StageDefinition: {
+      /** Format: uuid */
+      id: string;
+      /** @example 9 */
+      stageOrder: number;
+      /** @example stage_09_256C */
+      code: string;
+      /**
+       * @description Always English, in both UI languages (NFR-703).
+       * @example 256-cell
+       */
+      label: string;
+      /** @example 256C */
+      shortLabel: string;
+      phase: components["schemas"]["StagePhase"];
+      stageScope: components["schemas"]["StageScope"];
+    };
+    TimingProfile: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      protocolId: string;
+      /** @example 1 */
+      version: number;
+      /** @example ZFIN 28.5C (default) */
+      name: string;
+      /** @example 28.5 */
+      referenceTempC?: number | null;
+      /** @description Always false in v1 (Q-N2); the field exists so enabling FR-207 later needs no migration. */
+      autoTempAdjust?: boolean;
+      /** @example Kimmel et al. 1995 / ZFIN, 28.5 C */
+      sourceNote?: string | null;
+      isCurrent: boolean;
+      /** Format: date-time */
+      createdAt?: string;
+      /** Format: uuid */
+      createdByOperatorId?: string | null;
+      entries: {
+        /** @description Derived from stageCode when omitted. */
+        stageOrder?: number;
+        stageCode: string;
+        /** @description Derived from the canonical stage when omitted. */
+        stageLabel?: string;
+        /** @example 2.5 */
+        expectedHpa: number;
+      }[];
+    };
+    Batch: {
+      /** Format: uuid */
+      id: string;
+      /** @example 1_Jan_Control */
+      batchCode: string;
+      /** Format: date */
+      experimentDate: string;
+      dayNo?: number | null;
+      /** Format: uuid */
+      siteId: string;
+      /** Format: uuid */
+      operatorId: string;
+      /** Format: uuid */
+      protocolId: string;
+      /**
+       * Format: uuid
+       * @description Pinned when the batch was created and never changed afterwards (FR-303, BR-21).
+       */
+      timingProfileId: string;
+      timingProfileVersion?: number;
+      /** Format: uuid */
+      treatmentGroupId: string;
+      /** Format: uuid */
+      recipientEggLotId?: string | null;
+      /** Format: uuid */
+      csofLotId?: string | null;
+      /** @example E6 */
+      clutchCode?: string | null;
+      replicateNo?: number | null;
+      /** @description Recorded but unused in v1 (ASM-01, Q-N2). */
+      incubationTempC?: number | null;
+      notes?: string | null;
+    };
+    BatchInput: {
+      /** @description Omit to let the server suggest `{dayNo}_{operator}_{treatmentGroup}` (FR-302). */
+      batchCode?: string | null;
+      /** Format: date */
+      experimentDate: string;
+      dayNo?: number | null;
+      /** Format: uuid */
+      siteId: string;
+      /** Format: uuid */
+      operatorId: string;
+      /** Format: uuid */
+      protocolId: string;
+      /** Format: uuid */
+      treatmentGroupId: string;
+      /** Format: uuid */
+      recipientEggLotId?: string | null;
+      /** Format: uuid */
+      csofLotId?: string | null;
+      clutchCode?: string | null;
+      replicateNo?: number | null;
+      incubationTempC?: number | null;
+      notes?: string | null;
+    };
+    BatchDetail: components["schemas"]["Batch"] & {
+      injectionLots?: components["schemas"]["InjectionLot"][];
+    };
+    InjectionLot: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      batchId: string;
+      /**
+       * @description Text, not a number — real data contains both '1' and 'June_2'.
+       * @example 1
+       */
+      lotNo: string;
+      /** Format: uuid */
+      donorCellLineId: string;
+      /** @example 100 */
+      enuPowerPct?: number | null;
+      /** @example 500 */
+      enuPulseUs?: number | null;
+      /** @example 85 */
+      enuLed?: number | null;
+      /** Format: date-time */
+      enuStartAt?: string | null;
+      /** Format: date-time */
+      enuFinishAt?: string | null;
+      /**
+       * Format: date-time
+       * @description T0 for everything downstream (BR-01); null only for a copied draft template.
+       */
+      activatedAt?: string | null;
+      nEggs?: number | null;
+      nActivated: number;
+      notes?: string | null;
+    };
+    InjectionLotInput: {
+      lotNo: string;
+      /** Format: uuid */
+      donorCellLineId: string;
+      enuPowerPct?: number | null;
+      enuPulseUs?: number | null;
+      enuLed?: number | null;
+      /** Format: date-time */
+      enuStartAt?: string | null;
+      /** Format: date-time */
+      enuFinishAt?: string | null;
+      /** Format: date-time */
+      activatedAt: string;
+      nEggs?: number | null;
+      /** @description This many embryo records are created immediately (FR-308). */
+      nActivated: number;
+      /** @description Optional, in sequence order; entry i is the well of embryo i+1. */
+      wellPositions?: string[] | null;
+      notes?: string | null;
+    };
+    InjectionLotActivationInput: {
+      /** Format: uuid */
+      donorCellLineId?: string;
+      enuPowerPct?: number | null;
+      enuPulseUs?: number | null;
+      enuLed?: number | null;
+      /** Format: date-time */
+      enuStartAt?: string | null;
+      /** Format: date-time */
+      enuFinishAt?: string | null;
+      /** Format: date-time */
+      activatedAt: string;
+      nEggs?: number | null;
+      nActivated: number;
+      wellPositions?: string[] | null;
+      notes?: string | null;
+    };
+    InjectionLotDetail: components["schemas"]["InjectionLot"] & {
+      embryos?: components["schemas"]["Embryo"][];
+      /** @description Non-blocking business-rule warnings raised while creating or activating the lot (AC-307). */
+      warnings?: string[];
+    };
+    Embryo: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      injectionLotId: string;
+      /** @example 1 */
+      seqInLot: number;
+      /** @example 1_Jan_Control_1_1 */
+      embryoCode: string;
+      /** @example B3 */
+      wellPosition?: string | null;
+      exitStageCode?: string | null;
+      /** Format: date-time */
+      exitAt?: string | null;
+      exitReason?: components["schemas"]["ExitReason"] | null;
+      firstAbnormalStageCode?: string | null;
+      latestCondition?: components["schemas"]["Condition"] | null;
+    };
+    ControlArmCount: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      batchId: string;
+      armType: components["schemas"]["ControlArmType"];
+      stageCode: string;
+      stageLabel?: string;
+      nNormal: number;
+      nAbnormal: number;
+    };
+    DueCheckpoint: {
+      /** Format: uuid */
+      injectionLotId: string;
+      /** Format: uuid */
+      batchId?: string;
+      batchCode: string;
+      lotNo: string;
+      stageCode: string;
+      stageLabel: string;
+      stageOrder?: number;
+      /** Format: date-time */
+      dueAt: string;
+      /** @description Negative when the checkpoint is still in the future. */
+      minutesLate: number;
+      /** @description Embryos without a terminal exit that remain eligible for observation. */
+      embryosRemaining: number;
+      operatorName?: string | null;
+    };
+    CheckpointEntry: {
+      /** Format: uuid */
+      injectionLotId: string;
+      batchCode: string;
+      lotNo: string;
+      stage: components["schemas"]["StageDefinition"];
+      /** @description Stage 1 choices available independently for each embryo in this observation round. */
+      stages: {
+        stageCode: string;
+        stageLabel: string;
+        stageOrder: number;
+        expectedHpa: number;
+      }[];
+      /** Format: date-time */
+      activatedAt: string;
+      /** @example 2.5 */
+      expectedHpa: number;
+      /** Format: date-time */
+      dueAt?: string;
+      totalEmbryos: number;
+      embryosRemaining: number;
+      embryos: {
+        /** Format: uuid */
+        embryoId: string;
+        embryoCode: string;
+        wellPosition?: string | null;
+        /** @description Carried forward from the previous observation (FR-409). */
+        defaultCondition: components["schemas"]["Condition"];
+        /** @description True after a DEAD or DEGENERATED observation; shown read-only in later plate maps. */
+        isDead: boolean;
+        priorOutcome?: components["schemas"]["EmbryoOutcome"] | null;
+        priorStageCode?: string | null;
+        firstAbnormalStageLabel?: string | null;
+      }[];
+    };
+    EmbryoObservationInput: {
+      /**
+       * Format: uuid
+       * @description Generated on the device before sending. The idempotency key (BR-18).
+       */
+      clientUuid: string;
+      /** Format: uuid */
+      embryoId: string;
+      /** @example stage_09_256C */
+      stageCode: string;
+      /**
+       * Format: date-time
+       * @description Must fall between the lot's activation and now (BR-19).
+       */
+      observedAt: string;
+      outcome: components["schemas"]["EmbryoOutcome"];
+      condition: components["schemas"]["Condition"];
+      notes?: string | null;
+      /** @description Audit context for exceptional writes; it cannot override a terminal embryo death. */
+      overrideReason?: string | null;
+    };
+    EmbryoObservationResult: {
+      /** Format: uuid */
+      clientUuid: string;
+      /** Format: uuid */
+      id?: string | null;
+      status: components["schemas"]["WriteStatus"];
+      /** @example 2.6333 */
+      hpaActual?: number | null;
+      /** @example 2.5 */
+      hpaExpected?: number | null;
+      /** @example 0.1333 */
+      deviationH?: number | null;
+      /** @example 5.33 */
+      deviationPct?: number | null;
+      intervalActual?: number | null;
+      intervalExpected?: number | null;
+      intervalDeviationH?: number | null;
+      /**
+       * @description Preformatted for display per BR-23, so both platforms word it identically.
+       * @example ช้ากว่าสากล 8 นาที
+       */
+      deviationLabel?: string | null;
+      /**
+       * @description English BR-23 display label.
+       * @example 8 minutes slower than reference
+       */
+      deviationLabelEn?: string | null;
+      isBackdated?: boolean | null;
+      exitRecorded?: boolean | null;
+      error?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    EmbryoObservation: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      clientUuid?: string;
+      /** Format: uuid */
+      embryoId: string;
+      embryoCode?: string;
+      stageCode: string;
+      stageOrder?: number;
+      /** Format: date-time */
+      observedAt: string;
+      hpaActual: number;
+      /** @description Frozen at write time so past results never shift when the reference is edited (BR-03, NFR-203). */
+      hpaExpectedSnapshot: number;
+      deviationH: number;
+      deviationPct?: number | null;
+      outcome: components["schemas"]["EmbryoOutcome"];
+      condition: components["schemas"]["Condition"];
+      /** Format: uuid */
+      operatorId?: string;
+      isBackdated?: boolean;
+      notes?: string | null;
+    };
+    RollCallEntry: {
+      /** Format: uuid */
+      fishId: string;
+      /** @example No.6_Clone3-AB cell-16 */
+      fishCode: string;
+      /** Format: uuid */
+      injectionLotId?: string | null;
+      /** @example 329 */
+      ageDays: number;
+      status: components["schemas"]["FishStatus"];
+      condition: components["schemas"]["Condition"];
+      strain?: string | null;
+      /** Format: date */
+      firstAbnormalOn?: string | null;
+      firstAbnormalAgeDays?: number | null;
+      fishBoxCode?: string | null;
+      /** @description True when this date already has an observation, so the screen can show it as done. */
+      alreadyRecorded: boolean;
+      /**
+       * Format: uuid
+       * @description Existing observation for this fish/date, used by the correction flow.
+       */
+      observationId?: string | null;
+      recordedOutcome?: components["schemas"]["FishOutcome"] | null;
+    };
+    FishObservationInput: {
+      /** Format: uuid */
+      clientUuid: string;
+      /** Format: uuid */
+      cloneFishId: string;
+      /** Format: date */
+      observedOn: string;
+      outcome: components["schemas"]["FishOutcome"];
+      condition: components["schemas"]["Condition"];
+      notes?: string | null;
+      /** @description Required by the server when the observation is backdated (BR-07, BR-19). */
+      overrideReason?: string | null;
+    };
+    FishObservationPatchInput: {
+      /** Format: date */
+      observedOn?: string;
+      outcome?: components["schemas"]["FishOutcome"];
+      condition?: components["schemas"]["Condition"];
+      notes?: string | null;
+      /** @description Audit reason for correcting the observation. */
+      overrideReason: string;
+    };
+    FishObservationResult: {
+      /** Format: uuid */
+      clientUuid: string;
+      /** Format: uuid */
+      id?: string | null;
+      status: components["schemas"]["WriteStatus"];
+      ageDays?: number | null;
+      /** @description True when this observation ended the fish's tracking (FR-606). */
+      fishClosed?: boolean | null;
+      error?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    PromotionCandidate: {
+      /** Format: uuid */
+      embryoId: string;
+      /** @example 1_Jan_Control_2_1 */
+      embryoCode: string;
+      batchCode?: string;
+      /**
+       * Format: date
+       * @description Date of the lot's activation, which becomes the fish's date of birth (BR-10).
+       */
+      dob: string;
+      /** @example 6 */
+      ageDays: number;
+      strain: string;
+      /** Format: uuid */
+      donorCellLineId?: string;
+      /** Format: uuid */
+      siteId?: string | null;
+      condition: components["schemas"]["Condition"];
+      /** @description Abnormal embryos are promoted like any other; this just carries the marker across (FR-506). */
+      firstAbnormalStageLabel?: string | null;
+      /** @example No.47_Clone1-AB cell-24 */
+      suggestedFishCode: string;
+      /** @example 47 */
+      suggestedRunningNo: number;
+    };
+    PromotionResult: {
+      /** Format: uuid */
+      clientUuid: string;
+      /** Format: uuid */
+      id?: string | null;
+      status: components["schemas"]["WriteStatus"];
+      fish?: components["schemas"]["CloneFish"];
+      error?: {
+        [key: string]: unknown;
+      } | null;
+    };
+    CloneFish: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      embryoId?: string | null;
+      embryoCode?: string | null;
+      /** @example No.6_Clone3-AB cell-16 */
+      fishCode: string;
+      runningNo: number;
+      /** Format: date */
+      dob: string;
+      /** @description Computed live from dob, never stored (BR-11, DC-04). */
+      ageDays?: number;
+      strain?: string;
+      /** Format: uuid */
+      donorCellLineId: string;
+      /** Format: uuid */
+      siteId?: string | null;
+      /** Format: uuid */
+      fishBoxId?: string | null;
+      fishBoxCode?: string | null;
+      status: components["schemas"]["FishStatus"];
+      condition: components["schemas"]["Condition"];
+      /** Format: date */
+      firstAbnormalOn?: string | null;
+      firstAbnormalAgeDays?: number | null;
+      sex: components["schemas"]["Sex"];
+      finClipped: boolean;
+      /** Format: date */
+      exitDate?: string | null;
+      /** @enum {string|null} */
+      exitReason?: "DEAD" | "FROZEN" | "DISCARDED" | "LOST" | null;
+      remarks?: string | null;
+    };
+    CloneFishInput: {
+      fishCode: string;
+      /** Format: date */
+      dob: string;
+      /** Format: uuid */
+      donorCellLineId: string;
+      /** Format: uuid */
+      siteId?: string | null;
+      /** Format: uuid */
+      fishBoxId?: string | null;
+      condition?: components["schemas"]["Condition"];
+      sex?: components["schemas"]["Sex"];
+      remarks?: string | null;
+      /** @description Required by the server when manually registering an older fish (BR-07). */
+      overrideReason?: string | null;
+    };
+    CloneFishDetail: components["schemas"]["CloneFish"] & {
+      observations?: {
+        /** Format: uuid */
+        id: string;
+        /** Format: date */
+        observedOn: string;
+        ageDays: number;
+        outcome: components["schemas"]["FishOutcome"];
+        condition: components["schemas"]["Condition"];
+        operatorName?: string | null;
+        isBackdated?: boolean;
+        notes?: string | null;
+      }[];
+      specimens?: components["schemas"]["Specimen"][];
+      /** @description The Stage 1 history of the embryo this fish came from, so one screen covers the whole life. */
+      embryoTimeline?: components["schemas"]["EmbryoObservation"][];
+    };
+    Specimen: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      cloneFishId: string;
+      /** @example CL1 */
+      specimenCode: string;
+      specimenKind: components["schemas"]["SpecimenKind"];
+      specimenType: components["schemas"]["SpecimenType"];
+      /** Format: date */
+      collectedOn?: string | null;
+      /** Format: date */
+      frozenOn?: string | null;
+      /** @enum {string|null} */
+      storage?: "-20" | "-80" | null;
+      notes?: string | null;
+    };
+    SpecimenInput: {
+      specimenCode: string;
+      specimenKind: components["schemas"]["SpecimenKind"];
+      specimenType: components["schemas"]["SpecimenType"];
+      /** Format: date */
+      collectedOn?: string | null;
+      /** Format: date */
+      frozenOn?: string | null;
+      /** @enum {string|null} */
+      storage?: "-20" | "-80" | null;
+      notes?: string | null;
+      /**
+       * @description Also set the fish's finClipped flag, so one action covers both (FR-610).
+       * @default false
+       */
+      markFinClipped: boolean;
+    };
+    AnalyticsFilter: {
+      /** Format: date */
+      dateFrom?: string;
+      /** Format: date */
+      dateTo?: string;
+      /** Format: uuid */
+      siteId?: string;
+      /** Format: uuid */
+      operatorId?: string;
+      /** Format: uuid */
+      treatmentGroupId?: string;
+      /** Format: uuid */
+      donorCellLineId?: string;
+      strain?: string;
+      /** Format: uuid */
+      batchId?: string;
+    };
+    KpiResponse: {
+      stage1: {
+        nBatches: number;
+        nEggs: number;
+        nActivated: number;
+        nReachedShield: number;
+        nReachedDay1: number;
+        nPromoted: number;
+        /** @description Fraction of filtered embryos/fish marked NORMAL; null when the denominator is zero. */
+        pctNormal: number | null;
+        /** @description Fraction of filtered embryos/fish marked ABNORMAL; null when the denominator is zero. */
+        pctAbnormal?: number | null;
+        controlComparison: components["schemas"]["ControlComparisonPoint"][];
+      };
+      stage2: {
+        nFish: number;
+        nAlive: number;
+        nDead: number;
+        nFrozen: number;
+        nDiscarded: number;
+        nNormal?: number;
+        nAbnormal?: number;
+        nUndetermined?: number;
+        meanAgeDaysAlive?: number | null;
+      };
+      meta: components["schemas"]["AnalyticsMeta"];
+    };
+    DashboardAnalyticsResponse: {
+      reportMeta: {
+        /** Format: date-time */
+        generatedAt: string;
+        timingProfileVersions: number[];
+      };
+      kpi: components["schemas"]["KpiResponse"];
+      funnel: paths["/analytics/funnel"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+      survival: paths["/analytics/survival"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+      timingDeviation: paths["/analytics/timing-deviation"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+      abnormalityOnset: paths["/analytics/abnormality-onset"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+      fishSurvival: paths["/analytics/fish-survival"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+      observationGaps: paths["/analytics/observation-gaps"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+      pipeline: paths["/analytics/pipeline"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
+    };
+    ControlComparisonPoint: {
+      armType: components["schemas"]["ArmType"];
+      stageOrder: number;
+      stageCode: string;
+      stageLabel: string;
+      n: number;
+      nNormal: number;
+      nAbnormal: number;
+      pctNormal: number | null;
+      pctAbnormal: number | null;
+    };
+    AnalyticsMeta: {
+      filters: {
+        [key: string]: string;
+      };
+      sampleSize: number;
+      denominators: {
+        [key: string]: number;
+      };
+      unknown: {
+        [key: string]: number;
+      };
+      missing: {
+        [key: string]: number;
+      };
+      /** @description Statistical method used by the endpoint when applicable. */
+      method?: string;
+      /** @description Comparison labels and interpretation for exploratory groupings. */
+      comparison?: {
+        field: string;
+        label: string;
+        interpretation: string;
+      };
+    };
+    FunnelStep: {
+      stageOrder: number;
+      stageCode: string;
+      stageLabel: string;
+      riskSet: number;
+      alive: number;
+      nDead: number;
+      pctOfActivated: number | null;
+    };
+    SurvivalPoint: {
+      siteId?: string | null;
+      strain?: string | null;
+      treatmentGroupId?: string | null;
+      treatmentGroup?: string | null;
+      operatorId?: string | null;
+      stageOrder: number;
+      stageLabel: string;
+      /** @description Embryos that have actually reached this checkpoint's due time (BR-16). */
+      riskSet: number;
+      alive: number;
+      nPrev: number;
+      nDead: number;
+      /** @example 0.4711 */
+      surv: number;
+      pctOfDevelopment?: number | null;
+    };
+    DeviationSummary: {
+      siteId?: string | null;
+      strain?: string | null;
+      treatmentGroupId?: string | null;
+      treatmentGroup?: string | null;
+      operatorId?: string | null;
+      stageOrder: number;
+      stageLabel: string;
+      expectedHpa?: number;
+      n: number;
+      /** @example 0.1333 */
+      meanDeviationH: number;
+      medianDeviationH: number;
+      q1DeviationH: number;
+      q3DeviationH: number;
+      sdDeviationH?: number | null;
+      minDeviationH: number;
+      maxDeviationH: number;
+    };
+    ExportRequest: {
+      filters?: components["schemas"]["AnalyticsFilter"];
+      /** @description Omit for all 14 sheets. Sheet names are listed in SRS appendix B. */
+      sheets?: string[] | null;
+      /**
+       * @default th
+       * @enum {string}
+       */
+      locale: "th" | "en";
+    };
+    AuditEntry: {
+      /** Format: uuid */
+      id: string;
+      tableName: string;
+      /** Format: uuid */
+      recordId: string;
+      /** @enum {string} */
+      action: "INSERT" | "UPDATE" | "DELETE";
+      oldValues?: {
+        [key: string]: unknown;
+      } | null;
+      newValues?: {
+        [key: string]: unknown;
+      } | null;
+      /** Format: uuid */
+      operatorId?: string | null;
+      operatorName?: string | null;
+      deviceId?: string | null;
+      /** Format: date-time */
+      occurredAt: string;
+    };
+  };
+  responses: {
+    /** @description No such resource */
+    NotFound: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        "application/json": components["schemas"]["ErrorResponse"];
+      };
+    };
+    /** @description Conflicts with current state — for example a duplicate normalised name, or a monotonic-survival violation without an override reason */
+    Conflict: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        "application/json": components["schemas"]["ErrorResponse"];
+      };
+    };
+    /** @description Well-formed but breaks a business rule (BR-19) */
+    UnprocessableEntity: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        "application/json": components["schemas"]["ErrorResponse"];
+      };
+    };
+  };
+  parameters: {
+    PathId: string;
+    /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+    OperatorId: string;
+    /** @description Stable per-device identifier generated on first use and kept in local storage. */
+    DeviceId: string;
+    /** @description Stable key for one logical mutation. Replays return the original result. */
+    IdempotencyKey: string;
+    /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
+    IncludeInactive: boolean;
+    Limit: number;
+    Cursor: string;
+    /**
+     * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
+     *     can swap panels without rebuilding its query state:
+     *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
+     *     `donorCellLineId`, `strain`, `batchId`.
+     */
+    AnalyticsFilters: components["schemas"]["AnalyticsFilter"];
+  };
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
+}
+export type $defs = Record<string, never>;
+export interface operations {
+  listSites: {
+    parameters: {
+      query?: {
+        /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
+        includeInactive?: components["parameters"]["IncludeInactive"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Sites */
+      200: {
+        headers: {
+          [name: string]: unknown;
         };
-        Site: {
-            /** Format: uuid */
-            id: string;
-            /** @example KU */
-            code: string;
-            /** @example Kasetsart University */
-            name: string;
-            active: boolean;
+        content: {
+          "application/json": {
+            items: components["schemas"]["Site"][];
+          };
         };
-        SiteInput: {
-            code: string;
-            name: string;
-            /** @default true */
-            active: boolean;
-        };
-        SitePatchInput: {
-            code?: string;
-            name?: string;
-            active?: boolean;
-        };
-        Operator: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            siteId?: string | null;
-            /** @example Jan */
-            name: string;
-            active: boolean;
-        };
-        OperatorInput: {
-            /** Format: uuid */
-            siteId?: string | null;
-            name: string;
-            /** @default true */
-            active: boolean;
-        };
-        OperatorPatchInput: {
-            /** Format: uuid */
-            siteId?: string | null;
-            name?: string;
-            active?: boolean;
-        };
-        DonorCellLine: {
-            /** Format: uuid */
-            id: string;
-            /** @example AB */
-            strain: string;
-            preparation: components["schemas"]["Preparation"];
-            /** @example AB240426_e48h */
-            batchCode?: string | null;
-            active: boolean;
-        };
-        DonorCellLineInput: {
-            strain: string;
-            preparation: components["schemas"]["Preparation"];
-            batchCode?: string | null;
-            /** @default true */
-            active: boolean;
-        };
-        DonorCellLinePatchInput: {
-            strain?: string;
-            preparation?: components["schemas"]["Preparation"];
-            batchCode?: string | null;
-            active?: boolean;
-        };
-        RecipientEggLot: {
-            /** Format: uuid */
-            id: string;
-            /** @example TAB Taiwan */
-            breed: string;
-            /** Format: date */
-            lotDate?: string | null;
-            /** @example TAB Taiwan 29-04-2025 */
-            label: string;
-            active: boolean;
-        };
-        RecipientEggLotInput: {
-            breed: string;
-            /** Format: date */
-            lotDate?: string | null;
-            label: string;
-            /** @default true */
-            active: boolean;
-        };
-        RecipientEggLotPatchInput: {
-            breed?: string;
-            /** Format: date */
-            lotDate?: string | null;
-            label?: string;
-            active?: boolean;
-        };
-        CsofLot: {
-            /** Format: uuid */
-            id: string;
-            /** @example CSOF 2024-19 */
-            lotCode: string;
-            active: boolean;
-        };
-        CsofLotInput: {
-            lotCode: string;
-            /** @default true */
-            active: boolean;
-        };
-        CsofLotPatchInput: {
-            lotCode?: string;
-            active?: boolean;
-        };
-        TreatmentGroup: {
-            /** Format: uuid */
-            id: string;
-            /** @example RK701 */
-            code: string;
-            name?: string | null;
-            armType: components["schemas"]["ArmType"];
-            active: boolean;
-        };
-        TreatmentGroupInput: {
-            code: string;
-            name?: string | null;
-            armType: components["schemas"]["ArmType"];
-            /** @default true */
-            active: boolean;
-        };
-        TreatmentGroupPatchInput: {
-            code?: string;
-            name?: string | null;
-            armType?: components["schemas"]["ArmType"];
-            active?: boolean;
-        };
-        FishBox: {
-            /** Format: uuid */
-            id: string;
-            /** @example Box-4 */
-            boxCode: string;
-            /** Format: uuid */
-            siteId?: string | null;
-            active: boolean;
-        };
-        FishBoxInput: {
-            boxCode: string;
-            /** Format: uuid */
-            siteId?: string | null;
-            /** @default true */
-            active: boolean;
-        };
-        FishBoxPatchInput: {
-            boxCode?: string;
-            /** Format: uuid */
-            siteId?: string | null;
-            active?: boolean;
-        };
-        Protocol: {
-            /** Format: uuid */
-            id: string;
-            /** @example SCNT standard */
-            name: string;
-            /**
-             * @description Age past which a surviving embryo becomes eligible for promotion (BR-09).
-             * @example 5
-             */
-            stage1MaxAgeDays: number;
-            active: boolean;
-        };
-        StageDefinition: {
-            /** Format: uuid */
-            id: string;
-            /** @example 9 */
-            stageOrder: number;
-            /** @example stage_09_256C */
-            code: string;
-            /**
-             * @description Always English, in both UI languages (NFR-703).
-             * @example 256-cell
-             */
-            label: string;
-            /** @example 256C */
-            shortLabel: string;
-            phase: components["schemas"]["StagePhase"];
-            stageScope: components["schemas"]["StageScope"];
-        };
-        TimingProfile: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            protocolId: string;
-            /** @example 1 */
-            version: number;
-            /** @example ZFIN 28.5C (default) */
-            name: string;
-            /** @example 28.5 */
-            referenceTempC?: number | null;
-            /** @description Always false in v1 (Q-N2); the field exists so enabling FR-207 later needs no migration. */
-            autoTempAdjust?: boolean;
-            /** @example Kimmel et al. 1995 / ZFIN, 28.5 C */
-            sourceNote?: string | null;
-            isCurrent: boolean;
-            /** Format: date-time */
-            createdAt?: string;
-            /** Format: uuid */
-            createdByOperatorId?: string | null;
-            entries: {
-                /** @description Derived from stageCode when omitted. */
-                stageOrder?: number;
-                stageCode: string;
-                /** @description Derived from the canonical stage when omitted. */
-                stageLabel?: string;
-                /** @example 2.5 */
-                expectedHpa: number;
-            }[];
-        };
-        Batch: {
-            /** Format: uuid */
-            id: string;
-            /** @example 1_Jan_Control */
-            batchCode: string;
-            /** Format: date */
-            experimentDate: string;
-            dayNo?: number | null;
-            /** Format: uuid */
-            siteId: string;
-            /** Format: uuid */
-            operatorId: string;
-            /** Format: uuid */
-            protocolId: string;
-            /**
-             * Format: uuid
-             * @description Pinned when the batch was created and never changed afterwards (FR-303, BR-21).
-             */
-            timingProfileId: string;
-            timingProfileVersion?: number;
-            /** Format: uuid */
-            treatmentGroupId: string;
-            /** Format: uuid */
-            recipientEggLotId?: string | null;
-            /** Format: uuid */
-            csofLotId?: string | null;
-            /** @example E6 */
-            clutchCode?: string | null;
-            replicateNo?: number | null;
-            /** @description Recorded but unused in v1 (ASM-01, Q-N2). */
-            incubationTempC?: number | null;
-            notes?: string | null;
-        };
-        BatchInput: {
-            /** @description Omit to let the server suggest `{dayNo}_{operator}_{treatmentGroup}` (FR-302). */
-            batchCode?: string | null;
-            /** Format: date */
-            experimentDate: string;
-            dayNo?: number | null;
-            /** Format: uuid */
-            siteId: string;
-            /** Format: uuid */
-            operatorId: string;
-            /** Format: uuid */
-            protocolId: string;
-            /** Format: uuid */
-            treatmentGroupId: string;
-            /** Format: uuid */
-            recipientEggLotId?: string | null;
-            /** Format: uuid */
-            csofLotId?: string | null;
-            clutchCode?: string | null;
-            replicateNo?: number | null;
-            incubationTempC?: number | null;
-            notes?: string | null;
-        };
-        BatchDetail: components["schemas"]["Batch"] & {
-            injectionLots?: components["schemas"]["InjectionLot"][];
-        };
-        InjectionLot: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            batchId: string;
-            /**
-             * @description Text, not a number — real data contains both '1' and 'June_2'.
-             * @example 1
-             */
-            lotNo: string;
-            /** Format: uuid */
-            donorCellLineId: string;
-            /** @example 100 */
-            enuPowerPct?: number | null;
-            /** @example 500 */
-            enuPulseUs?: number | null;
-            /** @example 85 */
-            enuLed?: number | null;
-            /** Format: date-time */
-            enuStartAt?: string | null;
-            /** Format: date-time */
-            enuFinishAt?: string | null;
-            /**
-             * Format: date-time
-             * @description T0 for everything downstream (BR-01); null only for a copied draft template.
-             */
-            activatedAt?: string | null;
-            nEggs?: number | null;
-            nActivated: number;
-            notes?: string | null;
-        };
-        InjectionLotInput: {
-            lotNo: string;
-            /** Format: uuid */
-            donorCellLineId: string;
-            enuPowerPct?: number | null;
-            enuPulseUs?: number | null;
-            enuLed?: number | null;
-            /** Format: date-time */
-            enuStartAt?: string | null;
-            /** Format: date-time */
-            enuFinishAt?: string | null;
-            /** Format: date-time */
-            activatedAt: string;
-            nEggs?: number | null;
-            /** @description This many embryo records are created immediately (FR-308). */
-            nActivated: number;
-            /** @description Optional, in sequence order; entry i is the well of embryo i+1. */
-            wellPositions?: string[] | null;
-            notes?: string | null;
-        };
-        InjectionLotActivationInput: {
-            /** Format: uuid */
-            donorCellLineId?: string;
-            enuPowerPct?: number | null;
-            enuPulseUs?: number | null;
-            enuLed?: number | null;
-            /** Format: date-time */
-            enuStartAt?: string | null;
-            /** Format: date-time */
-            enuFinishAt?: string | null;
-            /** Format: date-time */
-            activatedAt: string;
-            nEggs?: number | null;
-            nActivated: number;
-            wellPositions?: string[] | null;
-            notes?: string | null;
-        };
-        InjectionLotDetail: components["schemas"]["InjectionLot"] & {
-            embryos?: components["schemas"]["Embryo"][];
-            /** @description Non-blocking business-rule warnings raised while creating or activating the lot (AC-307). */
-            warnings?: string[];
-        };
-        Embryo: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            injectionLotId: string;
-            /** @example 1 */
-            seqInLot: number;
-            /** @example 1_Jan_Control_1_1 */
-            embryoCode: string;
-            /** @example B3 */
-            wellPosition?: string | null;
-            exitStageCode?: string | null;
-            /** Format: date-time */
-            exitAt?: string | null;
-            exitReason?: components["schemas"]["ExitReason"] | null;
-            firstAbnormalStageCode?: string | null;
-            latestCondition?: components["schemas"]["Condition"] | null;
-        };
-        ControlArmCount: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            batchId: string;
-            armType: components["schemas"]["ControlArmType"];
-            stageCode: string;
-            stageLabel?: string;
-            nNormal: number;
-            nAbnormal: number;
-        };
-        DueCheckpoint: {
-            /** Format: uuid */
-            injectionLotId: string;
-            /** Format: uuid */
-            batchId?: string;
-            batchCode: string;
-            lotNo: string;
-            stageCode: string;
-            stageLabel: string;
-            stageOrder?: number;
-            /** Format: date-time */
-            dueAt: string;
-            /** @description Negative when the checkpoint is still in the future. */
-            minutesLate: number;
-            /** @description Embryos without a terminal exit that remain eligible for observation. */
-            embryosRemaining: number;
-            operatorName?: string | null;
-        };
-        CheckpointEntry: {
-            /** Format: uuid */
-            injectionLotId: string;
-            batchCode: string;
-            lotNo: string;
-            stage: components["schemas"]["StageDefinition"];
-            /** @description Stage 1 choices available independently for each embryo in this observation round. */
-            stages: {
-                stageCode: string;
-                stageLabel: string;
-                stageOrder: number;
-                expectedHpa: number;
-            }[];
-            /** Format: date-time */
-            activatedAt: string;
-            /** @example 2.5 */
-            expectedHpa: number;
-            /** Format: date-time */
-            dueAt?: string;
-            totalEmbryos: number;
-            embryosRemaining: number;
-            embryos: {
-                /** Format: uuid */
-                embryoId: string;
-                embryoCode: string;
-                wellPosition?: string | null;
-                /** @description Carried forward from the previous observation (FR-409). */
-                defaultCondition: components["schemas"]["Condition"];
-                /** @description True after a DEAD or DEGENERATED observation; shown read-only in later plate maps. */
-                isDead: boolean;
-                priorOutcome?: components["schemas"]["EmbryoOutcome"] | null;
-                priorStageCode?: string | null;
-                firstAbnormalStageLabel?: string | null;
-            }[];
-        };
-        EmbryoObservationInput: {
-            /**
-             * Format: uuid
-             * @description Generated on the device before sending. The idempotency key (BR-18).
-             */
-            clientUuid: string;
-            /** Format: uuid */
-            embryoId: string;
-            /** @example stage_09_256C */
-            stageCode: string;
-            /**
-             * Format: date-time
-             * @description Must fall between the lot's activation and now (BR-19).
-             */
-            observedAt: string;
-            outcome: components["schemas"]["EmbryoOutcome"];
-            condition: components["schemas"]["Condition"];
-            notes?: string | null;
-            /** @description Audit context for exceptional writes; it cannot override a terminal embryo death. */
-            overrideReason?: string | null;
-        };
-        EmbryoObservationResult: {
-            /** Format: uuid */
-            clientUuid: string;
-            /** Format: uuid */
-            id?: string | null;
-            status: components["schemas"]["WriteStatus"];
-            /** @example 2.6333 */
-            hpaActual?: number | null;
-            /** @example 2.5 */
-            hpaExpected?: number | null;
-            /** @example 0.1333 */
-            deviationH?: number | null;
-            /** @example 5.33 */
-            deviationPct?: number | null;
-            intervalActual?: number | null;
-            intervalExpected?: number | null;
-            intervalDeviationH?: number | null;
-            /**
-             * @description Preformatted for display per BR-23, so both platforms word it identically.
-             * @example ช้ากว่าสากล 8 นาที
-             */
-            deviationLabel?: string | null;
-            /**
-             * @description English BR-23 display label.
-             * @example 8 minutes slower than reference
-             */
-            deviationLabelEn?: string | null;
-            isBackdated?: boolean | null;
-            exitRecorded?: boolean | null;
-            error?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        EmbryoObservation: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            clientUuid?: string;
-            /** Format: uuid */
-            embryoId: string;
-            embryoCode?: string;
-            stageCode: string;
-            stageOrder?: number;
-            /** Format: date-time */
-            observedAt: string;
-            hpaActual: number;
-            /** @description Frozen at write time so past results never shift when the reference is edited (BR-03, NFR-203). */
-            hpaExpectedSnapshot: number;
-            deviationH: number;
-            deviationPct?: number | null;
-            outcome: components["schemas"]["EmbryoOutcome"];
-            condition: components["schemas"]["Condition"];
-            /** Format: uuid */
-            operatorId?: string;
-            isBackdated?: boolean;
-            notes?: string | null;
-        };
-        RollCallEntry: {
-            /** Format: uuid */
-            fishId: string;
-            /** @example No.6_Clone3-AB cell-16 */
-            fishCode: string;
-            /** Format: uuid */
-            injectionLotId?: string | null;
-            /** @example 329 */
-            ageDays: number;
-            status: components["schemas"]["FishStatus"];
-            condition: components["schemas"]["Condition"];
-            strain?: string | null;
-            /** Format: date */
-            firstAbnormalOn?: string | null;
-            firstAbnormalAgeDays?: number | null;
-            fishBoxCode?: string | null;
-            /** @description True when this date already has an observation, so the screen can show it as done. */
-            alreadyRecorded: boolean;
-            /**
-             * Format: uuid
-             * @description Existing observation for this fish/date, used by the correction flow.
-             */
-            observationId?: string | null;
-            recordedOutcome?: components["schemas"]["FishOutcome"] | null;
-        };
-        FishObservationInput: {
-            /** Format: uuid */
-            clientUuid: string;
-            /** Format: uuid */
-            cloneFishId: string;
-            /** Format: date */
-            observedOn: string;
-            outcome: components["schemas"]["FishOutcome"];
-            condition: components["schemas"]["Condition"];
-            notes?: string | null;
-            /** @description Required by the server when the observation is backdated (BR-07, BR-19). */
-            overrideReason?: string | null;
-        };
-        FishObservationPatchInput: {
-            /** Format: date */
-            observedOn?: string;
-            outcome?: components["schemas"]["FishOutcome"];
-            condition?: components["schemas"]["Condition"];
-            notes?: string | null;
-            /** @description Audit reason for correcting the observation. */
-            overrideReason: string;
-        };
-        FishObservationResult: {
-            /** Format: uuid */
-            clientUuid: string;
-            /** Format: uuid */
-            id?: string | null;
-            status: components["schemas"]["WriteStatus"];
-            ageDays?: number | null;
-            /** @description True when this observation ended the fish's tracking (FR-606). */
-            fishClosed?: boolean | null;
-            error?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        PromotionCandidate: {
-            /** Format: uuid */
-            embryoId: string;
-            /** @example 1_Jan_Control_2_1 */
-            embryoCode: string;
-            batchCode?: string;
-            /**
-             * Format: date
-             * @description Date of the lot's activation, which becomes the fish's date of birth (BR-10).
-             */
-            dob: string;
-            /** @example 6 */
-            ageDays: number;
-            strain: string;
-            /** Format: uuid */
-            donorCellLineId?: string;
-            /** Format: uuid */
-            siteId?: string | null;
-            condition: components["schemas"]["Condition"];
-            /** @description Abnormal embryos are promoted like any other; this just carries the marker across (FR-506). */
-            firstAbnormalStageLabel?: string | null;
-            /** @example No.47_Clone1-AB cell-24 */
-            suggestedFishCode: string;
-            /** @example 47 */
-            suggestedRunningNo: number;
-        };
-        PromotionResult: {
-            /** Format: uuid */
-            clientUuid: string;
-            /** Format: uuid */
-            id?: string | null;
-            status: components["schemas"]["WriteStatus"];
-            fish?: components["schemas"]["CloneFish"];
-            error?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        CloneFish: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            embryoId?: string | null;
-            embryoCode?: string | null;
-            /** @example No.6_Clone3-AB cell-16 */
-            fishCode: string;
-            runningNo: number;
-            /** Format: date */
-            dob: string;
-            /** @description Computed live from dob, never stored (BR-11, DC-04). */
-            ageDays?: number;
-            strain?: string;
-            /** Format: uuid */
-            donorCellLineId: string;
-            /** Format: uuid */
-            siteId?: string | null;
-            /** Format: uuid */
-            fishBoxId?: string | null;
-            fishBoxCode?: string | null;
-            status: components["schemas"]["FishStatus"];
-            condition: components["schemas"]["Condition"];
-            /** Format: date */
-            firstAbnormalOn?: string | null;
-            firstAbnormalAgeDays?: number | null;
-            sex: components["schemas"]["Sex"];
-            finClipped: boolean;
-            /** Format: date */
-            exitDate?: string | null;
-            /** @enum {string|null} */
-            exitReason?: "DEAD" | "FROZEN" | "DISCARDED" | "LOST" | null;
-            remarks?: string | null;
-        };
-        CloneFishInput: {
-            fishCode: string;
-            /** Format: date */
-            dob: string;
-            /** Format: uuid */
-            donorCellLineId: string;
-            /** Format: uuid */
-            siteId?: string | null;
-            /** Format: uuid */
-            fishBoxId?: string | null;
-            condition?: components["schemas"]["Condition"];
-            sex?: components["schemas"]["Sex"];
-            remarks?: string | null;
-            /** @description Required by the server when manually registering an older fish (BR-07). */
-            overrideReason?: string | null;
-        };
-        CloneFishDetail: components["schemas"]["CloneFish"] & {
-            observations?: {
-                /** Format: uuid */
-                id: string;
-                /** Format: date */
-                observedOn: string;
-                ageDays: number;
-                outcome: components["schemas"]["FishOutcome"];
-                condition: components["schemas"]["Condition"];
-                operatorName?: string | null;
-                isBackdated?: boolean;
-                notes?: string | null;
-            }[];
-            specimens?: components["schemas"]["Specimen"][];
-            /** @description The Stage 1 history of the embryo this fish came from, so one screen covers the whole life. */
-            embryoTimeline?: components["schemas"]["EmbryoObservation"][];
-        };
-        Specimen: {
-            /** Format: uuid */
-            id: string;
-            /** Format: uuid */
-            cloneFishId: string;
-            /** @example CL1 */
-            specimenCode: string;
-            specimenKind: components["schemas"]["SpecimenKind"];
-            specimenType: components["schemas"]["SpecimenType"];
-            /** Format: date */
-            collectedOn?: string | null;
-            /** Format: date */
-            frozenOn?: string | null;
-            /** @enum {string|null} */
-            storage?: "-20" | "-80" | null;
-            notes?: string | null;
-        };
-        SpecimenInput: {
-            specimenCode: string;
-            specimenKind: components["schemas"]["SpecimenKind"];
-            specimenType: components["schemas"]["SpecimenType"];
-            /** Format: date */
-            collectedOn?: string | null;
-            /** Format: date */
-            frozenOn?: string | null;
-            /** @enum {string|null} */
-            storage?: "-20" | "-80" | null;
-            notes?: string | null;
-            /**
-             * @description Also set the fish's finClipped flag, so one action covers both (FR-610).
-             * @default false
-             */
-            markFinClipped: boolean;
-        };
-        AnalyticsFilter: {
-            /** Format: date */
-            dateFrom?: string;
-            /** Format: date */
-            dateTo?: string;
-            /** Format: uuid */
-            siteId?: string;
-            /** Format: uuid */
-            operatorId?: string;
-            /** Format: uuid */
-            treatmentGroupId?: string;
-            /** Format: uuid */
-            donorCellLineId?: string;
-            strain?: string;
-            /** Format: uuid */
-            batchId?: string;
-        };
-        KpiResponse: {
-            stage1: {
-                nBatches: number;
-                nEggs: number;
-                nActivated: number;
-                nReachedShield: number;
-                nReachedDay1: number;
-                nPromoted: number;
-                /** @description Fraction of filtered embryos/fish marked NORMAL; null when the denominator is zero. */
-                pctNormal: number | null;
-                /** @description Fraction of filtered embryos/fish marked ABNORMAL; null when the denominator is zero. */
-                pctAbnormal?: number | null;
-                controlComparison: components["schemas"]["ControlComparisonPoint"][];
-            };
-            stage2: {
-                nFish: number;
-                nAlive: number;
-                nDead: number;
-                nFrozen: number;
-                nDiscarded: number;
-                nNormal?: number;
-                nAbnormal?: number;
-                nUndetermined?: number;
-                meanAgeDaysAlive?: number | null;
-            };
-            meta: components["schemas"]["AnalyticsMeta"];
-        };
-        DashboardAnalyticsResponse: {
-            reportMeta: {
-                /** Format: date-time */
-                generatedAt: string;
-                timingProfileVersions: number[];
-            };
-            kpi: components["schemas"]["KpiResponse"];
-            funnel: paths["/analytics/funnel"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
-            survival: paths["/analytics/survival"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
-            timingDeviation: paths["/analytics/timing-deviation"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
-            abnormalityOnset: paths["/analytics/abnormality-onset"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
-            fishSurvival: paths["/analytics/fish-survival"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
-            observationGaps: paths["/analytics/observation-gaps"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
-            pipeline: paths["/analytics/pipeline"]["get"]["responses"]["200"]["content"]["application/json"]["schema"];
-        };
-        ControlComparisonPoint: {
-            armType: components["schemas"]["ArmType"];
-            stageOrder: number;
-            stageCode: string;
-            stageLabel: string;
-            n: number;
-            nNormal: number;
-            nAbnormal: number;
-            pctNormal: number | null;
-            pctAbnormal: number | null;
-        };
-        AnalyticsMeta: {
-            filters: {
-                [key: string]: string;
-            };
-            sampleSize: number;
-            denominators: {
-                [key: string]: number;
-            };
-            unknown: {
-                [key: string]: number;
-            };
-            missing: {
-                [key: string]: number;
-            };
-            /** @description Statistical method used by the endpoint when applicable. */
-            method?: string;
-            /** @description Comparison labels and interpretation for exploratory groupings. */
-            comparison?: {
-                field: string;
-                label: string;
-                interpretation: string;
-            };
-        };
-        FunnelStep: {
-            stageOrder: number;
-            stageCode: string;
-            stageLabel: string;
-            riskSet: number;
-            alive: number;
-            nDead: number;
-            pctOfActivated: number | null;
-        };
-        SurvivalPoint: {
-            siteId?: string | null;
-            strain?: string | null;
-            treatmentGroupId?: string | null;
-            treatmentGroup?: string | null;
-            operatorId?: string | null;
-            stageOrder: number;
-            stageLabel: string;
-            /** @description Embryos that have actually reached this checkpoint's due time (BR-16). */
-            riskSet: number;
-            alive: number;
-            nPrev: number;
-            nDead: number;
-            /** @example 0.4711 */
-            surv: number;
-            pctOfDevelopment?: number | null;
-        };
-        DeviationSummary: {
-            siteId?: string | null;
-            strain?: string | null;
-            treatmentGroupId?: string | null;
-            treatmentGroup?: string | null;
-            operatorId?: string | null;
-            stageOrder: number;
-            stageLabel: string;
-            expectedHpa?: number;
-            n: number;
-            /** @example 0.1333 */
-            meanDeviationH: number;
-            medianDeviationH: number;
-            q1DeviationH: number;
-            q3DeviationH: number;
-            sdDeviationH?: number | null;
-            minDeviationH: number;
-            maxDeviationH: number;
-        };
-        ExportRequest: {
-            filters?: components["schemas"]["AnalyticsFilter"];
-            /** @description Omit for all 14 sheets. Sheet names are listed in SRS appendix B. */
-            sheets?: string[] | null;
-            /**
-             * @default th
-             * @enum {string}
-             */
-            locale: "th" | "en";
-        };
-        AuditEntry: {
-            /** Format: uuid */
-            id: string;
-            tableName: string;
-            /** Format: uuid */
-            recordId: string;
-            /** @enum {string} */
-            action: "INSERT" | "UPDATE" | "DELETE";
-            oldValues?: {
-                [key: string]: unknown;
-            } | null;
-            newValues?: {
-                [key: string]: unknown;
-            } | null;
-            /** Format: uuid */
-            operatorId?: string | null;
-            operatorName?: string | null;
-            deviceId?: string | null;
-            /** Format: date-time */
-            occurredAt: string;
-        };
+      };
+    };
+  };
+  createSite: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SiteInput"];
+      };
     };
     responses: {
-        /** @description No such resource */
-        NotFound: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
         };
-        /** @description Conflicts with current state — for example a duplicate normalised name, or a monotonic-survival violation without an override reason */
-        Conflict: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
+        content: {
+          "application/json": components["schemas"]["Site"];
         };
-        /** @description Well-formed but breaks a business rule (BR-19) */
-        UnprocessableEntity: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["ErrorResponse"];
-            };
-        };
+      };
+      409: components["responses"]["Conflict"];
+      422: components["responses"]["UnprocessableEntity"];
     };
+  };
+  updateSite: {
     parameters: {
-        PathId: string;
+      query?: never;
+      header: {
         /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-        OperatorId: string;
+        "X-Operator-Id": components["parameters"]["OperatorId"];
         /** @description Stable per-device identifier generated on first use and kept in local storage. */
-        DeviceId: string;
+        "X-Device-Id": components["parameters"]["DeviceId"];
         /** @description Stable key for one logical mutation. Replays return the original result. */
-        IdempotencyKey: string;
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SitePatchInput"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Site"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+    };
+  };
+  listOperators: {
+    parameters: {
+      query?: {
         /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
-        IncludeInactive: boolean;
-        Limit: number;
-        Cursor: string;
+        includeInactive?: components["parameters"]["IncludeInactive"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Operators */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["Operator"][];
+          };
+        };
+      };
+    };
+  };
+  createOperator: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OperatorInput"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Operator"];
+        };
+      };
+      409: components["responses"]["Conflict"];
+    };
+  };
+  listDonorCellLines: {
+    parameters: {
+      query?: {
+        /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
+        includeInactive?: components["parameters"]["IncludeInactive"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Donor cell lines */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["DonorCellLine"][];
+          };
+        };
+      };
+    };
+  };
+  createDonorCellLine: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DonorCellLineInput"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DonorCellLine"];
+        };
+      };
+      409: components["responses"]["Conflict"];
+    };
+  };
+  listRecipientEggLots: {
+    parameters: {
+      query?: {
+        /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
+        includeInactive?: components["parameters"]["IncludeInactive"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Recipient egg lots */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["RecipientEggLot"][];
+          };
+        };
+      };
+    };
+  };
+  createRecipientEggLot: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RecipientEggLotInput"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RecipientEggLot"];
+        };
+      };
+      409: components["responses"]["Conflict"];
+    };
+  };
+  listCsofLots: {
+    parameters: {
+      query?: {
+        /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
+        includeInactive?: components["parameters"]["IncludeInactive"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description CSOF lots */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["CsofLot"][];
+          };
+        };
+      };
+    };
+  };
+  createCsofLot: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CsofLotInput"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CsofLot"];
+        };
+      };
+      409: components["responses"]["Conflict"];
+    };
+  };
+  listTreatmentGroups: {
+    parameters: {
+      query?: {
+        /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
+        includeInactive?: components["parameters"]["IncludeInactive"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Treatment groups */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["TreatmentGroup"][];
+          };
+        };
+      };
+    };
+  };
+  createTreatmentGroup: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TreatmentGroupInput"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TreatmentGroup"];
+        };
+      };
+      409: components["responses"]["Conflict"];
+    };
+  };
+  listFishBoxes: {
+    parameters: {
+      query?: {
+        /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
+        includeInactive?: components["parameters"]["IncludeInactive"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Fish boxes */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["FishBox"][];
+          };
+        };
+      };
+    };
+  };
+  createFishBox: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FishBoxInput"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FishBox"];
+        };
+      };
+      409: components["responses"]["Conflict"];
+    };
+  };
+  updateOperator: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["OperatorPatchInput"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Operator"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+    };
+  };
+  updateDonorCellLine: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["DonorCellLinePatchInput"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DonorCellLine"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+    };
+  };
+  updateRecipientEggLot: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["RecipientEggLotPatchInput"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["RecipientEggLot"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+    };
+  };
+  updateCsofLot: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CsofLotPatchInput"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CsofLot"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+    };
+  };
+  updateTreatmentGroup: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TreatmentGroupPatchInput"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TreatmentGroup"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+    };
+  };
+  updateFishBox: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FishBoxPatchInput"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["FishBox"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+    };
+  };
+  listProtocols: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Protocols */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["Protocol"][];
+          };
+        };
+      };
+    };
+  };
+  listProtocolStages: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Stage definitions */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["StageDefinition"][];
+          };
+        };
+      };
+      404: components["responses"]["NotFound"];
+    };
+  };
+  getCurrentTimingProfile: {
+    parameters: {
+      query: {
+        protocolId: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Current profile with one entry per stage */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TimingProfile"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+    };
+  };
+  listTimingProfiles: {
+    parameters: {
+      query: {
+        protocolId: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Profile versions */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["TimingProfile"][];
+          };
+        };
+      };
+    };
+  };
+  createTimingProfileVersion: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: uuid */
+          protocolId: string;
+          /** @example Lab-measured 2026-09 */
+          name: string;
+          /**
+           * @description Recorded for reference. Not applied in v1 (Q-N2, FR-207 is v2).
+           * @example 28.5
+           */
+          referenceTempC?: number | null;
+          sourceNote?: string | null;
+          /** @description Only the stages whose value changed need to be listed. */
+          entries: {
+            /** @example stage_09_256C */
+            stageCode: string;
+            /** @example 2.5 */
+            expectedHpa: number;
+          }[];
+        };
+      };
+    };
+    responses: {
+      /** @description New version created and made current */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TimingProfile"];
+        };
+      };
+      422: components["responses"]["UnprocessableEntity"];
+    };
+  };
+  exportTimingCsv: {
+    parameters: {
+      query: {
+        protocolId: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description CSV with columns stage_order, stage_code, label, expected_hpa */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/csv": string;
+        };
+      };
+    };
+  };
+  importTimingCsv: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "text/csv": string;
+      };
+    };
+    responses: {
+      /** @description New version created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["TimingProfile"];
+        };
+      };
+      422: components["responses"]["UnprocessableEntity"];
+    };
+  };
+  listBatches: {
+    parameters: {
+      query?: {
+        dateFrom?: string;
+        dateTo?: string;
+        batchId?: string;
+        siteId?: string;
+        operatorId?: string;
+        treatmentGroupId?: string;
+        donorCellLineId?: string;
+        strain?: string;
+        limit?: components["parameters"]["Limit"];
+        cursor?: components["parameters"]["Cursor"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Batches */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["Batch"][];
+            nextCursor?: string | null;
+          };
+        };
+      };
+    };
+  };
+  createBatch: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BatchInput"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Batch"];
+        };
+      };
+      409: components["responses"]["Conflict"];
+      422: components["responses"]["UnprocessableEntity"];
+    };
+  };
+  getBatch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Batch */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["BatchDetail"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+    };
+  };
+  updateBatch: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BatchInput"];
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Batch"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+    };
+  };
+  duplicateBatch: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: date */
+          experimentDate: string;
+          dayNo?: number | null;
+          /**
+           * @description Copy lot settings without embryos or activation times.
+           * @default false
+           */
+          copyInjectionLots?: boolean;
+        };
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Batch"];
+        };
+      };
+    };
+  };
+  createInjectionLot: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["InjectionLotInput"];
+      };
+    };
+    responses: {
+      /** @description Lot created with its embryos */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InjectionLotDetail"];
+        };
+      };
+      409: components["responses"]["Conflict"];
+      422: components["responses"]["UnprocessableEntity"];
+    };
+  };
+  activateInjectionLotTemplate: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["InjectionLotActivationInput"];
+      };
+    };
+    responses: {
+      /** @description Template activated and embryos created */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["InjectionLotDetail"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      422: components["responses"]["UnprocessableEntity"];
+    };
+  };
+  listLotEmbryos: {
+    parameters: {
+      query?: {
+        /** @description Only embryos with no exit event yet (FR-405) */
+        aliveOnly?: boolean;
+      };
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Embryos */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["Embryo"][];
+          };
+        };
+      };
+    };
+  };
+  addLotEmbryos: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          count: number;
+        };
+      };
+    };
+    responses: {
+      /** @description Embryos added */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["Embryo"][];
+          };
+        };
+      };
+    };
+  };
+  deleteEmbryo: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Soft-deleted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      404: components["responses"]["NotFound"];
+    };
+  };
+  updateEmbryo: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** @example B3 */
+          wellPosition?: string | null;
+        };
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Embryo"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+    };
+  };
+  listControlArmCounts: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Counts */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["ControlArmCount"][];
+          };
+        };
+      };
+    };
+  };
+  putControlArmCounts: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          items: {
+            armType: components["schemas"]["ControlArmType"];
+            /** @example stage_19_SH */
+            stageCode: string;
+            nNormal: number;
+            nAbnormal: number;
+          }[];
+        };
+      };
+    };
+    responses: {
+      /** @description Stored */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["ControlArmCount"][];
+          };
+        };
+      };
+    };
+  };
+  listDueCheckpoints: {
+    parameters: {
+      query?: {
+        siteId?: string;
+        operatorId?: string;
+        batchId?: string;
+        treatmentGroupId?: string;
+        donorCellLineId?: string;
+        strain?: string;
+        dateFrom?: string;
+        dateTo?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Work queue */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            overdue: components["schemas"]["DueCheckpoint"][];
+            upcoming: components["schemas"]["DueCheckpoint"][];
+            pendingPromotionCount: number;
+          };
+        };
+      };
+    };
+  };
+  getCheckpointEntry: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+        stageCode: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Entry screen payload */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CheckpointEntry"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+    };
+  };
+  createEmbryoObservations: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          observations: components["schemas"]["EmbryoObservationInput"][];
+        };
+      };
+    };
+    responses: {
+      /** @description Per-item results */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            results: components["schemas"]["EmbryoObservationResult"][];
+          };
+        };
+      };
+    };
+  };
+  deleteEmbryoObservation: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Soft-deleted */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      404: components["responses"]["NotFound"];
+    };
+  };
+  updateEmbryoObservation: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          /** Format: date-time */
+          observedAt?: string;
+          outcome?: components["schemas"]["EmbryoOutcome"];
+          condition?: components["schemas"]["Condition"];
+          notes?: string | null;
+          correctionReason?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["EmbryoObservation"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+    };
+  };
+  getFishRollCall: {
+    parameters: {
+      query: {
+        date: string;
+        boxId?: string;
+        siteId?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Roll-call list */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: date */
+            date: string;
+            items: components["schemas"]["RollCallEntry"][];
+          };
+        };
+      };
+    };
+  };
+  createFishObservations: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          observations: components["schemas"]["FishObservationInput"][];
+        };
+      };
+    };
+    responses: {
+      /** @description Per-item results */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            results: components["schemas"]["FishObservationResult"][];
+          };
+        };
+      };
+    };
+  };
+  deleteFishObservation: {
+    parameters: {
+      query: {
+        reason: string;
+      };
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Soft-deleted and audited */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      404: components["responses"]["NotFound"];
+    };
+  };
+  updateFishObservation: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FishObservationPatchInput"];
+      };
+    };
+    responses: {
+      /** @description Corrected and audited */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      404: components["responses"]["NotFound"];
+      409: components["responses"]["Conflict"];
+      422: components["responses"]["UnprocessableEntity"];
+    };
+  };
+  listPendingPromotions: {
+    parameters: {
+      query?: {
+        siteId?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Candidates */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["PromotionCandidate"][];
+          };
+        };
+      };
+    };
+  };
+  createPromotions: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          promotions: {
+            /** Format: uuid */
+            clientUuid: string;
+            /** Format: uuid */
+            embryoId: string;
+            /**
+             * @description Overrides the server's suggestion.
+             * @example No.47_Clone1-AB cell-24
+             */
+            fishCode?: string | null;
+            /** Format: uuid */
+            fishBoxId?: string | null;
+          }[];
+        };
+      };
+    };
+    responses: {
+      /** @description Fish created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["PromotionResult"][];
+          };
+        };
+      };
+      409: components["responses"]["Conflict"];
+      422: components["responses"]["UnprocessableEntity"];
+    };
+  };
+  listFish: {
+    parameters: {
+      query?: {
+        status?: components["schemas"]["FishStatus"];
+        siteId?: string;
+        boxId?: string;
+        treatmentGroupId?: string;
+        batchId?: string;
+        operatorId?: string;
+        dateFrom?: string;
+        dateTo?: string;
+        donorCellLineId?: string;
+        strain?: string;
+        condition?: components["schemas"]["Condition"];
+        dobFrom?: string;
+        dobTo?: string;
+        limit?: components["parameters"]["Limit"];
+        cursor?: components["parameters"]["Cursor"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Fish */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["CloneFish"][];
+            nextCursor?: string | null;
+          };
+        };
+      };
+    };
+  };
+  createFish: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CloneFishInput"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CloneFish"];
+        };
+      };
+      409: components["responses"]["Conflict"];
+    };
+  };
+  getFish: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Fish detail */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CloneFishDetail"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+    };
+  };
+  updateFish: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": {
+          fishCode?: string;
+          sex?: components["schemas"]["Sex"];
+          finClipped?: boolean;
+          /** Format: uuid */
+          fishBoxId?: string | null;
+          remarks?: string | null;
+        };
+      };
+    };
+    responses: {
+      /** @description Updated */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["CloneFish"];
+        };
+      };
+      404: components["responses"]["NotFound"];
+    };
+  };
+  listFishSpecimens: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Specimens */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["Specimen"][];
+          };
+        };
+      };
+    };
+  };
+  createSpecimen: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
+        "X-Operator-Id": components["parameters"]["OperatorId"];
+        /** @description Stable per-device identifier generated on first use and kept in local storage. */
+        "X-Device-Id": components["parameters"]["DeviceId"];
+        /** @description Stable key for one logical mutation. Replays return the original result. */
+        "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
+      };
+      path: {
+        id: components["parameters"]["PathId"];
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SpecimenInput"];
+      };
+    };
+    responses: {
+      /** @description Created */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["Specimen"];
+        };
+      };
+      409: components["responses"]["Conflict"];
+    };
+  };
+  getAnalyticsDashboard: {
+    parameters: {
+      query?: {
         /**
          * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
          *     can swap panels without rebuilding its query state:
          *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
          *     `donorCellLineId`, `strain`, `batchId`.
          */
-        AnalyticsFilters: components["schemas"]["AnalyticsFilter"];
-    };
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
-}
-export type $defs = Record<string, never>;
-export interface operations {
-    listSites: {
-        parameters: {
-            query?: {
-                /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
-                includeInactive?: components["parameters"]["IncludeInactive"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Sites */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["Site"][];
-                    };
-                };
-            };
-        };
-    };
-    createSite: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SiteInput"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Site"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-            422: components["responses"]["UnprocessableEntity"];
-        };
-    };
-    updateSite: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SitePatchInput"];
-            };
-        };
-        responses: {
-            /** @description Updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Site"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    listOperators: {
-        parameters: {
-            query?: {
-                /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
-                includeInactive?: components["parameters"]["IncludeInactive"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Operators */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["Operator"][];
-                    };
-                };
-            };
-        };
-    };
-    createOperator: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OperatorInput"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Operator"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-        };
-    };
-    listDonorCellLines: {
-        parameters: {
-            query?: {
-                /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
-                includeInactive?: components["parameters"]["IncludeInactive"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Donor cell lines */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["DonorCellLine"][];
-                    };
-                };
-            };
-        };
-    };
-    createDonorCellLine: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DonorCellLineInput"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DonorCellLine"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-        };
-    };
-    listRecipientEggLots: {
-        parameters: {
-            query?: {
-                /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
-                includeInactive?: components["parameters"]["IncludeInactive"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Recipient egg lots */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["RecipientEggLot"][];
-                    };
-                };
-            };
-        };
-    };
-    createRecipientEggLot: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RecipientEggLotInput"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecipientEggLot"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-        };
-    };
-    listCsofLots: {
-        parameters: {
-            query?: {
-                /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
-                includeInactive?: components["parameters"]["IncludeInactive"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description CSOF lots */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["CsofLot"][];
-                    };
-                };
-            };
-        };
-    };
-    createCsofLot: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CsofLotInput"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CsofLot"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-        };
-    };
-    listTreatmentGroups: {
-        parameters: {
-            query?: {
-                /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
-                includeInactive?: components["parameters"]["IncludeInactive"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Treatment groups */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["TreatmentGroup"][];
-                    };
-                };
-            };
-        };
-    };
-    createTreatmentGroup: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TreatmentGroupInput"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TreatmentGroup"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-        };
-    };
-    listFishBoxes: {
-        parameters: {
-            query?: {
-                /** @description Include deactivated rows. Off by default so dropdowns stay clean (FR-111). */
-                includeInactive?: components["parameters"]["IncludeInactive"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Fish boxes */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["FishBox"][];
-                    };
-                };
-            };
-        };
-    };
-    createFishBox: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FishBoxInput"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FishBox"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-        };
-    };
-    updateOperator: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["OperatorPatchInput"];
-            };
-        };
-        responses: {
-            /** @description Updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Operator"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    updateDonorCellLine: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DonorCellLinePatchInput"];
-            };
-        };
-        responses: {
-            /** @description Updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DonorCellLine"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    updateRecipientEggLot: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RecipientEggLotPatchInput"];
-            };
-        };
-        responses: {
-            /** @description Updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RecipientEggLot"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    updateCsofLot: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CsofLotPatchInput"];
-            };
-        };
-        responses: {
-            /** @description Updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CsofLot"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    updateTreatmentGroup: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["TreatmentGroupPatchInput"];
-            };
-        };
-        responses: {
-            /** @description Updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TreatmentGroup"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    updateFishBox: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FishBoxPatchInput"];
-            };
-        };
-        responses: {
-            /** @description Updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FishBox"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    listProtocols: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Protocols */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["Protocol"][];
-                    };
-                };
-            };
-        };
-    };
-    listProtocolStages: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Stage definitions */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["StageDefinition"][];
-                    };
-                };
-            };
-            404: components["responses"]["NotFound"];
-        };
-    };
-    getCurrentTimingProfile: {
-        parameters: {
-            query: {
-                protocolId: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Current profile with one entry per stage */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TimingProfile"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-        };
-    };
-    listTimingProfiles: {
-        parameters: {
-            query: {
-                protocolId: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Profile versions */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["TimingProfile"][];
-                    };
-                };
-            };
-        };
-    };
-    createTimingProfileVersion: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: uuid */
-                    protocolId: string;
-                    /** @example Lab-measured 2026-09 */
-                    name: string;
-                    /**
-                     * @description Recorded for reference. Not applied in v1 (Q-N2, FR-207 is v2).
-                     * @example 28.5
-                     */
-                    referenceTempC?: number | null;
-                    sourceNote?: string | null;
-                    /** @description Only the stages whose value changed need to be listed. */
-                    entries: {
-                        /** @example stage_09_256C */
-                        stageCode: string;
-                        /** @example 2.5 */
-                        expectedHpa: number;
-                    }[];
-                };
-            };
-        };
-        responses: {
-            /** @description New version created and made current */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TimingProfile"];
-                };
-            };
-            422: components["responses"]["UnprocessableEntity"];
-        };
-    };
-    exportTimingCsv: {
-        parameters: {
-            query: {
-                protocolId: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description CSV with columns stage_order, stage_code, label, expected_hpa */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/csv": string;
-                };
-            };
-        };
-    };
-    importTimingCsv: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "text/csv": string;
-            };
-        };
-        responses: {
-            /** @description New version created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TimingProfile"];
-                };
-            };
-            422: components["responses"]["UnprocessableEntity"];
-        };
-    };
-    listBatches: {
-        parameters: {
-            query?: {
-                dateFrom?: string;
-                dateTo?: string;
-                batchId?: string;
-                siteId?: string;
-                operatorId?: string;
-                treatmentGroupId?: string;
-                donorCellLineId?: string;
-                strain?: string;
-                limit?: components["parameters"]["Limit"];
-                cursor?: components["parameters"]["Cursor"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Batches */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["Batch"][];
-                        nextCursor?: string | null;
-                    };
-                };
-            };
-        };
-    };
-    createBatch: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchInput"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Batch"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-            422: components["responses"]["UnprocessableEntity"];
-        };
-    };
-    getBatch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Batch */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BatchDetail"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-        };
-    };
-    updateBatch: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchInput"];
-            };
-        };
-        responses: {
-            /** @description Updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Batch"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-        };
-    };
-    duplicateBatch: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: date */
-                    experimentDate: string;
-                    dayNo?: number | null;
-                    /**
-                     * @description Copy lot settings without embryos or activation times.
-                     * @default false
-                     */
-                    copyInjectionLots?: boolean;
-                };
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Batch"];
-                };
-            };
-        };
-    };
-    createInjectionLot: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InjectionLotInput"];
-            };
-        };
-        responses: {
-            /** @description Lot created with its embryos */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InjectionLotDetail"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-            422: components["responses"]["UnprocessableEntity"];
-        };
-    };
-    activateInjectionLotTemplate: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InjectionLotActivationInput"];
-            };
-        };
-        responses: {
-            /** @description Template activated and embryos created */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InjectionLotDetail"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            422: components["responses"]["UnprocessableEntity"];
-        };
-    };
-    listLotEmbryos: {
-        parameters: {
-            query?: {
-                /** @description Only embryos with no exit event yet (FR-405) */
-                aliveOnly?: boolean;
-            };
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Embryos */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["Embryo"][];
-                    };
-                };
-            };
-        };
-    };
-    addLotEmbryos: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    count: number;
-                };
-            };
-        };
-        responses: {
-            /** @description Embryos added */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["Embryo"][];
-                    };
-                };
-            };
-        };
-    };
-    deleteEmbryo: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Soft-deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            404: components["responses"]["NotFound"];
-        };
-    };
-    updateEmbryo: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** @example B3 */
-                    wellPosition?: string | null;
-                };
-            };
-        };
-        responses: {
-            /** @description Updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Embryo"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-        };
-    };
-    listControlArmCounts: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Counts */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["ControlArmCount"][];
-                    };
-                };
-            };
-        };
-    };
-    putControlArmCounts: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    items: {
-                        armType: components["schemas"]["ControlArmType"];
-                        /** @example stage_19_SH */
-                        stageCode: string;
-                        nNormal: number;
-                        nAbnormal: number;
-                    }[];
-                };
-            };
-        };
-        responses: {
-            /** @description Stored */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["ControlArmCount"][];
-                    };
-                };
-            };
-        };
-    };
-    listDueCheckpoints: {
-        parameters: {
-            query?: {
-                siteId?: string;
-                operatorId?: string;
-                batchId?: string;
-                treatmentGroupId?: string;
-                donorCellLineId?: string;
-                strain?: string;
-                dateFrom?: string;
-                dateTo?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Work queue */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        overdue: components["schemas"]["DueCheckpoint"][];
-                        upcoming: components["schemas"]["DueCheckpoint"][];
-                        pendingPromotionCount: number;
-                    };
-                };
-            };
-        };
-    };
-    getCheckpointEntry: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-                stageCode: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Entry screen payload */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CheckpointEntry"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-        };
-    };
-    createEmbryoObservations: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    observations: components["schemas"]["EmbryoObservationInput"][];
-                };
-            };
-        };
-        responses: {
-            /** @description Per-item results */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        results: components["schemas"]["EmbryoObservationResult"][];
-                    };
-                };
-            };
-        };
-    };
-    deleteEmbryoObservation: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Soft-deleted */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            404: components["responses"]["NotFound"];
-        };
-    };
-    updateEmbryoObservation: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    /** Format: date-time */
-                    observedAt?: string;
-                    outcome?: components["schemas"]["EmbryoOutcome"];
-                    condition?: components["schemas"]["Condition"];
-                    notes?: string | null;
-                    correctionReason?: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EmbryoObservation"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-        };
-    };
-    getFishRollCall: {
-        parameters: {
-            query: {
-                date: string;
-                boxId?: string;
-                siteId?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Roll-call list */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** Format: date */
-                        date: string;
-                        items: components["schemas"]["RollCallEntry"][];
-                    };
-                };
-            };
-        };
-    };
-    createFishObservations: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    observations: components["schemas"]["FishObservationInput"][];
-                };
-            };
-        };
-        responses: {
-            /** @description Per-item results */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        results: components["schemas"]["FishObservationResult"][];
-                    };
-                };
-            };
-        };
-    };
-    deleteFishObservation: {
-        parameters: {
-            query: {
-                reason: string;
-            };
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Soft-deleted and audited */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            404: components["responses"]["NotFound"];
-        };
-    };
-    updateFishObservation: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FishObservationPatchInput"];
-            };
-        };
-        responses: {
-            /** @description Corrected and audited */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            422: components["responses"]["UnprocessableEntity"];
-        };
-    };
-    listPendingPromotions: {
-        parameters: {
-            query?: {
-                siteId?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Candidates */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["PromotionCandidate"][];
-                    };
-                };
-            };
-        };
-    };
-    createPromotions: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    promotions: {
-                        /** Format: uuid */
-                        clientUuid: string;
-                        /** Format: uuid */
-                        embryoId: string;
-                        /**
-                         * @description Overrides the server's suggestion.
-                         * @example No.47_Clone1-AB cell-24
-                         */
-                        fishCode?: string | null;
-                        /** Format: uuid */
-                        fishBoxId?: string | null;
-                    }[];
-                };
-            };
-        };
-        responses: {
-            /** @description Fish created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["PromotionResult"][];
-                    };
-                };
-            };
-            409: components["responses"]["Conflict"];
-            422: components["responses"]["UnprocessableEntity"];
-        };
-    };
-    listFish: {
-        parameters: {
-            query?: {
-                status?: components["schemas"]["FishStatus"];
-                siteId?: string;
-                boxId?: string;
-                treatmentGroupId?: string;
-                batchId?: string;
-                operatorId?: string;
-                dateFrom?: string;
-                dateTo?: string;
-                donorCellLineId?: string;
-                strain?: string;
-                condition?: components["schemas"]["Condition"];
-                dobFrom?: string;
-                dobTo?: string;
-                limit?: components["parameters"]["Limit"];
-                cursor?: components["parameters"]["Cursor"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Fish */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["CloneFish"][];
-                        nextCursor?: string | null;
-                    };
-                };
-            };
-        };
-    };
-    createFish: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CloneFishInput"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CloneFish"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-        };
-    };
-    getFish: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Fish detail */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CloneFishDetail"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-        };
-    };
-    updateFish: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    fishCode?: string;
-                    sex?: components["schemas"]["Sex"];
-                    finClipped?: boolean;
-                    /** Format: uuid */
-                    fishBoxId?: string | null;
-                    remarks?: string | null;
-                };
-            };
-        };
-        responses: {
-            /** @description Updated */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CloneFish"];
-                };
-            };
-            404: components["responses"]["NotFound"];
-        };
-    };
-    listFishSpecimens: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Specimens */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["Specimen"][];
-                    };
-                };
-            };
-        };
-    };
-    createSpecimen: {
-        parameters: {
-            query?: never;
-            header: {
-                /** @description Who is doing this. Required on every write because there is no login (CON-01, FR-1105). */
-                "X-Operator-Id": components["parameters"]["OperatorId"];
-                /** @description Stable per-device identifier generated on first use and kept in local storage. */
-                "X-Device-Id": components["parameters"]["DeviceId"];
-                /** @description Stable key for one logical mutation. Replays return the original result. */
-                "X-Idempotency-Key": components["parameters"]["IdempotencyKey"];
-            };
-            path: {
-                id: components["parameters"]["PathId"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SpecimenInput"];
-            };
-        };
-        responses: {
-            /** @description Created */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Specimen"];
-                };
-            };
-            409: components["responses"]["Conflict"];
-        };
-    };
-    getAnalyticsDashboard: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
-                 *     can swap panels without rebuilding its query state:
-                 *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
-                 *     `donorCellLineId`, `strain`, `batchId`.
-                 */
-                filters?: components["parameters"]["AnalyticsFilters"];
-                /** @description Stage 1 chart grouping; include site plus at most one comparison dimension. */
-                stage1GroupBy?: ("site" | "strain" | "treatmentGroup" | "operator")[];
-                /** @description Stage 2 Kaplan-Meier comparison dimension; omit for the overall curve. */
-                stage2GroupBy?: ("condition" | "strain" | "treatmentGroup")[];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Dashboard analytics */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DashboardAnalyticsResponse"];
-                };
-            };
-        };
-    };
-    getKpi: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
-                 *     can swap panels without rebuilding its query state:
-                 *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
-                 *     `donorCellLineId`, `strain`, `batchId`.
-                 */
-                filters?: components["parameters"]["AnalyticsFilters"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description KPIs */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["KpiResponse"];
-                };
-            };
-        };
-    };
-    getFunnel: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
-                 *     can swap panels without rebuilding its query state:
-                 *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
-                 *     `donorCellLineId`, `strain`, `batchId`.
-                 */
-                filters?: components["parameters"]["AnalyticsFilters"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Funnel */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["FunnelStep"][];
-                        meta: components["schemas"]["AnalyticsMeta"];
-                    };
-                };
-            };
-        };
-    };
-    getSurvival: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
-                 *     can swap panels without rebuilding its query state:
-                 *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
-                 *     `donorCellLineId`, `strain`, `batchId`.
-                 */
-                filters?: components["parameters"]["AnalyticsFilters"];
-                groupBy?: ("site" | "strain" | "treatmentGroup" | "operator")[];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Survival table */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["SurvivalPoint"][];
-                        meta: components["schemas"]["AnalyticsMeta"];
-                    };
-                };
-            };
-        };
-    };
-    getTimingDeviation: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
-                 *     can swap panels without rebuilding its query state:
-                 *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
-                 *     `donorCellLineId`, `strain`, `batchId`.
-                 */
-                filters?: components["parameters"]["AnalyticsFilters"];
-                groupBy?: ("site" | "strain" | "treatmentGroup" | "operator")[];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Deviation summary */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["DeviationSummary"][];
-                        meta: components["schemas"]["AnalyticsMeta"];
-                    };
-                };
-            };
-        };
-    };
-    getAbnormalityOnset: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
-                 *     can swap panels without rebuilding its query state:
-                 *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
-                 *     `donorCellLineId`, `strain`, `batchId`.
-                 */
-                filters?: components["parameters"]["AnalyticsFilters"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Onset histogram */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: {
-                            stageOrder: number;
-                            stageLabel: string;
-                            count: number;
-                        }[];
-                        meta: components["schemas"]["AnalyticsMeta"];
-                    };
-                };
-            };
-        };
-    };
-    getFishSurvival: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
-                 *     can swap panels without rebuilding its query state:
-                 *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
-                 *     `donorCellLineId`, `strain`, `batchId`.
-                 */
-                filters?: components["parameters"]["AnalyticsFilters"];
-                /** @description Return Ever abnormal, No abnormality recorded, and unknown fish as separate exploratory series (FR-817) */
-                splitByCondition?: boolean;
-                /** @description One optional comparison dimension for the Kaplan-Meier chart; omit for the overall curve. */
-                groupBy?: ("condition" | "strain" | "treatmentGroup")[];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Fish survival series with daily events and right-censoring */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: {
-                            group?: string | null;
-                            /** @description Current comparison group when splitByCondition=true. */
-                            condition?: string | null;
-                            /** @description Semantic comparison group — EVER_ABNORMAL, NO_ABNORMALITY_RECORDED, or UNKNOWN. */
-                            abnormalityGroup?: string | null;
-                            strain?: string | null;
-                            treatmentGroup?: string | null;
-                            ageDays: number;
-                            atRisk: number;
-                            alive: number;
-                            /** @description Death events at this age. */
-                            nEvents?: number;
-                            /** @description Right-censored fish at this age. */
-                            nCensored?: number;
-                            nAlive?: number;
-                            nDead?: number;
-                            nFrozen?: number;
-                            nDiscarded?: number;
-                            nMale?: number;
-                            nFemale?: number;
-                            nUnknownSex?: number;
-                            nBoxes?: number;
-                            /** @description Kaplan-Meier survival estimate. */
-                            surv: number;
-                            /** @description Approximate Greenwood 95% lower confidence bound. */
-                            survLower95?: number;
-                            /** @description Approximate Greenwood 95% upper confidence bound. */
-                            survUpper95?: number;
-                        }[];
-                        meta: components["schemas"]["AnalyticsMeta"];
-                        supporting: {
-                            statusComposition: {
-                                status: string;
-                                n: number;
-                                pct: number | null;
-                            }[];
-                            ageDistribution: {
-                                bin: string;
-                                minDays: number;
-                                maxDays: number | null;
-                                n: number;
-                                pct: number | null;
-                            }[];
-                            ageDefinition: string;
-                            sexComposition: {
-                                sex: string;
-                                n: number;
-                                pct: number | null;
-                            }[];
-                            sexCompleteness: {
-                                known: number;
-                                unknown: number;
-                                pctComplete: number | null;
-                            };
-                            boxCensus: {
-                                fishBoxId?: string | null;
-                                boxCode: string;
-                                n: number;
-                                pct: number | null;
-                                empty: boolean;
-                                statusCounts: {
-                                    ALIVE: number;
-                                    DEAD: number;
-                                    FROZEN: number;
-                                    DISCARDED: number;
-                                    UNKNOWN: number;
-                                };
-                            }[];
-                            boxMeta: {
-                                nBoxes: number;
-                                emptyBoxes: number;
-                            };
-                            batchPerformance: {
-                                batchId: string;
-                                batchCode: string;
-                                /** @enum {string} */
-                                status: "ELIGIBLE" | "NOT_ELIGIBLE" | "MISSING" | "MISSING_CONDITION";
-                                eligible: boolean;
-                                n: number;
-                                denominator: number;
-                                nNormal: number;
-                                nAbnormal: number;
-                                missingEmbryos: number;
-                                pctNormal: number | null;
-                            }[];
-                            /** @description Day 5 due is calculated per lot from activatedAt plus timing-profile expectedHpa for protocol stage order 26; future embryos without observations are excluded from missing counts. */
-                            day5Definition: string;
-                            missingExitDate?: number;
-                        };
-                    };
-                };
-            };
-        };
-    };
-    getObservationGaps: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
-                 *     can swap panels without rebuilding its query state:
-                 *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
-                 *     `donorCellLineId`, `strain`, `batchId`.
-                 */
-                filters?: components["parameters"]["AnalyticsFilters"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Gaps */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: {
-                            /** Format: uuid */
-                            fishId: string;
-                            fishCode: string;
-                            /** Format: date */
-                            lastObservedOn: string | null;
-                            missedDays: number;
-                        }[];
-                        meta: components["schemas"]["AnalyticsMeta"];
-                    };
-                };
-            };
-        };
-    };
-    getPipeline: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
-                 *     can swap panels without rebuilding its query state:
-                 *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
-                 *     `donorCellLineId`, `strain`, `batchId`.
-                 */
-                filters?: components["parameters"]["AnalyticsFilters"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Pipeline */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: {
-                            /** @example Reached Shield */
-                            step: string;
-                            count: number;
-                            pctOfStart: number | null;
-                            pctOfPrevious?: number | null;
-                        }[];
-                        meta: components["schemas"]["AnalyticsMeta"];
-                    };
-                };
-            };
-        };
-    };
-    exportExcel: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ExportRequest"];
-            };
-        };
-        responses: {
-            /** @description Workbook */
-            200: {
-                headers: {
-                    "Content-Disposition"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
-                };
-            };
-        };
-    };
-    exportRTable: {
-        parameters: {
-            query?: {
-                /**
-                 * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
-                 *     can swap panels without rebuilding its query state:
-                 *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
-                 *     `donorCellLineId`, `strain`, `batchId`.
-                 */
-                filters?: components["parameters"]["AnalyticsFilters"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description CSV */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/csv": string;
-                };
-            };
-        };
-    };
-    listAuditLog: {
-        parameters: {
-            query?: {
-                table?: string;
-                recordId?: string;
-                operatorId?: string;
-                from?: string;
-                to?: string;
-                limit?: components["parameters"]["Limit"];
-                cursor?: components["parameters"]["Cursor"];
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Audit entries */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        items: components["schemas"]["AuditEntry"][];
-                        nextCursor?: string | null;
-                    };
-                };
-            };
-        };
-    };
-    getHealth: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description API is ready to serve requests */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        /** @constant */
-                        status: "ok";
-                        version: string;
-                    };
-                };
-            };
-        };
-    };
+        filters?: components["parameters"]["AnalyticsFilters"];
+        /** @description Stage 1 chart grouping; include site plus at most one comparison dimension. */
+        stage1GroupBy?: ("site" | "strain" | "treatmentGroup" | "operator")[];
+        /** @description Stage 2 Kaplan-Meier comparison dimension; omit for the overall curve. */
+        stage2GroupBy?: ("condition" | "strain" | "treatmentGroup")[];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Dashboard analytics */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["DashboardAnalyticsResponse"];
+        };
+      };
+    };
+  };
+  getKpi: {
+    parameters: {
+      query?: {
+        /**
+         * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
+         *     can swap panels without rebuilding its query state:
+         *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
+         *     `donorCellLineId`, `strain`, `batchId`.
+         */
+        filters?: components["parameters"]["AnalyticsFilters"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description KPIs */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["KpiResponse"];
+        };
+      };
+    };
+  };
+  getFunnel: {
+    parameters: {
+      query?: {
+        /**
+         * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
+         *     can swap panels without rebuilding its query state:
+         *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
+         *     `donorCellLineId`, `strain`, `batchId`.
+         */
+        filters?: components["parameters"]["AnalyticsFilters"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Funnel */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["FunnelStep"][];
+            meta: components["schemas"]["AnalyticsMeta"];
+          };
+        };
+      };
+    };
+  };
+  getSurvival: {
+    parameters: {
+      query?: {
+        /**
+         * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
+         *     can swap panels without rebuilding its query state:
+         *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
+         *     `donorCellLineId`, `strain`, `batchId`.
+         */
+        filters?: components["parameters"]["AnalyticsFilters"];
+        groupBy?: ("site" | "strain" | "treatmentGroup" | "operator")[];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Survival table */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["SurvivalPoint"][];
+            meta: components["schemas"]["AnalyticsMeta"];
+          };
+        };
+      };
+    };
+  };
+  getTimingDeviation: {
+    parameters: {
+      query?: {
+        /**
+         * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
+         *     can swap panels without rebuilding its query state:
+         *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
+         *     `donorCellLineId`, `strain`, `batchId`.
+         */
+        filters?: components["parameters"]["AnalyticsFilters"];
+        groupBy?: ("site" | "strain" | "treatmentGroup" | "operator")[];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Deviation summary */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["DeviationSummary"][];
+            meta: components["schemas"]["AnalyticsMeta"];
+          };
+        };
+      };
+    };
+  };
+  getAbnormalityOnset: {
+    parameters: {
+      query?: {
+        /**
+         * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
+         *     can swap panels without rebuilding its query state:
+         *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
+         *     `donorCellLineId`, `strain`, `batchId`.
+         */
+        filters?: components["parameters"]["AnalyticsFilters"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Onset histogram */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              stageOrder: number;
+              stageLabel: string;
+              count: number;
+            }[];
+            meta: components["schemas"]["AnalyticsMeta"];
+          };
+        };
+      };
+    };
+  };
+  getFishSurvival: {
+    parameters: {
+      query?: {
+        /**
+         * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
+         *     can swap panels without rebuilding its query state:
+         *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
+         *     `donorCellLineId`, `strain`, `batchId`.
+         */
+        filters?: components["parameters"]["AnalyticsFilters"];
+        /** @description Return Ever abnormal, No abnormality recorded, and unknown fish as separate exploratory series (FR-817) */
+        splitByCondition?: boolean;
+        /** @description One optional comparison dimension for the Kaplan-Meier chart; omit for the overall curve. */
+        groupBy?: ("condition" | "strain" | "treatmentGroup")[];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Fish survival series with daily events and right-censoring */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              group?: string | null;
+              /** @description Current comparison group when splitByCondition=true. */
+              condition?: string | null;
+              /** @description Semantic comparison group — EVER_ABNORMAL, NO_ABNORMALITY_RECORDED, or UNKNOWN. */
+              abnormalityGroup?: string | null;
+              strain?: string | null;
+              treatmentGroup?: string | null;
+              ageDays: number;
+              atRisk: number;
+              alive: number;
+              /** @description Death events at this age. */
+              nEvents?: number;
+              /** @description Right-censored fish at this age. */
+              nCensored?: number;
+              nAlive?: number;
+              nDead?: number;
+              nFrozen?: number;
+              nDiscarded?: number;
+              nMale?: number;
+              nFemale?: number;
+              nUnknownSex?: number;
+              nBoxes?: number;
+              /** @description Kaplan-Meier survival estimate. */
+              surv: number;
+              /** @description Approximate Greenwood 95% lower confidence bound. */
+              survLower95?: number;
+              /** @description Approximate Greenwood 95% upper confidence bound. */
+              survUpper95?: number;
+            }[];
+            meta: components["schemas"]["AnalyticsMeta"];
+            supporting: {
+              statusComposition: {
+                status: string;
+                n: number;
+                pct: number | null;
+              }[];
+              ageDistribution: {
+                bin: string;
+                minDays: number;
+                maxDays: number | null;
+                n: number;
+                pct: number | null;
+              }[];
+              ageDefinition: string;
+              sexComposition: {
+                sex: string;
+                n: number;
+                pct: number | null;
+              }[];
+              sexCompleteness: {
+                known: number;
+                unknown: number;
+                pctComplete: number | null;
+              };
+              boxCensus: {
+                fishBoxId?: string | null;
+                boxCode: string;
+                n: number;
+                pct: number | null;
+                empty: boolean;
+                statusCounts: {
+                  ALIVE: number;
+                  DEAD: number;
+                  FROZEN: number;
+                  DISCARDED: number;
+                  UNKNOWN: number;
+                };
+              }[];
+              boxMeta: {
+                nBoxes: number;
+                emptyBoxes: number;
+              };
+              batchPerformance: {
+                batchId: string;
+                batchCode: string;
+                /** @enum {string} */
+                status: "ELIGIBLE" | "NOT_ELIGIBLE" | "MISSING" | "MISSING_CONDITION";
+                eligible: boolean;
+                n: number;
+                denominator: number;
+                nNormal: number;
+                nAbnormal: number;
+                missingEmbryos: number;
+                pctNormal: number | null;
+              }[];
+              /** @description Day 5 due is calculated per lot from activatedAt plus timing-profile expectedHpa for protocol stage order 26; future embryos without observations are excluded from missing counts. */
+              day5Definition: string;
+              missingExitDate?: number;
+            };
+          };
+        };
+      };
+    };
+  };
+  getObservationGaps: {
+    parameters: {
+      query?: {
+        /**
+         * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
+         *     can swap panels without rebuilding its query state:
+         *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
+         *     `donorCellLineId`, `strain`, `batchId`.
+         */
+        filters?: components["parameters"]["AnalyticsFilters"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Gaps */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** Format: uuid */
+              fishId: string;
+              fishCode: string;
+              /** Format: date */
+              lastObservedOn: string | null;
+              missedDays: number;
+            }[];
+            meta: components["schemas"]["AnalyticsMeta"];
+          };
+        };
+      };
+    };
+  };
+  getPipeline: {
+    parameters: {
+      query?: {
+        /**
+         * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
+         *     can swap panels without rebuilding its query state:
+         *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
+         *     `donorCellLineId`, `strain`, `batchId`.
+         */
+        filters?: components["parameters"]["AnalyticsFilters"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Pipeline */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: {
+              /** @example Reached Shield */
+              step: string;
+              count: number;
+              pctOfStart: number | null;
+              pctOfPrevious?: number | null;
+            }[];
+            meta: components["schemas"]["AnalyticsMeta"];
+          };
+        };
+      };
+    };
+  };
+  exportExcel: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ExportRequest"];
+      };
+    };
+    responses: {
+      /** @description Workbook */
+      200: {
+        headers: {
+          "Content-Disposition"?: string;
+          [name: string]: unknown;
+        };
+        content: {
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+        };
+      };
+    };
+  };
+  exportRTable: {
+    parameters: {
+      query?: {
+        /**
+         * @description Every `/analytics` endpoint accepts the same filter set, so the dashboard
+         *     can swap panels without rebuilding its query state:
+         *     `dateFrom`, `dateTo`, `siteId`, `operatorId`, `treatmentGroupId`,
+         *     `donorCellLineId`, `strain`, `batchId`.
+         */
+        filters?: components["parameters"]["AnalyticsFilters"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description CSV */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "text/csv": string;
+        };
+      };
+    };
+  };
+  listAuditLog: {
+    parameters: {
+      query?: {
+        table?: string;
+        recordId?: string;
+        operatorId?: string;
+        from?: string;
+        to?: string;
+        limit?: components["parameters"]["Limit"];
+        cursor?: components["parameters"]["Cursor"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Audit entries */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            items: components["schemas"]["AuditEntry"][];
+            nextCursor?: string | null;
+          };
+        };
+      };
+    };
+  };
+  getHealth: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description API is ready to serve requests */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** @constant */
+            status: "ok";
+            version: string;
+          };
+        };
+      };
+    };
+  };
 }
