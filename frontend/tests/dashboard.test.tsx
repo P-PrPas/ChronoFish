@@ -10,6 +10,7 @@ import {
   Dashboard,
   dashboardDataPath,
   FishSurvivalChart,
+  FunnelChart,
   formatDeviationHours,
   PipelineSummary,
   parseDashboardTab,
@@ -111,6 +112,41 @@ describe("analytics dashboard", () => {
               { ageDays: 0, atRisk: 1, alive: 1, surv: 1, condition: "NORMAL", strain: "AB", treatmentGroup: "SCNT" },
             ],
             meta: meta(1),
+            supporting: {
+              statusComposition: [
+                { status: "DEAD", n: 1, pct: 0.5 },
+                { status: "DISCARDED", n: 1, pct: 0.5 },
+              ],
+              ageDistribution: [{ bin: "14-20", n: 2, pct: 1 }],
+              ageDefinition: "Age is calculated at the current follow-up date.",
+              sexComposition: [
+                { sex: "F", n: 1, pct: 0.5 },
+                { sex: "UNKNOWN", n: 1, pct: 0.5 },
+              ],
+              sexCompleteness: { known: 1, unknown: 1, pctComplete: 0.5 },
+              boxCensus: [
+                {
+                  boxCode: "A2",
+                  n: 0,
+                  pct: 0,
+                  empty: true,
+                  statusCounts: { DEAD: 0, DISCARDED: 0 },
+                },
+              ],
+              boxMeta: { nBoxes: 1, emptyBoxes: 1 },
+              batchPerformance: [
+                {
+                  batchId: "batch-1",
+                  batchCode: "B-1",
+                  status: "MISSING",
+                  n: 0,
+                  denominator: 0,
+                  missingEmbryos: 1,
+                  pctNormal: null,
+                },
+              ],
+              day5Definition: "Day 5 is calculated from each lot due time.",
+            },
           },
           observationGaps: {
             items: [{ fishCode: "F-01", lastObservedOn: "2026-08-22", missedDays: 2 }],
@@ -175,6 +211,8 @@ describe("analytics dashboard", () => {
     expect(new URLSearchParams(window.location.search).get("tab")).toBe("stage2");
     expect(new URLSearchParams(window.location.search).get("siteId")).toBe("site-1");
     expect(document.body.textContent).toContain("All fish in registry");
+    expect(document.body.textContent).toContain("View supporting fish composition and cohort quality");
+    expect(document.body.textContent).toContain("Completeness warning: unknown sex records remain in this cohort.");
     expect(document.body.textContent).toContain("1 fish need a follow-up check");
     expect(document.body.textContent).toContain("Open daily fish check");
     expect(document.body.textContent).toContain("no lowest/best fish-survival headline is reported");
@@ -205,6 +243,17 @@ describe("analytics dashboard", () => {
       (select) => select.getAttribute("aria-label") === "Chart comparison dimension",
     ) as HTMLSelectElement;
     expect(restoredComparison.value).toBe("overall");
+    for (const value of ["abnormalityGroup", "treatmentGroup", "overall"]) {
+      const comparison = Array.from(document.querySelectorAll("select")).find(
+        (select) => select.getAttribute("aria-label") === "Chart comparison dimension",
+      ) as HTMLSelectElement;
+      await act(async () => {
+        comparison.value = value;
+        comparison.dispatchEvent(new Event("change", { bubbles: true }));
+        await Promise.resolve();
+      });
+      expect(comparison.value).toBe(value);
+    }
     const dailyFishCheck = Array.from(document.querySelectorAll("button")).find(
       (button) => button.textContent === "Open daily fish check",
     );
@@ -219,6 +268,26 @@ describe("analytics dashboard", () => {
         ?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
       await Promise.resolve();
     });
+    const stage1Comparison = Array.from(document.querySelectorAll("select")).find(
+      (select) => select.getAttribute("aria-label") === "Chart comparison dimension",
+    ) as HTMLSelectElement;
+    for (const value of ["treatmentGroup", "operator", "strain"]) {
+      await act(async () => {
+        stage1Comparison.value = value;
+        stage1Comparison.dispatchEvent(new Event("change", { bubbles: true }));
+        await Promise.resolve();
+      });
+      expect(stage1Comparison.value).toBe(value);
+    }
+    await act(async () => {
+      stage1Tab.dispatchEvent(new KeyboardEvent("keydown", { key: "End", bubbles: true }));
+      await Promise.resolve();
+      document
+        .getElementById("dashboard-tab-overall")
+        ?.dispatchEvent(new KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+      await Promise.resolve();
+    });
+    expect(document.getElementById("dashboard-tab-stage1")?.getAttribute("aria-selected")).toBe("true");
 
     const openBatches = Array.from(document.querySelectorAll("button")).find(
       (button) => button.textContent === "Open filtered batches",
@@ -268,14 +337,256 @@ describe("analytics dashboard", () => {
   it("falls back to Stage 1 for an invalid URL tab", () => {
     expect(parseDashboardTab("?tab=not-a-dashboard-tab")).toBe("stage1");
     expect(parseDashboardTab("?tab=stage2")).toBe("stage2");
+    expect(parseDashboardTab("?tab=overall")).toBe("overall");
     expect(parseStage1Comparison("?stage1Compare=operator")).toBe("operator");
+    expect(parseStage1Comparison("?stage1Compare=treatmentGroup")).toBe("treatmentGroup");
     expect(parseStage1Comparison("?stage1Compare=invalid")).toBe("strain");
+    expect(parseStage2Comparison("?stage2Compare=abnormalityGroup")).toBe("abnormalityGroup");
+    expect(parseStage2Comparison("?stage2Compare=strain")).toBe("strain");
     expect(parseStage2Comparison("?stage2Compare=treatmentGroup")).toBe("treatmentGroup");
     expect(parseStage2Comparison("?stage2Compare=invalid")).toBe("overall");
     expect(dashboardDataPath({ siteId: "site-1" }, "strain", "overall")).toContain(
       "stage1GroupBy=site&stage1GroupBy=strain",
     );
     expect(dashboardDataPath({ siteId: "site-1" }, "strain", "abnormalityGroup")).toContain("stage2GroupBy=condition");
+    expect(dashboardDataPath({}, "operator", "treatmentGroup")).toContain("stage2GroupBy=treatmentGroup");
+    expect(dashboardDataPath({}, "treatmentGroup", "overall")).not.toContain("stage2GroupBy");
+  });
+
+  it("renders populated Stage 1, Stage 2, and overview analytics in Thai", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).includes("/analytics/dashboard"))
+        return json({
+          reportMeta: { generatedAt: "2026-09-02T01:00:00Z", timingProfileVersions: [1, 2] },
+          kpi: {
+            stage1: {
+              nActivated: 8,
+              nPromoted: 3,
+              nReachedShield: 4,
+              nReachedDay1: 3,
+              nBatches: 2,
+              pctNormal: 0.5,
+              controlComparison: [
+                { armType: "SCNT", stageLabel: "Shield", n: 4, nNormal: 2, nAbnormal: 2, pctNormal: 0.5 },
+              ],
+              meta: meta(8, { unknown: { fishSex: 1 }, missing: { latestEmbryoObservation: 1 } }),
+            },
+            stage2: {
+              nFish: 3,
+              nAlive: 2,
+              nDead: 1,
+              nFrozen: 0,
+              nDiscarded: 0,
+              nNormal: 2,
+              nAbnormal: 1,
+              meanAgeDaysAlive: 30,
+            },
+          },
+          funnel: {
+            items: [
+              { stageOrder: 1, stageLabel: "1-cell", riskSet: 8, alive: 8, nDead: 0, pctOfActivated: 1 },
+              { stageOrder: 2, stageLabel: "Shield", riskSet: 8, alive: 4, nDead: 4, pctOfActivated: 0.5 },
+            ],
+            meta: meta(),
+          },
+          survival: {
+            items: [
+              { site: "KU", strain: "AB", stageOrder: 1, stageLabel: "1-cell", riskSet: 4, alive: 4, surv: 1 },
+              { site: "KU", strain: "AB", stageOrder: 2, stageLabel: "Shield", riskSet: 4, alive: 2, surv: 0.5 },
+              { site: "KU", strain: "TU", stageOrder: 1, stageLabel: "1-cell", riskSet: 4, alive: 4, surv: 1 },
+              { site: "KU", strain: "TU", stageOrder: 2, stageLabel: "Shield", riskSet: 4, alive: 2, surv: 0.5 },
+            ],
+            meta: meta(),
+          },
+          timingDeviation: {
+            items: [
+              {
+                stageOrder: 2,
+                stageLabel: "Shield",
+                n: 4,
+                meanDeviationH: 1,
+                medianDeviationH: 1,
+                q1DeviationH: 0,
+                q3DeviationH: 2,
+                minDeviationH: -1,
+                maxDeviationH: 3,
+              },
+            ],
+            meta: meta(),
+          },
+          abnormalityOnset: {
+            items: [{ stageOrder: 2, stageLabel: "Shield", count: 2 }],
+            meta: meta(8, { denominators: { noAbnormalityRecorded: 4 }, missing: { firstAbnormality: 2 } }),
+          },
+          fishSurvival: {
+            items: [
+              {
+                ageDays: 30,
+                atRisk: 3,
+                alive: 2,
+                surv: 0.67,
+                condition: "NORMAL",
+                strain: "AB",
+                treatmentGroup: "SCNT",
+                nEvents: 1,
+                nCensored: 1,
+              },
+            ],
+            meta: meta(3),
+            supporting: {
+              statusComposition: [
+                { status: "ALIVE", n: 2, pct: 2 / 3 },
+                { status: "FROZEN", n: 1, pct: 1 / 3 },
+              ],
+              ageDistribution: [
+                { bin: "0-6", n: 2, pct: 2 / 3 },
+                { bin: "7-13", n: 1, pct: 1 / 3 },
+              ],
+              ageDefinition: "Age is calculated from the latest follow-up date.",
+              sexComposition: [
+                { sex: "M", n: 1, pct: 1 / 3 },
+                { sex: "UNKNOWN", n: 2, pct: 2 / 3 },
+              ],
+              sexCompleteness: { known: 1, unknown: 2, pctComplete: 1 / 3 },
+              boxCensus: [
+                {
+                  boxCode: "A1",
+                  n: 3,
+                  pct: 1,
+                  empty: false,
+                  statusCounts: { ALIVE: 2, FROZEN: 1 },
+                },
+              ],
+              boxMeta: { nBoxes: 1, emptyBoxes: 0 },
+              batchPerformance: [
+                {
+                  batchId: "batch-1",
+                  batchCode: "B-1",
+                  status: "ELIGIBLE",
+                  n: 3,
+                  denominator: 3,
+                  missingEmbryos: 1,
+                  pctNormal: 2 / 3,
+                },
+              ],
+              day5Definition: "Day 5 is based on the lot due time.",
+            },
+          },
+          observationGaps: { items: [{ fishCode: "F-1", lastObservedOn: "2026-09-01", missedDays: 2 }], meta: meta(3) },
+          pipeline: {
+            items: [
+              { step: "Activated", count: 8, pctOfPrevious: 1, pctOfStart: 1 },
+              { step: "Shield", count: 4, pctOfPrevious: 0.5, pctOfStart: 0.5 },
+            ],
+            meta: meta(),
+          },
+        });
+      return json({ items: [] });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const rootElement = document.createElement("div");
+    document.body.append(rootElement);
+    const root = createRoot(rootElement);
+    await act(async () => {
+      root.render(<Dashboard onNavigate={vi.fn()} t={text.th} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    expect(document.querySelectorAll(".chart-point")).not.toHaveLength(0);
+    for (const tab of ["overall", "stage2"] as const) {
+      await act(async () => {
+        (document.getElementById(`dashboard-tab-${tab}`) as HTMLButtonElement).click();
+        await Promise.resolve();
+      });
+      expect(document.getElementById(`dashboard-panel-${tab}`)?.getAttribute("role")).toBe("tabpanel");
+    }
+    const supporting = document.querySelector("details.supporting-analysis") as HTMLDetailsElement;
+    await act(async () => {
+      supporting.open = true;
+      supporting.dispatchEvent(new Event("toggle"));
+    });
+    expect(supporting.querySelectorAll(".supporting-analysis__section")).toHaveLength(5);
+    expect(supporting.querySelectorAll(".composition__segment")).not.toHaveLength(0);
+    root.unmount();
+  });
+
+  it("keeps all dashboard tabs usable when an analytical snapshot is empty", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes("/analytics/dashboard"))
+          return json({
+            reportMeta: {},
+            kpi: { stage1: { controlComparison: [] }, stage2: {}, meta: meta(0) },
+            funnel: { items: [], meta: meta(0) },
+            survival: { items: [], meta: meta(0) },
+            timingDeviation: { items: [], meta: meta(0) },
+            abnormalityOnset: { items: [], meta: meta(0) },
+            fishSurvival: { items: [], meta: meta(0) },
+            observationGaps: { items: [], meta: meta(0) },
+            pipeline: { items: [], meta: meta(0) },
+          });
+        return json({ items: [] });
+      }),
+    );
+    const rootElement = document.createElement("div");
+    document.body.append(rootElement);
+    const root = createRoot(rootElement);
+    await act(async () => {
+      root.render(<Dashboard onNavigate={vi.fn()} t={text.en} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    for (const tab of ["stage1", "stage2", "overall"] as const) {
+      await act(async () => {
+        (document.getElementById(`dashboard-tab-${tab}`) as HTMLButtonElement).click();
+        await Promise.resolve();
+      });
+      expect(document.getElementById(`dashboard-panel-${tab}`)).not.toBeNull();
+    }
+    expect(document.body.textContent).toContain("No pipeline records match these filters.");
+    root.unmount();
+  });
+
+  it("renders a partial analytics response without turning unknown values into invented measurements", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input).includes("/analytics/dashboard"))
+          return json({
+            reportMeta: {},
+            kpi: { stage1: { controlComparison: [{}] }, stage2: {} },
+            funnel: { items: [{}] },
+            survival: { items: [{}] },
+            timingDeviation: { items: [{}] },
+            abnormalityOnset: { items: [{}] },
+            fishSurvival: { items: [{}], supporting: {} },
+            observationGaps: { items: [] },
+            pipeline: { items: [{}] },
+          });
+        return json({ items: [] });
+      }),
+    );
+    const rootElement = document.createElement("div");
+    document.body.append(rootElement);
+    const root = createRoot(rootElement);
+    await act(async () => {
+      root.render(<Dashboard onNavigate={vi.fn()} t={text.en} />);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      (document.getElementById("dashboard-tab-stage2") as HTMLButtonElement).click();
+      await Promise.resolve();
+    });
+    expect(document.body.textContent).toContain("Unknown complete.");
+    expect(document.body.textContent).toContain("View supporting fish composition and cohort quality");
+    expect(document.body.textContent).toContain("No composition data is available for this cohort.");
+    expect(document.body.textContent).toContain("No fish ages are available for this cohort.");
+    expect(document.body.textContent).toContain("No fish-box records are available for this cohort.");
+    await act(async () => {
+      (document.getElementById("dashboard-tab-overall") as HTMLButtonElement).click();
+      await Promise.resolve();
+    });
+    expect(document.body.textContent).toContain("End-to-end pipeline conversion");
+    root.unmount();
   });
 
   it("guards headline candidates by their own risk set even when total n is five", async () => {
@@ -375,6 +686,68 @@ describe("analytics dashboard", () => {
     expect(lines.some((line) => line.hasAttribute("stroke-dasharray"))).toBe(true);
     expect(document.querySelector('svg[aria-label="กราฟ Kaplan–Meier อัตรารอดของปลาตามอายุ"]')).not.toBeNull();
     expect(document.querySelectorAll(".chart-line")).toHaveLength(4);
+    root.unmount();
+  });
+
+  it("caps crowded comparison charts while retaining toggles and group fallbacks", async () => {
+    const stagePoints = ["SCNT", "IVF", "Control", "Rescue", "Pilot"].flatMap((treatmentGroup, index) => [
+      {
+        stageOrder: 1,
+        stageLabel: "1-cell",
+        site: "North",
+        treatmentGroup,
+        riskSet: 5,
+        alive: 5,
+        surv: 1,
+      },
+      {
+        stageOrder: 2,
+        stageLabel: "2-cell",
+        site: "North",
+        treatmentGroup,
+        riskSet: 5,
+        alive: 4,
+        surv: 0.95 - index / 20,
+      },
+    ]);
+    const fishPoints = ["EVER_ABNORMAL", "NO_ABNORMALITY", "UNKNOWN", "REVIEW", "PENDING"].flatMap(
+      (abnormalityGroup, index) => [
+        { ageDays: 0, abnormalityGroup, atRisk: 5, surv: 1, nEvents: 0, nCensored: 0 },
+        { ageDays: 7, abnormalityGroup, atRisk: 5, surv: 0.9 - index / 20, nEvents: 1, nCensored: 0 },
+      ],
+    );
+    const rootElement = document.createElement("div");
+    document.body.append(rootElement);
+    const root = createRoot(rootElement);
+    await act(async () => {
+      root.render(
+        <>
+          <SurvivalChart points={stagePoints} comparison="treatmentGroup" />
+          <FishSurvivalChart points={fishPoints} comparison="abnormalityGroup" />
+          <FunnelChart
+            points={Array.from({ length: 9 }, (_, index) => ({
+              stageOrder: index + 1,
+              stageLabel: `Stage ${index + 1}`,
+              riskSet: index === 0 ? 0 : 10,
+              nDead: index === 1 ? 0 : index,
+            }))}
+          />
+        </>,
+      );
+      await Promise.resolve();
+    });
+    expect(document.body.textContent).toContain("Showing at most 4 series per site (4 of 5)");
+    expect(document.body.textContent).toContain("Showing 4 of 5 groups");
+    expect(document.body.textContent).toContain("Abnormality group");
+    expect(document.querySelector("svg.chart--funnel")?.getAttribute("viewBox")).toBe("0 0 560 268");
+    const legendItems = document.querySelectorAll<HTMLButtonElement>("button.chart-legend__item");
+    await act(async () => {
+      legendItems[0].click();
+      legendItems[4].click();
+      await Promise.resolve();
+    });
+    expect(legendItems[0].getAttribute("aria-pressed")).toBe("false");
+    expect(legendItems[4].getAttribute("aria-pressed")).toBe("false");
     root.unmount();
   });
 
@@ -529,6 +902,9 @@ describe("analytics dashboard", () => {
     expect(formatDeviationHours(8 / 60)).toBe("+8 min");
     expect(formatDeviationHours(-1.2)).toBe("−1 hr 12 min");
     expect(formatDeviationHours(0)).toBe("0 min");
+    expect(formatDeviationHours(null)).toBe("Unknown");
+    expect(formatDeviationHours("not-a-number")).toBe("Unknown");
+    expect(formatDeviationHours(1, true)).toMatch(/1/);
     const rootElement = document.createElement("div");
     document.body.append(rootElement);
     const root = createRoot(rootElement);
@@ -630,6 +1006,81 @@ describe("analytics dashboard", () => {
     expect(document.body.textContent).toContain("Median −1 hr 12 min");
     expect(document.body.textContent).toContain("อายุเป็นวัน ณ วันที่ติดตามล่าสุด");
     expect(document.body.textContent).toContain("Day 5 ใช้เวลา due ของแต่ละล็อต");
+    root.unmount();
+  });
+
+  it("distinguishes unavailable and incomplete supporting analytics from zero-valued results", async () => {
+    const boxes = Array.from({ length: 9 }, (_, index) => ({
+      boxCode: `B${index + 1}`,
+      n: index === 0 ? 0 : index,
+      pct: index / 40,
+      empty: index === 0,
+      statusCounts: index === 1 ? undefined : { ALIVE: index },
+    }));
+    const batches = Array.from({ length: 9 }, (_, index) => ({
+      batchId: `batch-${index + 1}`,
+      batchCode: `Batch ${index + 1}`,
+      status: index === 0 ? "MISSING_CONDITION" : index === 1 ? "UNMAPPED" : "ELIGIBLE",
+      denominator: index < 2 ? 0 : 5,
+      n: index,
+      missingEmbryos: index < 2 ? 1 : 0,
+      pctNormal: index < 2 ? null : 0.8,
+    }));
+    const rootElement = document.createElement("div");
+    document.body.append(rootElement);
+    const root = createRoot(rootElement);
+    await act(async () => {
+      root.render(
+        <>
+          <StackedComposition rows={[]} field="status" thai={false} />
+          <AgeDistributionSummary rows={[]} thai={false} />
+          <BoxCensusSummary rows={[]} thai={false} />
+          <BatchPerformanceSummary rows={[]} thai={false} />
+          <BoxCensusSummary rows={boxes} thai={false} />
+          <BatchPerformanceSummary rows={batches} thai={false} />
+          <TimingSummary
+            rows={[
+              {
+                stageOrder: 1,
+                stageLabel: "Unknown timing",
+                medianDeviationH: null,
+                q1DeviationH: "bad",
+                q3DeviationH: 1,
+              },
+            ]}
+            thai={false}
+          />
+          <ControlSummary
+            points={[
+              { armType: "SCNT", stageOrder: 1, n: 6, pctNormal: 1.5 },
+              { armType: "IVF", stageOrder: 2, n: 5, pctNormal: -0.5 },
+              { armType: "WT", stageOrder: 3, n: 5, pctNormal: null },
+            ]}
+            thai={false}
+          />
+          <PipelineSummary
+            points={[
+              { step: "Activated", count: 2, pctOfPrevious: null, pctOfStart: null },
+              { step: "Corrected", count: 3, pctOfPrevious: 1.5, pctOfStart: 1.5 },
+            ]}
+            thai={false}
+          />
+        </>,
+      );
+      await Promise.resolve();
+    });
+    expect(document.body.textContent).toContain("No composition data is available for this cohort.");
+    expect(document.body.textContent).toContain("No fish ages are available for this cohort.");
+    expect(document.body.textContent).toContain("No fish-box records are available for this cohort.");
+    expect(document.body.textContent).toContain("No batches are available for Day 5 comparison.");
+    expect(document.body.textContent).toContain("Showing 8 boxes; 1 more are in the full table.");
+    expect(document.body.textContent).toContain("No fish");
+    expect(document.body.textContent).toContain("Condition missing");
+    expect(document.body.textContent).toContain("Showing 8 of 9 batches; see the full table below.");
+    expect(document.body.textContent).toContain("Data-quality warning: 2 batches have due observations missing");
+    expect(document.body.textContent).toContain("Median Unknown · IQR Unknown–+1 hr");
+    expect(document.body.textContent).toContain("Unknown (n=5)");
+    expect(document.body.textContent).toContain("Data quality: a downstream count exceeds its upstream count");
     root.unmount();
   });
 });

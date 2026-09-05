@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextAttemptAt, queuedHeaders, retryDelay } from "../src/offline";
+import { nextAttemptAt, queuedHeaders, retryDelay, writeIdentity } from "../src/offline";
 
 describe("offline retry policy", () => {
   it("uses bounded exponential backoff", () => {
@@ -23,5 +23,34 @@ describe("offline retry policy", () => {
       "X-Device-Id": "device-a",
       "X-Idempotency-Key": "key-a",
     });
+  });
+
+  it("applies bounded jitter and defaults a missing content type", () => {
+    expect(retryDelay(0, () => 0)).toBe(900);
+    expect(retryDelay(0, () => 1)).toBe(1_100);
+    expect(retryDelay(99, () => 1)).toBe(900_000);
+    expect(
+      queuedHeaders({ contentType: "", operatorId: "operator-a", deviceId: "device-a", key: "key-a" })["Content-Type"],
+    ).toBe("application/json");
+  });
+
+  it("ignores client UUIDs and object key order while separating operators and devices", () => {
+    const first = writeIdentity(
+      "/batches",
+      "POST",
+      { batch: { code: "A", clientUuid: "one" }, rows: [{ id: 1 }] },
+      "a",
+      "d",
+    );
+    const same = writeIdentity(
+      "/batches",
+      "post",
+      { rows: [{ id: 1 }], batch: { clientUuid: "two", code: "A" } },
+      "a",
+      "d",
+    );
+    expect(first).toBe(same);
+    expect(writeIdentity("/batches", "POST", { batch: { code: "A" } }, "b", "d")).not.toBe(first);
+    expect(writeIdentity("/batches", "POST", { batch: { code: "A" } }, "a", "other")).not.toBe(first);
   });
 });

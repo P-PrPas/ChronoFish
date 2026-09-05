@@ -10,7 +10,7 @@
     "format": "biome check src tests --write",
     "build": "tsc --noEmit && vite build",
     "check": "npm run lint && npm run build",
-    "test": "npm run build && vitest run"
+    "test": "vitest run"
   },
   "dependencies": {
     "react": "^19.1.1",
@@ -21,6 +21,7 @@
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.2",
+    "@vitest/coverage-v8": "^4.1.11",
     "fake-indexeddb": "^6.2.5",
     "happy-dom": "^20.11.6",
     "openapi-typescript": "^7.13.0",

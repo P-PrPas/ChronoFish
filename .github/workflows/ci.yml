@@ -41,7 +41,8 @@ jobs:
           npm run lint
           npm run generate:api
           git diff --exit-code -- src/api/schema.d.ts
-          npm test -- --run
+          npm run build
+          npm test -- --coverage
       - name: Validate Compose files
         run: |
           docker compose -f compose.yaml config

@@ -121,7 +121,7 @@ change is deliberately scoped to the overall experiment pipeline.
 - `frontend/src/api/schema.d.ts`
   - regenerated from the OpenAPI contract; no hand-written frontend runtime
     change is needed in Phase 0.
-- `docs/RESEARCH_RESULTS_REDESIGN_REPORT.md`
+- `docs/design/RESEARCH_RESULTS_REDESIGN_REPORT.md`
   - this Phase 0 analytical record.
 
 ## Accessibility and responsive impact
@@ -213,7 +213,7 @@ changes presentation and navigation only; Phase 0 API semantics remain intact.
 - `frontend/tests/dashboard.test.tsx` — URL/filter preservation and popstate,
   invalid-tab fallback, per-tab KPI context, readable scope metadata, filter
   disclosure actions, and compact observation-gap navigation.
-- `docs/RESEARCH_RESULTS_REDESIGN_REPORT.md` — this Phase 1 record.
+- `docs/design/RESEARCH_RESULTS_REDESIGN_REPORT.md` — this Phase 1 record.
 
 ### Accessibility and responsive behavior
 
@@ -312,7 +312,7 @@ recorded” and “exploratory, not causal.”
   and grouped dashboard regression coverage.
 - `api/openapi.yaml` and `frontend/src/api/schema.d.ts` — documented and
   regenerated grouping parameters.
-- `docs/RESEARCH_RESULTS_REDESIGN_REPORT.md` — this Phase 2 record.
+- `docs/design/RESEARCH_RESULTS_REDESIGN_REPORT.md` — this Phase 2 record.
 
 ### Accessibility and responsive behavior
 

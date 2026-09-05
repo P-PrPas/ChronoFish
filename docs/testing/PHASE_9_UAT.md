@@ -43,7 +43,7 @@ This is the handoff sheet for the deployment owner. Automated checks belong in C
 | T-22 | | | |
 | T-23 | | | |
 
-Use the test definitions and expected results in `docs/KUVTH_Zebrafish_LIMS_SRS.md`. T-23 must include the reconciled Excel comparison, not only a screenshot of the export.
+Use the test definitions and expected results in `docs/requirements/KUVTH_Zebrafish_LIMS_SRS.md`. T-23 must include the reconciled Excel comparison, not only a screenshot of the export.
 
 ## Release gates
 

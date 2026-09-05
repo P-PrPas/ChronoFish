@@ -20,6 +20,10 @@ def main() -> None:
 
         migrate(config)
         return
+    if config.db_driver != "memory":
+        from .store.migrations import migrate
+
+        migrate(config)
     uvicorn.run("chronofish.app:create_app", factory=True, host="0.0.0.0", port=config.port)
 
 

@@ -10,10 +10,10 @@ import {
   rejectedQueueItems,
   retryRejected,
 } from "../src/offline";
+import { withoutIndexedDB } from "./helpers";
 
 describe("browser offline replay", () => {
   afterEach(() => {
-    if (typeof indexedDB !== "undefined") indexedDB.deleteDatabase("chronofish");
     localStorage.clear();
     sessionStorage.clear();
     vi.restoreAllMocks();
@@ -214,5 +214,23 @@ describe("browser offline replay", () => {
     localStorage.setItem("chronofish.device_id", "device-a");
 
     await expect(putQueue("/batches", { batchCode: "NO-DATABASE" })).rejects.toThrow();
+  });
+
+  it("falls back to a direct request when IndexedDB is absent", async () => {
+    withoutIndexedDB();
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    localStorage.setItem("chronofish.operator_id", "operator-a");
+    localStorage.setItem("chronofish.device_id", "device-a");
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: "batch-1" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(putQueue("/batches", { batchCode: "DIRECT" })).resolves.toEqual({ id: "batch-1" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(await queueCount()).toBe(0);
   });
 });
