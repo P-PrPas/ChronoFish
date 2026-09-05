@@ -1,25 +1,21 @@
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { vi } from "vitest";
 
-export type FetchHandler = (url: URL, init: RequestInit) => Response | Promise<Response>;
-
-export function resetBrowserState(): void {
+export async function resetBrowserState(): Promise<void> {
   localStorage.clear();
   sessionStorage.clear();
   window.location.hash = "";
-  if (typeof indexedDB !== "undefined") indexedDB.deleteDatabase("chronofish");
+  if (typeof indexedDB === "undefined") return;
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase("chronofish");
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => reject(new Error("chronofish IndexedDB is still open"));
+  });
 }
 
-export function stubFetch(routes: Record<string, FetchHandler | Response>) {
-  const fetchSpy = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
-    const url = new URL(typeof input === "string" ? input : input.toString(), window.location.origin);
-    const handler = routes[`${url.pathname}${url.search}`] ?? routes[url.pathname];
-    if (!handler) throw new Error(`Unexpected fetch: ${url.pathname}${url.search}`);
-    return handler instanceof Response ? handler.clone() : handler(url, init);
-  });
-  vi.stubGlobal("fetch", fetchSpy);
-  return fetchSpy;
+export function withoutIndexedDB(): void {
+  Reflect.deleteProperty(window, "indexedDB");
 }
 
 export async function renderPage(

@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Due, nextCheckpoints } from "../src/pages/due";
 import { text } from "../src/types";
+import { withoutIndexedDB } from "./helpers";
 
 const json = (value: unknown, status = 200) =>
   new Response(JSON.stringify(value), {
@@ -66,7 +67,10 @@ const checkpoint = {
 };
 
 describe("due and checkpoint workflows", () => {
-  beforeEach(() => sessionStorage.setItem("chronofish.operator_id", "operator-1"));
+  beforeEach(() => {
+    withoutIndexedDB();
+    sessionStorage.setItem("chronofish.operator_id", "operator-1");
+  });
   afterEach(() => {
     document.body.innerHTML = "";
     sessionStorage.clear();

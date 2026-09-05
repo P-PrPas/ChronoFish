@@ -1,6 +1,6 @@
 # Test Report
 
-Run date: 2026-09-02
+Run date: 2026-09-05
 Branch: `test/comprehensive-test-suite`
 
 ## Local verification
@@ -9,7 +9,7 @@ Branch: `test/comprehensive-test-suite`
 |---|---|
 | Backend unit suite | 183 passed, 5 skipped (SQL integration requires `CHRONOFISH_TEST_DATABASE_URL`) |
 | Backend full coverage | 82% lines (target is 90%) |
-| Frontend coverage | 144 passed; 87.85% lines and 78.00% branches |
+| Frontend coverage | 145 passed; 87.86% lines and 78.00% branches |
 | Frontend type/lint/build | passed (`npm run check`) |
 
 ## Exit-criteria status

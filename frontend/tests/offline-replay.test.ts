@@ -10,10 +10,10 @@ import {
   rejectedQueueItems,
   retryRejected,
 } from "../src/offline";
+import { withoutIndexedDB } from "./helpers";
 
 describe("browser offline replay", () => {
   afterEach(() => {
-    if (typeof indexedDB !== "undefined") indexedDB.deleteDatabase("chronofish");
     localStorage.clear();
     sessionStorage.clear();
     vi.restoreAllMocks();
@@ -217,6 +217,7 @@ describe("browser offline replay", () => {
   });
 
   it("falls back to a direct request when IndexedDB is absent", async () => {
+    withoutIndexedDB();
     Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
     localStorage.setItem("chronofish.operator_id", "operator-a");
     localStorage.setItem("chronofish.device_id", "device-a");

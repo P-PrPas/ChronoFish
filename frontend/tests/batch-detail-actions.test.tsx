@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Batches } from "../src/pages/batches";
 import { text } from "../src/types";
+import { withoutIndexedDB } from "./helpers";
 
 const json = (value: unknown) =>
   new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
@@ -15,7 +16,10 @@ const settle = async () => {
 };
 
 describe("batch detail actions", () => {
-  beforeEach(() => sessionStorage.setItem("chronofish.operator_id", "operator-1"));
+  beforeEach(() => {
+    withoutIndexedDB();
+    sessionStorage.setItem("chronofish.operator_id", "operator-1");
+  });
   afterEach(() => {
     document.body.innerHTML = "";
     vi.restoreAllMocks();

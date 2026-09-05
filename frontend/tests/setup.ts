@@ -1,14 +1,15 @@
 import "fake-indexeddb/auto";
+import { indexedDB as fakeIndexedDB } from "fake-indexeddb";
 import { afterEach, beforeEach, vi } from "vitest";
 import { resetBrowserState } from "./helpers";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const reportError = console.error.bind(console);
 
-beforeEach(() => {
+beforeEach(async () => {
   if (typeof window !== "undefined") {
-    resetBrowserState();
-    delete (window as Partial<Window>).indexedDB;
+    Object.defineProperty(window, "indexedDB", { configurable: true, value: fakeIndexedDB });
+    await resetBrowserState();
   }
   vi.stubGlobal("console", {
     ...console,

@@ -3,14 +3,15 @@
 import { indexedDB as fakeIndexedDB } from "fake-indexeddb";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import App, { markInvalidFields } from "../src/App";
 import { drainQueue, putQueue, rejectedQueueCount } from "../src/offline";
 import { text } from "../src/types";
+import { withoutIndexedDB } from "./helpers";
 
 describe("browser shell workflows", () => {
+  beforeEach(withoutIndexedDB);
   afterEach(() => {
-    if (typeof indexedDB !== "undefined") indexedDB.deleteDatabase("chronofish");
     document.body.innerHTML = "";
     localStorage.clear();
     sessionStorage.clear();

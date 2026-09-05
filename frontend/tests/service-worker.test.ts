@@ -1,10 +1,11 @@
 // @vitest-environment node
-import { readFile } from "node:fs/promises";
 import { runInNewContext } from "node:vm";
 import { expect, test, vi } from "vitest";
+import { serviceWorkerSource } from "../src/service-worker";
+
+const source = serviceWorkerSource(["/", "/manifest.webmanifest", "/assets/app.js"]);
 
 test("service worker leaves API requests to the network", async () => {
-  const source = await readFile(new URL("../dist/sw.js", import.meta.url), "utf8");
   type FetchEvent = { request: Request; respondWith: (response: unknown) => void };
   let onFetch: ((event: FetchEvent) => void) | undefined;
   const self = {
@@ -22,7 +23,6 @@ test("service worker leaves API requests to the network", async () => {
 });
 
 test("service worker prefers the deployed shell for online navigation", async () => {
-  const source = await readFile(new URL("../dist/sw.js", import.meta.url), "utf8");
   type FetchEvent = { request: Request; respondWith: (response: Promise<Response>) => void };
   let onFetch: ((event: FetchEvent) => void) | undefined;
   const self = {

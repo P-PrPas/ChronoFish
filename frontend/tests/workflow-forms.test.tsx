@@ -8,14 +8,17 @@ import { Batches } from "../src/pages/batches";
 import { Fish } from "../src/pages/fish";
 import { Controls, Promotions, Timing } from "../src/pages/settings";
 import { text } from "../src/types";
+import { withoutIndexedDB } from "./helpers";
 
 const json = (value: unknown) =>
   new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
 
 describe("lab workflow forms", () => {
-  beforeEach(() => sessionStorage.setItem("chronofish.operator_id", "operator-1"));
+  beforeEach(() => {
+    withoutIndexedDB();
+    sessionStorage.setItem("chronofish.operator_id", "operator-1");
+  });
   afterEach(() => {
-    if (typeof indexedDB !== "undefined") indexedDB.deleteDatabase("chronofish");
     document.body.innerHTML = "";
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -408,7 +411,7 @@ describe("lab workflow forms", () => {
     );
     expect(post).not.toBeUndefined();
     expect(JSON.parse(String(post?.[1]?.body)).promotions).toHaveLength(1);
-    expect(document.body.textContent).toContain("No eligible embryo promotions");
+    await vi.waitFor(() => expect(document.body.textContent).toContain("No eligible embryo promotions"));
     root.unmount();
   });
 
